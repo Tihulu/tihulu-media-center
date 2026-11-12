@@ -59,6 +59,8 @@ def directory(path: Path, *, optional: bool = False) -> bool:
         fail(f"Missing owned directory: {path}")
     if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.geteuid():
         fail(f"Not owned real directory: {path}")
+    if st.st_mode & 0o022:
+        fail(f"Insecure group/other-writable managed directory: {path}")
     return True
 
 
@@ -79,6 +81,8 @@ def iter_entries(root: Path):
             if st.st_uid != os.geteuid():
                 fail(f"Foreign owner in preview release: {rel}")
             if stat.S_ISDIR(st.st_mode):
+                if st.st_mode & 0o022:
+                    fail(f"Writable release directory: {rel}")
                 yield rel, {"type": "dir"}
             elif stat.S_ISREG(st.st_mode):
                 yield rel, {"type": "file", "sha256": digest(path)}
@@ -188,17 +192,41 @@ def uninstall(home: Path) -> None:
         profile = root / "preview-home"
         if profile.exists() or profile.is_symlink():
             directory(profile)
-        # No deletion until *all* paths and contents pass ownership audit.
+        # Repeat verification immediately before ANY removal. This catches
+        # deterministic verify-then-mutate races; cooperative flock holds.
+        directory(root)
+        if exists:
+            directory(releases)
+        for entry in names.values():
+            verify_release(entry)
+        for file, expected in ((launcher, LAUNCH),
+                               (desktop, desktop_text(home, root))):
+            if present(file):
+                exact_owned_text(file, expected, file.name)
+        verify_links(root, set(names))
         for file in (launcher, desktop):
-            if file.exists():
-                file.unlink()
+            if present(file):
+                unlink_verified_entrypoint(file, LAUNCH if file == launcher else desktop_text(home, root))
         for name in ("current", "previous"):
             pointer = root / name
             if pointer.is_symlink():
                 pointer.unlink()
-        for release in names.values():
-            shutil.rmtree(release)
         if exists:
+            # rmtree's Linux fd-safe traversal is rooted in the originally
+            # opened releases directory, not a newly substituted pathname.
+            releasesfd = os.open(releases, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                for release in names.values():
+                    directory(releases)
+                    verify_release(release)
+                    pinned = release.lstat()
+                    current = os.stat(release.name, dir_fd=releasesfd, follow_symlinks=False)
+                    if ((pinned.st_dev, pinned.st_ino) != (current.st_dev, current.st_ino)
+                            or not stat.S_ISDIR(current.st_mode)):
+                        fail("Release substituted between verification and deletion")
+                    shutil.rmtree(release.name, dir_fd=releasesfd)
+            finally:
+                os.close(releasesfd)
             releases.rmdir()
         # Deliberately preserve ownership marker and lock for safe reinstall.
         # Deliberately retain preview-home: may contain recordings, settings,
@@ -208,6 +236,25 @@ def uninstall(home: Path) -> None:
         print("Owned preview launcher, desktop entry and built releases removed.")
     finally:
         os.close(fd)
+
+
+
+def unlink_verified_entrypoint(path: Path, expected: str) -> None:
+    """Unlink via an owned parent FD, never a retargeted parent symlink."""
+    directory(path.parent)
+    pfd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        opened = os.fstat(pfd)
+        parent = path.parent.lstat()
+        if (opened.st_ino, opened.st_dev) != (parent.st_ino, parent.st_dev):
+            fail("Entrypoint parent replaced before unlink")
+        exact_owned_text(path, expected, path.name)
+        entry = os.stat(path.name, dir_fd=pfd, follow_symlinks=False)
+        if not stat.S_ISREG(entry.st_mode) or entry.st_uid != os.geteuid() or entry.st_nlink != 1:
+            fail("Entrypoint switched before deletion")
+        os.unlink(path.name, dir_fd=pfd)
+    finally:
+        os.close(pfd)
 
 
 def desktop_text(home: Path, root: Path) -> str:
@@ -330,8 +377,21 @@ def secure_lock(home: Path) -> int:
             part.mkdir(mode=0o700)
         directory(part)
     lock = home / ".local/opt" / SERIAL_LOCK
-    fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    # Open lock relative to a verified directory FD; pathname substitution
+    # cannot redirect open() through a new symlinked lock-parent directory.
+    parent = lock.parent
+    directory(parent)
+    parentfd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
     try:
+        opened_parent, pathname_parent = os.fstat(parentfd), parent.lstat()
+        if (opened_parent.st_dev, opened_parent.st_ino) != (pathname_parent.st_dev, pathname_parent.st_ino):
+            fail("Operations lock parent was replaced before opening")
+        fd = os.open(SERIAL_LOCK, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC,
+                     0o600, dir_fd=parentfd)
+    finally:
+        os.close(parentfd)
+    try:
+        directory(parent)
         st, pathst = os.fstat(fd), lock.lstat()
         if (not stat.S_ISREG(st.st_mode) or st.st_uid != os.geteuid()
                 or st.st_nlink != 1 or st.st_mode & 0o077
@@ -350,6 +410,11 @@ def secure_lock(home: Path) -> int:
 
 
 def verify_guard(home: Path, fd: int) -> None:
+    # Recheck ancestors on every mutating CLI boundary, not just the lock
+    # inode: a renamed or writable parent invalidates the guard.
+    root, _, _ = paths(home)
+    directory(root, optional=True)
+    directory(root / "releases", optional=True)
     lock = home / ".local/opt" / SERIAL_LOCK
     opened, current = os.fstat(fd), lock.lstat()
     if (not stat.S_ISREG(opened.st_mode) or opened.st_uid != os.geteuid()
