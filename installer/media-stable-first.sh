@@ -361,6 +361,9 @@ chmod 755 "$stage/bin/tihulu-media-stable"
 sha256sum "$stage/native/bin/kaffeine" > "$stage/NATIVE-BINARY-SHA256.txt"
 python3 "$SCRIPT_DIR/preview_safety.py" prepare-release "$stage"
 # Publish complete release BEFORE changing the stable symlink.
+# Verify parent directory permissions and the inherited lock just before
+# publishing the complete release. No automatic repair or chmod.
+lock_owned
 mv -T -- "$stage" "$final"
 stage=""
 old=""
@@ -374,6 +377,8 @@ fi
 # pre-existing owner launcher/desktop, even after a checked pathname races.
 python3 "$SCRIPT_DIR/preview_safety.py" publish-entrypoints ||
   die 'Could not safely publish owned launcher and desktop entries'
+# Recheck managed parent/lock identities at the final activation boundary.
+lock_owned
 if [[ -n "$old" ]]; then atomic_link "$old" "$APPROOT/previous"; fi
 atomic_link "$final" "$APPROOT/current"
 log "Preview installed (user-only): $final"
