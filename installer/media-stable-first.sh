@@ -1,0 +1,297 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Standalone, consent-gated preview installer. No system/service/tuner writes.
+set -Eeuo pipefail
+umask 077
+
+SNAPSHOT=7821769eb7aed576dd426ec18ffce3696d93a00d
+SNAPSHOT_TREE=d471b3aa4e546e8d790512df37fad763254023c6
+KAFFEINE=e7ea15b86dafed3b20b151cbcb080578ab8e2d5c
+KAFFEINE_TAG=v2.0.19
+MODE=""
+NO_AI=0
+ALLOW_APT=0
+APPROOT="${HOME}/.local/opt/tihulu-media-stable"
+LAUNCHER="${HOME}/.local/bin/tihulu-media-stable"
+DESKTOP="${HOME}/.local/share/applications/tihulu-media-stable.desktop"
+PACKAGES=(git ca-certificates cmake g++ make pkg-config extra-cmake-modules
+  qtbase5-dev libqt5x11extras5-dev libkf5coreaddons-dev
+  libkf5dbusaddons-dev libkf5i18n-dev libkf5kio-dev libkf5solid-dev
+  libkf5widgetsaddons-dev libkf5windowsystem-dev libkf5xmlgui-dev
+  libvlc-dev libx11-dev libxss-dev libdvbv5-dev libudev-dev
+  libqt5sql5-sqlite vlc python3 python3-pyqt5 ffmpeg mpv dvb-tools psmisc)
+
+usage() {
+  cat <<'HELP'
+Usage: bash installer/media-stable-first.sh MODE [--no-ai] [--allow-apt]
+Modes:
+  --check      Read-only pinned-source, OS and dependency preflight
+  --dry-run    Read-only operation plan (does not install anything)
+  --install    Build KDE Kaffeine and the pinned AI companion in HOME only
+  --rollback   Atomically restore prior TIHULU stable launcher (or deactivate)
+Options:
+  --no-ai      No model installation; AI source modules remain available
+  --allow-apt  Opt in to INTERACTIVE sudo/apt approval if dependencies missing
+No mode downloads AI models. Existing Kaffeine, apps, models, settings, recordings,
+channels, tuners and background services are never modified by this script.
+HELP
+}
+die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+log() { printf 'TIHULU stable-first: %s\n' "$*"; }
+for arg in "$@"; do
+  case "$arg" in
+    --check|--dry-run|--install|--rollback)
+      [[ -z "$MODE" ]] || die 'Select exactly one mode'; MODE="$arg" ;;
+    --no-ai) NO_AI=1 ;;
+    --allow-apt) ALLOW_APT=1 ;;
+    --help|-h) usage; exit 0 ;;
+    *) usage >&2; die "Unknown argument: $arg" ;;
+  esac
+done
+[[ -n "$MODE" ]] || { usage >&2; exit 2; }
+(( EUID != 0 )) || die 'Run as an ordinary desktop user, never root'
+[[ "$HOME" == /* && "$HOME" != / ]] || die 'HOME must be an absolute user path'
+
+atomic_link() {
+  local target="$1" link="$2" tmp="${2}.new.$$"
+  [[ ! -e "$link" || -L "$link" ]] || die "Refusing to replace non-symlink: $link"
+  [[ ! -e "$tmp" && ! -L "$tmp" ]] || die "Temporary link exists: $tmp"
+  ln -s -- "$target" "$tmp"
+  mv -Tf -- "$tmp" "$link"
+}
+rollback() {
+  [[ -d "$APPROOT" && ! -L "$APPROOT" ]] || die 'No owned stable installation directory'
+  command -v flock >/dev/null || die 'flock is required for safe rollback'
+  exec 9>"$APPROOT/.install.lock"
+  flock -n 9 || die 'Another stable installer or rollback is active'
+  local current="$APPROOT/current" previous="$APPROOT/previous" old=""
+  [[ -L "$current" ]] || die 'No active stable release to roll back'
+  old="$(readlink "$current")"
+  if [[ -L "$previous" ]]; then
+    local target
+    target="$(readlink "$previous")"
+    [[ -d "$target" && "$target" == "$APPROOT"/releases/* ]] || die 'Invalid rollback target'
+    atomic_link "$target" "$current"
+    atomic_link "$old" "$previous"
+    log "Restored previous release: $target; previous active release kept for reactivation"
+  else
+    rm -- "$current" # Owned symlink only; never delete installed releases.
+    log 'First release deactivated; existing user data and release files preserved'
+  fi
+}
+if [[ "$MODE" == --rollback ]]; then rollback; exit 0; fi
+
+[[ "$(uname -s)" == Linux && -r /etc/os-release ]] || die 'Linux/Debian-family only'
+# shellcheck disable=SC1091
+. /etc/os-release
+case " ${ID:-} ${ID_LIKE:-} " in
+  *debian*|*ubuntu*|*pop*|*raspbian*) ;;
+  *) die "Unsupported OS: ${ID:-unknown}; no apt action attempted" ;;
+esac
+for command in git dpkg-query python3 sha256sum; do
+  command -v "$command" >/dev/null || die "Required read-only checker missing: $command"
+done
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+REPO="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)" || die 'Run from a Git checkout (not an unreviewed internet pipe)'
+[[ -f "$REPO/manifest.json" ]] || die 'Snapshot manifest not found'
+git -C "$REPO" cat-file -e "${SNAPSHOT}^{commit}" || die 'Pinned snapshot commit missing; fetch it explicitly before installing'
+actual_tree="$(git -C "$REPO" rev-parse "${SNAPSHOT}^{tree}")"
+[[ "$actual_tree" == "$SNAPSHOT_TREE" ]] || die "Snapshot tree differs: $actual_tree"
+for path in \
+  source/installed-package/tv_center/__main__.py \
+  source/installed-package/textcenter/__main__.py \
+  source/installed-package/kaffeine_next/patch_upstream.py \
+  source/installed-package/kaffeine_next/native_radio_tab.h \
+  source/installed-package/kaffeine_next/native_unified_recorder.h; do
+  git -C "$REPO" cat-file -e "$SNAPSHOT:$path" || die "Pinned source missing: $path"
+done
+# Never allow a source symlink to resolve into unapproved local directories.
+if git -C "$REPO" ls-tree -r "$SNAPSHOT" -- source/installed-package/ |
+    grep -q '^120000 blob '; then
+  die 'Pinned source contains symbolic links; refusing extraction'
+fi
+log "Source commit: $SNAPSHOT"
+log "Source tree:   $SNAPSHOT_TREE"
+log "KDE Kaffeine:  $KAFFEINE ($KAFFEINE_TAG)"
+log 'Sole application source variant: source/installed-package/{tv_center,textcenter,kaffeine_next}'
+log 'No legacy install.sh and no TEXT-CENTER development branch will execute'
+
+missing=()
+for package in "${PACKAGES[@]}"; do
+  if [[ "$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)" != 'install ok installed' ]]; then
+    missing+=("$package")
+  fi
+done
+if (("${#missing[@]}" > 0)); then
+  printf 'Missing APT build/runtime packages (%d): %s\n' "${#missing[@]}" "${missing[*]}" >&2
+else
+  log 'APT dependency inventory complete'
+fi
+if [[ "$MODE" == --dry-run ]]; then
+  log 'DRY RUN ONLY: would verify upstream pinned SHA, stage modules, patch/build Kaffeine'
+  log "DRY RUN ONLY: would stage to $APPROOT/releases/ and atomically select current"
+  log "DRY RUN ONLY: would create dedicated launcher $LAUNCHER and desktop entry"
+  log "DRY RUN ONLY: AI models/downloads=OFF (no-ai=$NO_AI); sudo/apt only with separate confirmation"
+  log 'DRY RUN ONLY: rollback exchanges owned symlinks, never deletes user files'
+  exit 0
+fi
+if [[ "$MODE" == --check ]]; then
+  (("${#missing[@]}" == 0)) || { log 'CHECK HOLD: missing dependencies; no changes made'; exit 3; }
+  log 'CHECK PASS: source provenance and dependencies; native build and hardware NOT verified'
+  exit 0
+fi
+
+if (("${#missing[@]}" > 0)); then
+  (( ALLOW_APT == 1 )) || die 'Install blocked: missing dependencies. Re-run with --allow-apt for an interactive approval, or install them separately.'
+  [[ -t 0 && -t 1 ]] || die 'APT approval requires an interactive terminal'
+  printf 'APT packages to install: %s\n' "${missing[*]}"
+  read -r -p 'Type INSTALL APT to approve sudo apt-get update/install: ' approval
+  [[ "$approval" == 'INSTALL APT' ]] || die 'APT permission not granted'
+  sudo apt-get update
+  sudo apt-get install --no-install-recommends -- "${missing[@]}"
+  for package in "${missing[@]}"; do
+    [[ "$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)" == 'install ok installed' ]] || die "Package still missing: $package"
+  done
+fi
+for command in cmake c++ make tar mktemp mv ln; do
+  command -v "$command" >/dev/null || die "Build dependency executable missing: $command"
+done
+[[ ! -L "$APPROOT" ]] || die 'Application root must not be a symlink'
+# Reinstall/upgrade is allowed only for exact application-owned launchers.
+if [[ -e "$LAUNCHER" || -L "$LAUNCHER" ]]; then
+  if [[ ! -f "$LAUNCHER" || -L "$LAUNCHER" ]]; then
+    die "Existing launcher is not ours: $LAUNCHER"
+  fi
+  # shellcheck disable=SC2016 # Match literal shell source, do not expand
+  if ! grep -Fxq 'exec "$HOME/.local/opt/tihulu-media-stable/current/bin/tihulu-kaffeine" "$@"' "$LAUNCHER"; then
+    die "Existing launcher is not ours: $LAUNCHER"
+  fi
+fi
+if [[ -e "$DESKTOP" || -L "$DESKTOP" ]]; then
+  if [[ ! -f "$DESKTOP" || -L "$DESKTOP" ]]; then
+    die "Existing desktop entry is not ours: $DESKTOP"
+  fi
+  if ! grep -Fxq 'X-TIHULU-StableFirst=true' "$DESKTOP"; then
+    die "Existing desktop entry is not ours: $DESKTOP"
+  fi
+fi
+command -v flock >/dev/null || die 'flock is required for safe installation'
+mkdir -p -- "$APPROOT/releases" "$HOME/.local/bin" "$HOME/.local/share/applications"
+exec 9>"$APPROOT/.install.lock"
+flock -n 9 || die 'Another stable installer or rollback is active'
+work="$(mktemp -d "$APPROOT/.work.XXXXXXXX")"
+stage="$(mktemp -d "$APPROOT/.stage.XXXXXXXX")"
+cleanup() {
+  if [[ -n "${work:-}" && -d "$work" ]]; then rm -rf -- "$work"; fi
+  if [[ -n "${stage:-}" && -d "$stage" ]]; then rm -rf -- "$stage"; fi
+}
+trap cleanup EXIT
+mkdir -p "$stage/py" "$stage/bin" "$stage/native" "$work/snapshot"
+git -C "$REPO" archive "$SNAPSHOT" -- source/installed-package | tar -x -C "$work/snapshot"
+for module in tv_center textcenter kaffeine_next; do
+  cp -a -- "$work/snapshot/source/installed-package/$module" "$stage/py/$module"
+done
+# Keep provenance and source mapping next to the user-level release.
+printf 'snapshot_commit=%s\nsnapshot_tree=%s\nsource_variant=installed-package\nkaffeine_commit=%s\nkaffeine_tag=%s\nno_automatic_models=true\n' \
+  "$SNAPSHOT" "$SNAPSHOT_TREE" "$KAFFEINE" "$KAFFEINE_TAG" > "$stage/SOURCE-PROVENANCE.txt"
+git -C "$REPO" show "$SNAPSHOT:manifest.json" > "$stage/original-manifest.json"
+log 'Cloning only KDE Kaffeine v2.0.19; verifying exact revision before modification'
+git clone --quiet --depth 1 --single-branch --branch "$KAFFEINE_TAG" https://github.com/KDE/kaffeine.git "$work/upstream"
+actual_kaffeine="$(git -C "$work/upstream" rev-parse HEAD)"
+[[ "$actual_kaffeine" == "$KAFFEINE" ]] || die "Upstream KDE commit mismatch: $actual_kaffeine"
+PYTHONDONTWRITEBYTECODE=1 python3 "$stage/py/kaffeine_next/patch_upstream.py" "$work/upstream"
+grep -Fq 'std::prev(container.constEnd())' "$work/upstream/src/sqlinterface.h" || die 'Native SQL iterator patch missing'
+! grep -Fq 'std::prev(container.constEnd(), -1)' "$work/upstream/src/sqlinterface.h" || die 'Unsafe SQL iterator remains'
+git -C "$work/upstream" diff --check
+python3 -m compileall -q "$stage/py"
+# Distro Qt/KF5 only: avoid Conda and mismatched custom Qt plugin search paths.
+final="$APPROOT/releases/r-${SNAPSHOT:0:12}-$(date -u +%Y%m%dT%H%M%S)-$$"
+[[ ! -e "$final" ]] || die 'Chosen release destination already exists'
+build_env=(env -i "HOME=$HOME" "USER=$(id -un)" "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "LANG=C.UTF-8")
+"${build_env[@]}" cmake -S "$work/upstream" -B "$work/build" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX="$final/native"
+"${build_env[@]}" cmake --build "$work/build" --parallel 2
+# DESTDIR catches even upstream absolute paths inside isolated staging.
+# Configure with final prefix so compiled paths agree after release promotion.
+mkdir -p "$stage/DESTDIR"
+"${build_env[@]}" "DESTDIR=$stage/DESTDIR" cmake --install "$work/build"
+installed="$stage/DESTDIR$final/native"
+[[ -d "$installed" ]] || die 'Native staging prefix missing after CMake install'
+rmdir "$stage/native"
+mv -T -- "$installed" "$stage/native"
+[[ -x "$stage/native/bin/kaffeine" ]] || die 'Native Kaffeine binary missing after build'
+ln -s kaffeine "$stage/native/bin/tihulu-media-center"
+cat > "$stage/bin/tihulu-tv-center" <<'PYLAUNCH'
+#!/bin/sh
+set -eu
+release="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
+export PYTHONPATH="$release/py"
+if [ -n "${WAYLAND_DISPLAY:-}" ]; then QT_QPA_PLATFORM=xcb; export QT_QPA_PLATFORM; fi
+case "${1:-}" in
+  ''|tv|watch)
+    if [ "$#" -gt 0 ]; then shift; fi
+    exec "$release/bin/tihulu-kaffeine" "$@" ;;
+esac
+exec /usr/bin/python3 -m tv_center "$@"
+PYLAUNCH
+cat > "$stage/bin/tihulu-kaffeine" <<'NATIVELAUNCH'
+#!/bin/sh
+set -eu
+release="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
+export PATH="$release/bin:$PATH"
+export PYTHONPATH="$release/py"
+if [ -n "${WAYLAND_DISPLAY:-}" ]; then QT_QPA_PLATFORM=xcb; export QT_QPA_PLATFORM; fi
+if [ -z "${TIHULU_VLC_PROFILE:-}" ]; then
+  if [ -n "${WAYLAND_DISPLAY:-}" ] && [ -r /proc/driver/nvidia/version ]; then
+    TIHULU_VLC_PROFILE=software
+  else
+    TIHULU_VLC_PROFILE=auto
+  fi
+fi
+export TIHULU_VLC_PROFILE
+exec env -u LD_LIBRARY_PATH -u LD_PRELOAD -u QT_PLUGIN_PATH -u QT_QPA_PLATFORM_PLUGIN_PATH \
+  -u QML2_IMPORT_PATH -u QML_IMPORT_PATH "$release/native/bin/tihulu-media-center" "$@"
+NATIVELAUNCH
+chmod 755 "$stage/bin/tihulu-tv-center" "$stage/bin/tihulu-kaffeine"
+cat > "$stage/bin/tihulu-media-stable" <<'STABLELAUNCH'
+#!/bin/sh
+set -eu
+exec "$HOME/.local/opt/tihulu-media-stable/current/bin/tihulu-kaffeine" "$@"
+STABLELAUNCH
+chmod 755 "$stage/bin/tihulu-media-stable"
+sha256sum "$stage/native/bin/kaffeine" > "$stage/NATIVE-BINARY-SHA256.txt"
+# Publish complete release BEFORE changing the stable symlink.
+mv -T -- "$stage" "$final"
+stage=""
+old=""
+if [[ -L "$APPROOT/current" ]]; then
+  old="$(readlink "$APPROOT/current")"
+  [[ "$old" == "$APPROOT"/releases/* && -d "$old" ]] || die 'Current release symlink points outside approved release directory'
+elif [[ -e "$APPROOT/current" ]]; then
+  die 'Current release slot is not owned symlink'
+fi
+# Only create brand-new names; never replace a user's existing app launchers.
+if [[ ! -e "$LAUNCHER" ]]; then
+  install -m 755 -- "$final/bin/tihulu-media-stable" "$LAUNCHER"
+fi
+if [[ ! -e "$DESKTOP" ]]; then
+  cat > "$DESKTOP" <<DESKTOPFILE
+[Desktop Entry]
+Type=Application
+Name=TIHULU Media Center (Stable-First Preview)
+GenericName=TV · DAB+ · Radio · AI subtitles
+Exec=$LAUNCHER
+TryExec=$LAUNCHER
+Icon=$APPROOT/current/py/kaffeine_next/assets/tihulu-media-center.svg
+StartupWMClass=tihulu-media-center
+Terminal=false
+Categories=AudioVideo;Video;TV;Audio;Player;
+X-TIHULU-StableFirst=true
+DESKTOPFILE
+fi
+if [[ -n "$old" ]]; then atomic_link "$old" "$APPROOT/previous"; fi
+atomic_link "$final" "$APPROOT/current"
+log "Preview installed (user-only): $final"
+log "Start on demand: $LAUNCHER"
+log "Revert: bash $SCRIPT_DIR/media-stable-first.sh --rollback"
+log 'Hardware, system Kaffeine, user models, recordings and existing settings have not been intentionally opened or edited'
+log 'Install does NOT prove hardware/runtime equivalence; acceptance remains HOLD'

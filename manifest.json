@@ -1,0 +1,19 @@
+{
+  "candidate_checkout_heads": {
+    "TIHULU-TEXT-CENTER": "7cf810ed5730d7e774ec94b4f3dba00bb16c6baf",
+    "TIHULU-TEXT-CENTER-audio-fix": "3a9a9ad911caa2a1e005483693974d695ac5d1fa",
+    "TIHULU-TEXT-CENTER-dab": "e2e48c2c8e5cd5ce025870e7df1123dfea0a1d19",
+    "tihulu-media-fix-1108": "426feb2ec386cc5bd114062aa08bee797c785c92",
+    "tihulu-tv-dev": "381422cc4e4a4118a8c63308a227bb2f678824f2"
+  },
+  "compiled_binary_in_public_repo": false,
+  "installed_binary_sha256_reported": "1211bd5f8e16267d4b7f7b537f2b2c5c218b204d786c85fa6119a0f8ffa0d502",
+  "installed_package_version_reported": "0.1.0~dev1",
+  "models_recordings_settings_in_public_repo": false,
+  "purpose": "public source-only reference for private on-device snapshot",
+  "snapshot_name": "stable-first-local-2026-11-12",
+  "source_files_staged": 455,
+  "source_snapshot": "local v3 freeze created 2026-11-12 06:56",
+  "status": "unverified rebuild/install and runtime; do not treat as stable release",
+  "upstream_kaffeine_commit_reported": "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c"
+}

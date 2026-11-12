@@ -1,0 +1,16 @@
+:root{color-scheme:dark;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;background:#0a1019;color:#e5edf7}
+*{box-sizing:border-box}body{margin:0}.shell{max-width:1450px;margin:auto;padding:28px}
+header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #293648;padding-bottom:25px;margin-bottom:23px}
+.eyebrow{color:#68bace;letter-spacing:.16em;font-weight:700;font-size:11px}
+h1{font-size:30px;margin:7px 0 0}h1 span{color:#738ca6;font-weight:400;font-size:20px}
+h2{font-size:20px;margin:8px 0 14px}.state{border:1px solid #42566b;border-radius:16px;padding:8px 15px;font-size:11px;letter-spacing:.13em}
+main{display:grid;grid-template-columns:minmax(0,2fr) minmax(320px,1fr);gap:20px}.hero,.panel{background:#141f2c;border:1px solid #293b51;border-radius:13px;padding:23px}
+.hero h2{font-size:28px}.video{min-height:270px;background:radial-gradient(ellipse at center,#1c3548,#050a10);border:1px solid #34506a;display:grid;place-items:center;color:#a6bbd0;padding:22px;text-align:center;line-height:1.6;border-radius:9px;margin:22px 0}
+.captions{background:#070e18;border-radius:9px;padding:22px;min-height:160px}.captions p{font-size:18px;line-height:1.6}.captions .translated{font-size:23px;color:#a6e4c0}
+p{line-height:1.55;color:#adbbcb}small{color:#8fa4b5}aside{display:flex;flex-direction:column;gap:16px}
+.panel h2{margin-top:0}.actions{display:flex;gap:8px;margin-top:12px}input,button{background:#0a1522;border:1px solid #49637b;border-radius:6px;padding:11px;color:#f1f8ff}
+input{width:100%;font:inherit}button{background:#245f76;cursor:pointer;white-space:nowrap}button:hover{background:#3684a0}button:disabled{opacity:.45;cursor:not-allowed}
+button.secondary{background:#293c4b}.shortcuts{display:flex;gap:6px;margin-top:9px}.shortcuts button{background:#243b4a}
+label{font-size:13px;color:#9db1c6}#page{max-width:140px}.panel a{color:#7ecfe1}
+footer{margin-top:28px;font-size:11px;color:#8099b1;letter-spacing:.13em}
+@media(max-width:850px){.shell{padding:14px}main{grid-template-columns:1fr}.video{min-height:200px}h1{font-size:24px}h1 span{display:block}.hero h2{font-size:23px}}

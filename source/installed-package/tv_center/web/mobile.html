@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="referrer" content="no-referrer"><meta name="theme-color" content="#0b1725">
+<title>TIHULU Media Center · Paired Remote</title>
+<link rel="stylesheet" href="/style.css"></head><body>
+<div class="shell">
+<header class="mobile-head"><div><div class="eyebrow">TIHULU / PAIRED LOCAL REMOTE</div>
+<h1>Media Center <span>Phone</span></h1>
+<p>Real receiver, host player, pictures and synchronized captions</p></div>
+<div class="state" id="state">NOT PAIRED</div></header>
+<section class="panel login" id="login-section"><h2>Pair this phone</h2>
+<p>On the desktop: TIHULU AI → Live captions → Allow phone/tablet on trusted Wi-Fi.
+Use the six-digit code shown on the host. Local access is opt-in and stops with the service.</p>
+<div class="actions">
+<label for="pin">6-digit pairing PIN
+<input id="pin" inputmode="numeric" type="password" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="••••••"></label>
+<button id="pair">Pair device</button><button id="leave" class="secondary" disabled>Disconnect</button></div>
+<p id="pair-note" role="status">Only use trusted private Wi-Fi or an authenticated HTTPS proxy.</p>
+</section>
+<main id="mobile-main">
+<section class="hero">
+<div class="eyebrow">NOW PLAYING</div>
+<h2 id="channel">No paired DVB receiver</h2><p id="source">Pair the native host to view an active station.</p>
+<div class="control-inline">
+<label>Where to play
+<select id="play-target"><option value="phone">Phone only</option><option value="host">Host computer only</option>
+<option value="both">Phone + host computer</option></select></label>
+<button id="apply-target" disabled>Apply target</button>
+</div>
+<div class="control-inline">
+<label>Available source
+<select id="media-source"><option value="dvb">Current host DVB channel</option><option value="captions">Captions only</option></select></label>
+<button id="apply-source" disabled>Use source</button>
+</div>
+<p id="source-capabilities" class="muted">Live TV video requires an actively tuned channel and host-authorized HLS encoding. No desktop mirroring is implied.</p>
+<div class="video" id="video-box">
+<div class="video-stage" id="fullscreen-stage">
+<video id="tv" controls playsinline preload="none"></video>
+<div id="fullscreen-captions" class="fullscreen-captions" aria-live="off">
+<div id="overlay-original" class="caption-original"></div>
+<div id="overlay-translated" class="caption-translation"></div></div>
+<div id="caption-only-stage" class="caption-only-stage" hidden><strong>Caption-only mode</strong>
+<p>Real captions from the paired receiver will appear here.</p></div>
+</div>
+<div class="actions video-actions">
+<button id="enable-host-stream" disabled>Enable phone stream on host</button>
+<button id="disable-host-stream" class="secondary" disabled>Disable host stream</button>
+<button id="start-video" disabled>Watch live TV</button>
+<button id="stop-video" class="secondary" disabled>Stop phone video</button>
+<button id="fullscreen" class="secondary" disabled>Fullscreen + captions</button>
+</div>
+<p id="video-status">No paired stream active.</p>
+</div>
+<section class="captions" id="caption-panel"><div class="eyebrow">LIVE ORIGINAL / TRANSLATION</div>
+<p id="original">Waiting for live audio or broadcast subtitles.</p>
+<p id="translated" class="translated"></p><small id="caption-source">No caption available</small>
+<div id="caption-status" class="muted" role="status"></div>
+</section>
+<section class="panel">
+<h2>Video & subtitle synchronization</h2>
+<p id="host-latency">Host latency: awaiting measured native TV buffer status.</p>
+<div class="control-inline"><label>Subtitle clock
+<select id="sync-mode">
+<option value="mobile">Follow phone video (HLS estimate)</option>
+<option value="host">Follow desktop verified buffer</option>
+<option value="manual">Manual delay only</option>
+</select></label>
+<label>Fine-tune ±20 s
+<input id="phone-offset" type="number" step="0.25" min="-20" max="20" value="0"></label></div>
+<div class="control-inline">
+<label>On video subtitles
+<select id="subtitle-display"><option value="both">Original + translations</option>
+<option value="translation">Translations only</option><option value="original">Original only</option>
+<option value="off">Off</option></select></label>
+<label>Background opacity <input id="caption-opacity" type="range" min="0" max="100" value="70"></label>
+</div>
+<p id="latency-state" class="muted">Mobile video and desktop libVLC have independent buffers. Fine adjustment applies only on this phone.</p>
+<p class="muted">Fullscreen keeps the caption layer visible on supported browsers. iOS native video fullscreen additionally uses a dynamically updated subtitle track, not permanently burned pixels. Exact lip synchronization needs transport PTS mapping.</p>
+</section>
+</section>
+<aside>
+<section class="panel"><h2>Desktop captions & TV buffer</h2>
+<div class="control-inline"><label>Source mode
+<select id="desktop-caption-mode"><option value="off">Off</option>
+<option value="teletext">Broadcaster Teletext</option>
+<option value="page">Teletext page</option>
+<option value="asr">Whisper ASR</option>
+<option value="auto">Broadcast captions → Whisper fallback</option></select></label>
+<button id="desktop-apply-mode" disabled>Apply to computer</button></div>
+<div class="control-inline">
+<label>Desktop caption offset (seconds)
+<input type="number" min="-10" max="10" step="0.25" id="desktop-offset" value="0"></label>
+<button id="desktop-apply-offset" disabled>Apply offset</button></div>
+<div class="control-inline"><label>Desktop TV buffer (seconds)
+<input type="number" min="0" max="20" step="0.5" id="desktop-buffer" value="0"></label>
+<button id="desktop-apply-buffer" disabled>Apply buffer</button></div>
+<div class="actions wrap"><button id="desktop-captions-start" disabled>Start desktop captions</button>
+<button id="desktop-captions-stop" disabled>Stop desktop captions</button></div>
+<p id="desktop-caption-status" class="muted">All changes run inside the native GUI and the receiver's buffer must acknowledge them.</p></section>
+<section class="panel"><h2>Host playback</h2>
+<div class="actions wrap">
+<button id="host-play" disabled>Play</button><button id="host-pause" disabled>Pause</button>
+<button id="host-stop" disabled>Stop</button>
+<button id="host-prev" disabled>Previous</button><button id="host-next" disabled>Next</button></div>
+<div class="control-inline"><label>Host volume (0–100) <input id="host-volume" type="range" min="0" max="100" value="60"></label>
+<button id="set-host-volume" disabled>Set volume</button><button id="mute-host" disabled class="secondary">Mute host audio</button></div>
+<div class="control-inline"><label>TV channel name or number <input id="tv-channel" maxlength="90" placeholder="e.g. ZDF HD"></label>
+<button id="tune-tv" disabled>Tune host TV</button></div>
+<p class="muted">Host controls use the running native player's D-Bus interface; availability depends on the host. They do not open another tuner.</p>
+<p id="host-feedback" role="status"></p>
+</section>
+<section class="panel"><h2>Teletext</h2>
+<div class="actions"><input id="page" type="number" min="100" max="899" value="150">
+<button id="open-page" disabled>Open page</button></div>
+<div class="shortcuts"><button data-page="100">100</button><button data-page="150">150</button><button data-page="777">777</button></div>
+<p id="teletext-result" class="muted">Teletext requires native DVB packets.</p></section>
+<div id="web-control-root"></div>
+<section class="panel"><h2>Other sources</h2>
+<p>Music files, DAB slideshow images and host-owned radio streaming use the separately authorized Remote Media Hub. They are not fabricated from a TV caption service.</p>
+<p>For video streaming, the host must explicitly enable the encoder. DRM/DVD capture and arbitrary desktop screen mirroring are not supported.</p></section>
+</aside></main>
+<footer>PRIVATE PAIRED HOST · REAL MPEG-TS / WHISPER DATA · NO PUBLIC INTERNET SERVICE</footer>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script>
+<script src="/mobile.js"></script><script src="/web-controls.js"></script>
+</body></html>

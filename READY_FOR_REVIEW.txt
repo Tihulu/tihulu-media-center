@@ -1,0 +1,2 @@
+Local staging only. Not a verified installable release.
+You must inspect SECURITY-REVIEW.txt before a PUBLIC GitHub push.

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>TIHULU TV Center · Web companion</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div class="shell">
+<header><div><div class="eyebrow">TIHULU / MEDIA</div><h1>TV Center <span>Web Companion</span></h1></div>
+<div class="state" id="state">DISCONNECTED</div></header>
+<main>
+<section class="hero">
+<div class="eyebrow">RECEIVER SESSION</div>
+<h2 id="channel">No local receiver connected</h2>
+<p id="source">This GitHub Pages interface contains no antenna driver and shows no simulated broadcast.</p>
+<div class="video"><span>Live video is available in the native Linux application. A browser-compatible streaming relay is not yet implemented.</span></div>
+<section class="captions"><div class="eyebrow">LIVE CAPTIONS / TRANSLATION</div>
+<p id="original">Connect to a local TV Center session to receive actual decoded text.</p>
+<p id="translated" class="translated"></p><small id="caption-source">No transcript received</small></section>
+</section>
+<aside>
+<section class="panel"><h2>Local receiver bridge</h2>
+<p>Start TIHULU TV Center on Debian / Pop!_OS / Raspberry Pi 5. Enable the web bridge explicitly and paste its temporary token below. All audio and inference remain on the local machine.</p>
+<label for="token">Session token</label>
+<input id="token" autocomplete="off" type="password" placeholder="Paste token from desktop TV Center">
+<div class="actions"><button id="connect">Connect</button><button id="disconnect" class="secondary" disabled>Disconnect</button></div>
+<p id="connection-note">GitHub Pages cannot directly access Linux DVB hardware. Browser loopback permissions may vary.</p>
+</section>
+<section class="panel"><h2>Interactive Teletext</h2>
+<p>Choose a real broadcast page, including 100 (index), 150 (ARD/ARTE captions) or 777 (some ZDF captions).</p>
+<div class="actions"><input id="page" type="number" min="100" max="899" step="1" value="150">
+<button id="open-page" disabled>Request page</button></div>
+<div class="shortcuts"><button data-page="100">100</button><button data-page="150">150</button><button data-page="777">777</button></div>
+<p id="teletext-result">Requires an active local receiver and caption decoding.</p>
+</section>
+<section class="panel"><h2>Languages and engines</h2>
+<p>The native app offers DE / EN / TR, installed Argos translation packages and a user-installed multilingual Whisper model. No model is downloaded by this page.</p>
+<p>Captions use real Teletext first when configured; ASR can be selected or used as a fallback. Live translated text may lag behind the broadcast.</p>
+<a href="https://github.com/Tihulu/TIHULU-TEXT-CENTER/tree/main/tv_center">Project sources and setup</a>
+</section>
+</aside></main>
+<footer>LOCAL DVB · REAL TELEtext · OFFLINE-FIRST AI · NO WEBUSB · NO AUTOSTART RF</footer>
+</div><script src="./app.js"></script>
+</body></html>
