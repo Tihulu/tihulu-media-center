@@ -150,5 +150,60 @@ class ExactInstalledRuntime(unittest.TestCase):
         print("HOLD: reversible current symlink is not an uninstall operation", flush=True)
 
 
+    def test_optional_speech_translation_imports_without_models(self) -> None:
+        # Import compatibility only; no inference, package installation or download.
+        code = (
+            "import importlib,json\n"
+            "names=['tv_center.whisper_engine','tv_center.cuda_faster_whisper',"
+            "'tv_center.translation_service','tv_center.translation_madlad',"
+            "'tv_center.translation_worker','tv_center.argos_generation']\n"
+            "print(json.dumps({name:importlib.import_module(name).__file__ for name in names}))\n"
+        )
+        env = {**os.environ, "PYTHONPATH": str(RELEASE / "py"),
+               "PYTHONDONTWRITEBYTECODE": "1", "HF_HUB_OFFLINE": "1",
+               "TRANSFORMERS_OFFLINE": "1"}
+        p = subprocess.run(["/usr/bin/python3", "-c", code],
+                           capture_output=True, text=True, timeout=30,
+                           check=False, env=env, cwd="/")
+        self.assertEqual(p.returncode, 0, p.stdout + "\n" + p.stderr)
+        results = json.loads(p.stdout)
+        self.assertEqual(len(results), 6)
+        for module, path in results.items():
+            self.assertTrue(Path(path).resolve().is_relative_to(RELEASE.resolve()),
+                            f"Optional backend {module} imported outside release: {path}")
+
+    def test_all_five_profiles_fail_closed_without_fallback_weights(self) -> None:
+        # Status stubs reporting components "installed" cannot bypass the
+        # selection guard for the actual local fallback model path.
+        code = (
+            "from pathlib import Path\n"
+            "from tv_center.ai_profiles import PROFILES, COMPONENTS, selection_patch\n"
+            "class Library:\n"
+            "    root=Path.home()/'nonexistent-qa-model-root'\n"
+            "    def _path(self, key): return self.root/(key+'.bin')\n"
+            "hardware={'ram_mib':65536,'raspberry_pi_5':True,"
+            "'gpu':{'detected':True,'vram_mib':32768},"
+            "'npu':{'devices':['hailo-10h'],'hailo_arch':'HAILO10H'}}\n"
+            "statuses={component:True for component in COMPONENTS}\n"
+            "assert len(PROFILES)==5, PROFILES\n"
+            "for name in PROFILES:\n"
+            "    try: selection_patch(name,library=Library(),hardware=hardware,"
+            "status=statuses,hailo_ready=True)\n"
+            "    except RuntimeError as error:\n"
+            "        assert 'Missing local CPU Whisper fallback model' in str(error),"
+            "(name,str(error))\n"
+            "    else: raise AssertionError('Selected AI profile without weights: '+name)\n"
+            "print('Five model-selection guards rejected missing local weights')\n"
+        )
+        env = {**os.environ, "PYTHONPATH": str(RELEASE / "py"),
+               "PYTHONDONTWRITEBYTECODE": "1", "HF_HUB_OFFLINE": "1",
+               "TRANSFORMERS_OFFLINE": "1"}
+        p = subprocess.run(["/usr/bin/python3", "-c", code],
+                           capture_output=True, text=True, timeout=30,
+                           check=False, env=env, cwd="/")
+        self.assertEqual(p.returncode, 0, p.stdout + "\n" + p.stderr)
+        self.assertIn("Five model-selection guards rejected", p.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
