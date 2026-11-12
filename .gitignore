@@ -1,0 +1,19 @@
+# Do not include private runtime, archives, or AI weights
+*.db
+*.sqlite*
+*.key
+*.pem
+*.p12
+*.tar
+*.tar.gz
+*.zip
+*.gguf
+*.safetensors
+*.onnx
+*.pt
+*.pth
+*.wav
+*.mp4
+*.mkv
+.env*
+__pycache__/

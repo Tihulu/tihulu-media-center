@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>TIHULU TV Center · Web companion</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div class="shell">
+<header><div><div class="eyebrow">TIHULU / MEDIA</div><h1>TV Center <span>Web Companion</span></h1></div>
+<div class="state" id="state">DISCONNECTED</div></header>
+<main>
+<section class="hero">
+<div class="eyebrow">RECEIVER SESSION</div>
+<h2 id="channel">No local receiver connected</h2>
+<p id="source">This GitHub Pages interface contains no antenna driver and shows no simulated broadcast.</p>
+<div class="video"><span>Live video is available in the native Linux application and through its explicitly enabled PIN-paired LAN web app. GitHub Pages itself is static and cannot stream your USB tuner.</span></div>
+<section class="captions"><div class="eyebrow">LIVE CAPTIONS / TRANSLATION</div>
+<p id="original">Connect to a local TV Center session to receive actual decoded text.</p>
+<p id="translated" class="translated"></p><small id="caption-source">No transcript received</small></section>
+</section>
+<aside>
+<section class="panel"><h2>1 · WebUSB receiver (preferred)</h2>
+<p>Select the Hauppauge WinTV-soloHD directly in a compatible Chromium-based browser. USB permission and actual DVB-T2 decoding are separate capabilities; this preview can detect the USB device but does not yet tune/decode television through WebUSB.</p>
+<div class="actions"><button id="webusb-select">Select USB tuner</button><button id="webusb-check" class="secondary">Previously permitted</button></div>
+<p id="usb-status" role="status">No USB access requested. Firefox and Safari do not support WebUSB.</p>
+<small>Matches USB 2040:8268 only; never claims RTL-SDR / ADS-B ownership. Does not detach a Linux DVB kernel driver.</small>
+</section>
+<section class="panel"><h2>2 · Watch on iPhone / Android (paired Wi-Fi)</h2>
+<p>Plug the DVB-T2 USB tuner into the host computer or Raspberry Pi. In native TV Center, tune a channel, enable <b>Allow phone / tablet on trusted Wi-Fi</b>, then on the phone open the displayed <code>http://HOST-IP:8769/</code>. Enter the six-digit pairing code shown on the host; no long token is needed. Enable <b>Share live H.264/AAC video</b> on the host for an optional real TV stream.</p>
+<p>Safari on iPhone plays HLS natively; Android Chrome uses hls.js. The host and phone must share trusted Wi-Fi. Never expose HTTP port 8769 to the public Internet.</p>
+</section>
+<section class="panel"><h2>3 · Local receiver bridge (optional)</h2>
+<p>For real DVB-T2 reception, live subtitles and Teletext, run TIHULU TV Center on Debian / Pop!_OS / Pi OS, enable its bridge only when desired and paste the temporary session token. It does not use browser WebUSB.</p>
+<label for="token">Session token</label>
+<input id="token" autocomplete="off" type="password" placeholder="Paste token from desktop TV Center">
+<div class="actions"><button id="connect">Connect</button><button id="disconnect" class="secondary" disabled>Disconnect</button></div>
+<p id="connection-note">GitHub Pages cannot directly access Linux DVB hardware. Browser loopback permissions may vary.</p>
+</section>
+<div id="web-control-root"></div><section class="panel"><h2>Interactive Teletext</h2>
+<p>Choose a real broadcast page, including 100 (index), 150 (ARD/ARTE captions) or 777 (some ZDF captions).</p>
+<div class="actions"><input id="page" type="number" min="100" max="899" step="1" value="150">
+<button id="open-page" disabled>Request page</button></div>
+<div class="shortcuts"><button data-page="100">100</button><button data-page="150">150</button><button data-page="777">777</button></div>
+<p id="teletext-result">Requires an active local receiver and caption decoding.</p>
+</section>
+<section class="panel" id="browser-ai-panel"><h2>Browser AI Studio · WebGPU / WASM</h2>
+<p>Run multilingual Whisper locally with your microphone or a browser-shared tab's audio, where supported. Models download only on request. Approximate 10-second recognition windows; neither zero-latency nor a fake feed.</p>
+<label for="browser-model">Whisper model</label>
+<select id="browser-model"><option value="tiny">Multilingual Tiny (lighter)</option><option value="small">Multilingual Small (larger)</option></select>
+<label for="browser-backend">Inference device</label><select id="browser-backend"><option value="auto">Auto: WebGPU then WASM</option><option value="webgpu">WebGPU only</option><option value="wasm">WASM / CPU</option></select>
+<div class="actions"><button id="browser-ai-load">Download / load model</button><button class="secondary" id="browser-ai-release">Unload model</button></div>
+<div class="actions"><button id="browser-ai-mic" disabled>Use microphone</button><button id="browser-ai-tab" disabled>Capture tab audio</button><button class="secondary" id="browser-ai-stop" disabled>Stop</button></div>
+<label for="browser-source-lang">Speech language</label><select id="browser-source-lang"><option value="de">German</option><option value="tr">Turkish</option><option value="en">English</option></select>
+<label for="browser-target-lang">Translation language</label><select id="browser-target-lang"><option value="tr">Turkish</option><option value="de">German</option><option value="en">English</option></select>
+<label class="checkboxline"><input type="checkbox" id="browser-translation-toggle"> Enable offline translation</label>
+<div class="captions"><div class="eyebrow">BROWSER-LOCAL CAPTIONS</div><p id="browser-ai-original">No browser transcription yet.</p><p class="translated" id="browser-ai-translated"></p><small id="browser-ai-caption"></small></div>
+<p role="status" id="browser-ai-status">AI is OFF. Select a model and explicitly load it.</p>
+<button class="secondary" id="browser-ai-cache">Clear Transformers.js model cache (confirm)</button>
+<p class="muted">DE ↔ EN and TR → EN models have ONNX support. EN → TR relies on an experimental community model that may fail; host-installed Argos remains an alternative. Microphone and tab audio require browser permission.</p>
+</section>
+<section class="panel"><h2>WebGPU · WebAssembly · languages</h2>
+<p>WebAssembly can run CPU inference in the browser; WebGPU can accelerate compatible multilingual speech models. Neither technology replaces a Hauppauge DVB-T2 tuner driver. No browser AI model has been bundled or downloaded yet.</p>
+<button id="check-compute">Check browser AI capabilities</button>
+<p id="compute-status" role="status">Not checked. Supports only capability detection in this preview.</p>
+<p>The native app offers DE / EN / TR, installed Argos translation packages and a user-installed multilingual Whisper model. No model is downloaded by this page.</p>
+<p>Captions use real Teletext first when configured; ASR can be selected or used as a fallback. Live translated text may lag behind the broadcast.</p>
+<a href="https://github.com/Tihulu/TIHULU-TEXT-CENTER/tree/feature/tv-center-native-teletext-asr-2026-11-07/tv_center">Project sources and setup</a>
+</section>
+</aside></main>
+<footer>WEBUSB DETECTION · NATIVE DVB RECEIVER OPTIONAL · WEBGPU/WASM READINESS · NO AUTOSTART RF</footer>
+</div><script src="./app.js"></script><script src="./web-controls.js"></script><script type="module" src="./browser-ai-ui.js"></script>
+</body></html>
