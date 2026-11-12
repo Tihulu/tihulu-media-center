@@ -48,7 +48,7 @@
       "evidence": "Hugging Face official model card explicitly lists cc-by-nc-4.0",
       "revision": "a3e77be725cf30383f1faeb8d2f0b0ea98ac554e",
       "acquisition": "optional user-requested download",
-      "commercial": "prohibited by stated NC terms without separate rights",
+      "commercial": "commercial use prohibited by stated noncommercial license without separate permission",
       "bundled": false,
       "noncommercial": true,
       "redistribution": "HOLD"
@@ -110,7 +110,7 @@
       "evidence": "Explicit model LICENSE and Hugging Face card show CC-BY-NC-SA-4.0",
       "revision": "a681b72 (short pinned prefix)",
       "acquisition": "optional user-requested download after NC acknowledgement",
-      "commercial": "prohibited by stated NC terms without separate rights",
+      "commercial": "commercial use prohibited by stated noncommercial license without separate permission",
       "bundled": false,
       "noncommercial": true,
       "redistribution": "HOLD"
