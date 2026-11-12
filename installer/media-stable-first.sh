@@ -13,7 +13,6 @@ NO_AI=0
 ALLOW_APT=0
 APPROOT="${HOME}/.local/opt/tihulu-media-stable"
 LAUNCHER="${HOME}/.local/bin/tihulu-media-stable"
-DESKTOP="${HOME}/.local/share/applications/tihulu-media-stable.desktop"
 PACKAGES=(git ca-certificates cmake g++ make pkg-config extra-cmake-modules
   qtbase5-dev libqt5x11extras5-dev libkf5coreaddons-dev
   libkf5dbusaddons-dev libkf5i18n-dev libkf5kio-dev libkf5solid-dev
@@ -53,6 +52,19 @@ done
 (( EUID != 0 )) || die 'Run as an ordinary desktop user, never root'
 [[ "$HOME" == /* && "$HOME" != / ]] || die 'HOME must be an absolute user path'
 
+# Serialize the entire operation (including dependency approval, build and
+# promotion) with one O_NOFOLLOW, ownership-checked lock *outside* APPROOT.
+# A child cannot fake the guard by setting an environment variable alone:
+# verify-guard also checks the inherited, open locked file descriptor.
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+if [[ "$MODE" == --install || "$MODE" == --rollback || "$MODE" == --uninstall ]]; then
+  if [[ -z "${TIHULU_MEDIA_GUARD_FD:-}" ]]; then
+    exec python3 "$SCRIPT_DIR/preview_safety.py" guarded-exec "$SCRIPT_DIR/media-stable-first.sh" "$@"
+  fi
+  python3 "$SCRIPT_DIR/preview_safety.py" verify-guard "$TIHULU_MEDIA_GUARD_FD" ||
+    die 'Missing owned operation lock; cannot mutate this installation'
+fi
+
 atomic_link() {
   local target="$1" link="$2" tmp="${2}.new.$$"
   [[ ! -e "$link" || -L "$link" ]] || die "Refusing to replace non-symlink: $link"
@@ -61,17 +73,13 @@ atomic_link() {
   mv -Tf -- "$tmp" "$link"
 }
 lock_owned() {
-  local lock="$APPROOT/.install.lock"
-  command -v flock >/dev/null || die 'flock is required for ownership-safe changes'
-  [[ ! -L "$lock" ]] || die 'Refusing symlinked install lock'
-  if [[ -e "$lock" ]]; then
-    [[ -f "$lock" && "$(stat -c '%u' -- "$lock")" == "$EUID" ]] ||
-      die 'Refusing foreign or non-regular install lock'
-  fi
-  # Append rather than truncate even a valid user-owned lock file.
-  exec 9>>"$lock"
-  flock -n 9 || die 'Another stable installer or rollback is active'
+  # The Python guard owns the single sibling flock for the ENTIRE operation.
+  # Do not open root/.install.lock with unsafe shell >> redirection.
+  [[ -n "${TIHULU_MEDIA_GUARD_FD:-}" ]] || die 'Missing guarded operation descriptor'
+  python3 "$SCRIPT_DIR/preview_safety.py" verify-guard "$TIHULU_MEDIA_GUARD_FD" ||
+    die 'Concurrent or unowned operation lock'
 }
+
 # A release pointer must be one direct, owned release directory.  A glob match
 # alone accepts releases/../preview-home and can redirect the native launcher.
 valid_release() {
@@ -218,24 +226,10 @@ if [[ -d "$APPROOT" ]]; then
 elif [[ -e "$APPROOT" ]]; then
   die 'Application root is not a real directory'
 fi
-# Reinstall/upgrade is allowed only for exact application-owned launchers.
-if [[ -e "$LAUNCHER" || -L "$LAUNCHER" ]]; then
-  if [[ ! -f "$LAUNCHER" || -L "$LAUNCHER" ]]; then
-    die "Existing launcher is not ours: $LAUNCHER"
-  fi
-  # shellcheck disable=SC2016 # Match literal shell source, do not expand
-  if ! grep -Fxq 'exec "$HOME/.local/opt/tihulu-media-stable/current/bin/tihulu-kaffeine" "$@"' "$LAUNCHER"; then
-    die "Existing launcher is not ours: $LAUNCHER"
-  fi
-fi
-if [[ -e "$DESKTOP" || -L "$DESKTOP" ]]; then
-  if [[ ! -f "$DESKTOP" || -L "$DESKTOP" ]]; then
-    die "Existing desktop entry is not ours: $DESKTOP"
-  fi
-  if ! grep -Fxq 'X-TIHULU-StableFirst=true' "$DESKTOP"; then
-    die "Existing desktop entry is not ours: $DESKTOP"
-  fi
-fi
+# Verify entire launcher/desktop bytes, UID, hardlink count and root marker.
+# Never accept a matching line in a foreign or modified entrypoint.
+python3 "$SCRIPT_DIR/preview_safety.py" preflight-install ||
+  die 'Refusing ambiguous or modified existing Media preview entrypoints'
 command -v flock >/dev/null || die 'flock is required for safe installation'
 mkdir -p -- "$APPROOT/releases" "$HOME/.local/bin" "$HOME/.local/share/applications"
 if [[ ! -e "$APPROOT/.media-preview-owner-v1" ]]; then
@@ -376,25 +370,10 @@ if [[ -L "$APPROOT/current" ]]; then
 elif [[ -e "$APPROOT/current" ]]; then
   die 'Current release slot is not owned symlink'
 fi
-# Only create brand-new names; never replace a user's existing app launchers.
-if [[ ! -e "$LAUNCHER" && ! -L "$LAUNCHER" ]]; then
-  install -m 755 -- "$final/bin/tihulu-media-stable" "$LAUNCHER"
-fi
-if [[ ! -e "$DESKTOP" && ! -L "$DESKTOP" ]]; then
-  cat > "$DESKTOP" <<DESKTOPFILE
-[Desktop Entry]
-Type=Application
-Name=TIHULU Media Center (Stable-First Preview)
-GenericName=TV · DAB+ · Radio · AI subtitles
-Exec=$LAUNCHER
-TryExec=$LAUNCHER
-Icon=$APPROOT/current/py/kaffeine_next/assets/tihulu-media-center.svg
-StartupWMClass=tihulu-media-center
-Terminal=false
-Categories=AudioVideo;Video;TV;Audio;Player;
-X-TIHULU-StableFirst=true
-DESKTOPFILE
-fi
+# Exclusive O_CREAT|O_EXCL + O_NOFOLLOW file creation; never write into a
+# pre-existing owner launcher/desktop, even after a checked pathname races.
+python3 "$SCRIPT_DIR/preview_safety.py" publish-entrypoints ||
+  die 'Could not safely publish owned launcher and desktop entries'
 if [[ -n "$old" ]]; then atomic_link "$old" "$APPROOT/previous"; fi
 atomic_link "$final" "$APPROOT/current"
 log "Preview installed (user-only): $final"
