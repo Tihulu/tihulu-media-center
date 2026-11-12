@@ -144,7 +144,28 @@ class ExactInstalledRuntime(unittest.TestCase):
                           (RELEASE / "bin" / name).read_text())
         self.assertIn('dbus-run-session -- "$release/bin/tihulu-kaffeine"',
                       (RELEASE / "bin/tihulu-kaffeine").read_text())
-        self.assertTrue((HOME / ".local/opt/tihulu-media-stable/preview-home/.config").is_dir())
+        preview = HOME / ".local/opt/tihulu-media-stable/preview-home"
+        self.assertTrue((preview / ".config").is_dir())
+        # Exercise the actual installed shell environment, not merely text
+        # patterns. QSettings must resolve to preview/.config/TIHULU.
+        probe = subprocess.run(
+            ["/bin/sh", "-c",
+             '. "$1"; /usr/bin/python3 -c '
+             "'from PyQt5.QtCore import QSettings; "
+             "print(QSettings(\"TIHULU\",\"KaffeineRadio\").fileName()); "
+             "print(QSettings(\"TIHULU\",\"KaffeineCaptionAppearance\").fileName())'"
+             ,
+             "probe", str(RELEASE / "bin/tihulu-preview-env")],
+            capture_output=True, text=True, check=False, timeout=20,
+            env={**os.environ, "HOME": str(HOME)},
+        )
+        self.assertEqual(probe.returncode, 0, probe.stdout + probe.stderr)
+        lines = [Path(x).resolve() for x in probe.stdout.splitlines() if x.strip()]
+        self.assertEqual(len(lines), 2, probe.stdout)
+        for path in lines:
+            self.assertTrue(path.is_relative_to((preview / ".config").resolve()),
+                            str(path))
+        self.assertNotIn(str(HOME / ".config"), probe.stdout)
         # Source-level KaffeineRadio / appearance/JSON names are still preserved.
         self.assertIn('QLatin1String("KaffeineRadio")',
                       (RELEASE / "py/kaffeine_next/native_radio_tab.h").read_text())
