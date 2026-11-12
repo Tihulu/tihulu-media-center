@@ -139,6 +139,8 @@ jobs:
           dbus-run-session -- xvfb-run -a /usr/bin/python3 -m unittest discover             -s tests -p 'test_media_exact_runtime_acceptance.py' -v
           dbus-run-session -- xvfb-run -a /usr/bin/python3 -m unittest discover             -s tests -p 'test_media_tv_radio_exact_parity_04.py' -v
           bash installer/media-stable-first.sh --rollback
+          # Trace ONLY final synthetic fixture/owned-file cleanup assertions.
+          set -x
           test "$first" = "$(readlink "$app/current")"
           test "$second" = "$(readlink "$app/previous")"
           bash installer/media-stable-first.sh --uninstall
