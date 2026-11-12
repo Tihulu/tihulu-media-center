@@ -130,6 +130,21 @@ class UninstallSafety(unittest.TestCase):
         self.assertTrue(private_data.joinpath(".config/tihulu-tv-center/ai-settings.json").is_file())
         self.assert_preserved()
 
+    def test_symlink_install_lock_refuses_uninstall_and_rollback(self):
+        import subprocess
+        original = self.home / "precious-lock-target"
+        original.write_text("PRIVATE UNCHANGED\n")
+        (self.root / ".install.lock").symlink_to(original)
+        with self.assertRaises(m.SafetyError):
+            m.uninstall(self.home)
+        env = {**os.environ, "HOME": str(self.home)}
+        p = subprocess.run(["bash", str(ROOT / "installer/media-stable-first.sh"),
+                            "--rollback"], capture_output=True, text=True, env=env)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertEqual(original.read_text(), "PRIVATE UNCHANGED\n")
+        self.assertTrue(self.launch.exists())
+        self.assert_preserved()
+
     def test_missing_owner_marker_refuses(self):
         (self.root / m.MARKER).unlink()
         with self.assertRaises(m.SafetyError):
