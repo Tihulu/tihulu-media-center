@@ -252,39 +252,104 @@ def _audit_before_uninstall(home: Path, root: Path, launcher: Path, desktop: Pat
             "entrypoints": entrypoints, "pointers": pointers}
 
 
+def _read_owned_uninstall_plan(txn: Path) -> bytes:
+    """Read a small, owner-only 0600 plan from an inode-pinned O_NOFOLLOW FD.
+
+    No pathname-based read_text/read_bytes after checking a different inode.
+    Refuse any changed inode, size or timestamp during the read.
+    """
+    directory(txn)
+    parent_fd = os.open(txn, os.O_RDONLY | os.O_DIRECTORY |
+                        os.O_NOFOLLOW | os.O_CLOEXEC)
+    plan_fd = -1
+    try:
+        parent = txn.lstat()
+        pinned_parent = os.fstat(parent_fd)
+        if ((parent.st_dev, parent.st_ino) !=
+                (pinned_parent.st_dev, pinned_parent.st_ino)):
+            fail("Uninstall journal directory replaced during plan read")
+        before = os.stat(TXN_PLAN, dir_fd=parent_fd, follow_symlinks=False)
+        if (not stat.S_ISREG(before.st_mode) or before.st_uid != os.geteuid()
+                or before.st_nlink != 1 or stat.S_IMODE(before.st_mode) != 0o600
+                or before.st_size <= 0 or before.st_size > 1024 * 1024):
+            fail("Uninstall plan must be a unique owner-owned 0600 regular file under 1 MiB")
+        plan_fd = os.open(TXN_PLAN, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                          dir_fd=parent_fd)
+        pinned = os.fstat(plan_fd)
+        if ((pinned.st_dev, pinned.st_ino) != (before.st_dev, before.st_ino)
+                or pinned.st_uid != os.geteuid()
+                or not stat.S_ISREG(pinned.st_mode) or pinned.st_nlink != 1
+                or stat.S_IMODE(pinned.st_mode) != 0o600
+                or pinned.st_size != before.st_size):
+            fail("Uninstall plan substituted before pinned read")
+        with os.fdopen(os.dup(plan_fd), "rb") as stream:
+            raw = stream.read(1024 * 1024 + 1)
+        after_fd = os.fstat(plan_fd)
+        after_name = os.stat(TXN_PLAN, dir_fd=parent_fd, follow_symlinks=False)
+        after_parent = txn.lstat()
+        if (len(raw) != pinned.st_size or len(raw) > 1024 * 1024
+                or (after_fd.st_dev, after_fd.st_ino) != (pinned.st_dev, pinned.st_ino)
+                or (after_name.st_dev, after_name.st_ino) != (pinned.st_dev, pinned.st_ino)
+                or (after_parent.st_dev, after_parent.st_ino) != (
+                    pinned_parent.st_dev, pinned_parent.st_ino)
+                or any(getattr(after_fd, attr) != getattr(pinned, attr)
+                       for attr in ("st_size", "st_mtime_ns", "st_ctime_ns", "st_mode"))):
+            fail("Uninstall plan modified or path replaced during pinned read")
+        return raw
+    finally:
+        if plan_fd >= 0:
+            os.close(plan_fd)
+        os.close(parent_fd)
+
+
+def _unique_json_pairs(pairs: list[tuple[str, object]]) -> dict:
+    """Duplicate object keys can silently override a validated entry."""
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            fail(f"Duplicate uninstall plan key: {key}")
+        result[key] = value
+    return result
+
+
 def _read_uninstall_plan(root: Path) -> dict:
     txn = root / UNINSTALL_TXN
     directory(txn)
+    # Both metadata and staged files are private even if an external actor
+    # weakens mode after creation; never auto-chmod a suspicious transaction.
+    if stat.S_IMODE(txn.lstat().st_mode) != 0o700:
+        fail("Uninstall transaction directory must remain owner-only 0700")
     expected = {TXN_PLAN, TXN_COMMITTED, "launcher", "desktop", "current", "previous"}
     unknown = {p.name for p in txn.iterdir()} - expected
     if unknown:
         fail(f"Unknown private data in uninstall transaction: {sorted(unknown)}")
-    plan_file = txn / TXN_PLAN
-    regular(plan_file)
-    if plan_file.lstat().st_nlink != 1:
-        fail("Hardlinked uninstall transaction plan")
     try:
-        data = json.loads(plan_file.read_bytes())
-    except (OSError, ValueError) as exc:
+        data = json.loads(_read_owned_uninstall_plan(txn),
+                          object_pairs_hook=_unique_json_pairs)
+    except (UnicodeError, ValueError) as exc:
         fail(f"Malformed uninstall transaction plan: {exc}")
-    if not isinstance(data, dict) or set(data) != {
+    if type(data) is not dict or set(data) != {
             "schema", "releases", "had_releases", "entrypoints", "pointers"}:
         fail("Unexpected uninstall transaction schema")
     names = data["releases"]
-    if (data["schema"] != 1 or not isinstance(names, list)
-            or any(not isinstance(n, str) or not RELEASE_NAME.fullmatch(n)
+    if (type(data["schema"]) is not int or data["schema"] != 1
+            or type(names) is not list
+            or any(type(n) is not str or not RELEASE_NAME.fullmatch(n)
                    for n in names)
             or names != sorted(set(names))
             or type(data["had_releases"]) is not bool):
-        fail("Untrusted release names in uninstall transaction")
-    if (data["entrypoints"] is None or set(data["entrypoints"]) != {"launcher", "desktop"}
-            or any(type(v) is not bool for v in data["entrypoints"].values())):
+        fail("Untrusted release names/schema in uninstall transaction")
+    entrypoints = data["entrypoints"]
+    if (type(entrypoints) is not dict or set(entrypoints) != {"launcher", "desktop"}
+            or any(type(v) is not bool for v in entrypoints.values())
+            or entrypoints["launcher"] != entrypoints["desktop"]):
         fail("Invalid uninstall entrypoint plan")
-    if set(data["pointers"]) != {"current", "previous"}:
+    pointers = data["pointers"]
+    if type(pointers) is not dict or set(pointers) != {"current", "previous"}:
         fail("Invalid uninstall release pointer plan")
     expected_targets = {str(root / "releases" / n) for n in names}
-    for value in data["pointers"].values():
-        if value is not None and (not isinstance(value, str) or value not in expected_targets):
+    for value in pointers.values():
+        if value is not None and (type(value) is not str or value not in expected_targets):
             fail("Untrusted release pointer in uninstall plan")
     if not data["had_releases"] and names:
         fail("Missing planned release root")
@@ -407,6 +472,67 @@ def _stage_all_uninstall(home: Path, root: Path, plan: dict) -> None:
         _sync_dir(root)
 
 
+def _preflight_committed_quarantine(home: Path, root: Path, plan: dict) -> None:
+    """SEC12-01: validate *every* planned staged inode/target before rmtree.
+
+    An interrupted transaction may have already unlinked final staged files
+    once ALL releases were removed. Missing planned quarantine items are
+    therefore permitted only when no release remains to delete.
+    """
+    txn = root / UNINSTALL_TXN
+    directory(txn)
+    if stat.S_IMODE(txn.lstat().st_mode) != 0o700:
+        fail("Insecure committed uninstall quarantine permissions")
+    releases = root / "releases"
+    remaining = directory(releases, optional=True) and any(releases.iterdir())
+    known_paths = _known_uninstall_paths(
+        root, home / ".local/bin/tihulu-media-stable",
+        home / ".local/share/applications/tihulu-media-stable.desktop")
+    qfd = os.open(txn, os.O_RDONLY | os.O_DIRECTORY |
+                  os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        pinned_parent = os.fstat(qfd)
+        parent = txn.lstat()
+        if (pinned_parent.st_dev, pinned_parent.st_ino) != (parent.st_dev, parent.st_ino):
+            fail("Quarantine parent substituted before release cleanup")
+        for slot in ("launcher", "desktop", "current", "previous"):
+            if present(known_paths[slot]):
+                fail(f"Committed uninstall unexpectedly has live entry: {slot}")
+            planned = (plan["entrypoints"][slot] if slot in ("launcher", "desktop")
+                       else plan["pointers"][slot] is not None)
+            staged = txn / slot
+            if not planned:
+                if present(staged):
+                    fail(f"Unexpected quarantined entry: {slot}")
+                continue
+            if not present(staged):
+                if remaining:
+                    fail(f"Expected quarantined entry absent while releases remain: {slot}")
+                continue
+            item = os.stat(slot, dir_fd=qfd, follow_symlinks=False)
+            if item.st_uid != os.geteuid():
+                fail(f"Foreign quarantined entry owner: {slot}")
+            if slot in ("launcher", "desktop"):
+                exact_owned_text(staged, _expected_uninstall_content(home, root, plan, slot),
+                                 f"quarantined {slot}")
+                last = staged.lstat()
+                if (not stat.S_ISREG(item.st_mode) or item.st_nlink != 1
+                        or (last.st_dev, last.st_ino) != (item.st_dev, item.st_ino)):
+                    fail(f"Quarantined entrypoint substituted before cleanup: {slot}")
+            else:
+                if (not stat.S_ISLNK(item.st_mode)
+                        or os.readlink(slot, dir_fd=qfd) != plan["pointers"][slot]):
+                    fail(f"Unexpected quarantined pointer: {slot}")
+                last = staged.lstat()
+                if (last.st_dev, last.st_ino) != (item.st_dev, item.st_ino):
+                    fail(f"Quarantined pointer substituted before cleanup: {slot}")
+        if (txn.lstat().st_dev, txn.lstat().st_ino) != (
+                pinned_parent.st_dev, pinned_parent.st_ino):
+            fail("Quarantine parent substituted during release cleanup preflight")
+    finally:
+        os.close(qfd)
+
+
 def _committed_uninstall_cleanup(home: Path, root: Path, plan: dict) -> None:
     """Irreversible phase; a failure leaves a COMMITTED journal to resume.
 
@@ -414,11 +540,9 @@ def _committed_uninstall_cleanup(home: Path, root: Path, plan: dict) -> None:
     """
     txn = root / UNINSTALL_TXN
     exact_owned_text(txn / TXN_COMMITTED, TXN_COMMIT_TEXT, "uninstall commit")
-    for slot, path in _known_uninstall_paths(
-            root, home / ".local/bin/tihulu-media-stable",
-            home / ".local/share/applications/tihulu-media-stable.desktop").items():
-        if present(path):
-            fail(f"Committed uninstall unexpectedly has live entry: {slot}")
+    # The quarantine is the authorization boundary for irreversible deletion:
+    # audit ALL planned staged files/pointers BEFORE touching any release.
+    _preflight_committed_quarantine(home, root, plan)
     releases = root / "releases"
     if directory(releases, optional=True):
         actual = {p.name for p in releases.iterdir()}
