@@ -144,7 +144,7 @@ class P1InstallerSafety(unittest.TestCase):
         result = self.run_mode("--install")
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse((self.home / ".local/opt" / m.SERIAL_LOCK).exists())
-        self.assertEqual(self.private.read_text(), "OWNER UNTOUCHED\\n")
+        self.assertEqual(self.private.read_text(), "OWNER UNTOUCHED" + chr(10))
 
     def test_preflight_rejects_undeclared_release_or_interrupted_path(self):
         extra = self.root / "releases/foreign-partial"
