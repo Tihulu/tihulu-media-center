@@ -387,7 +387,11 @@ PYLAUNCH
 cat > "$stage/bin/tihulu-kaffeine" <<'NATIVELAUNCH'
 #!/bin/sh
 set -eu
-release="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
+# Direct Python TV enters through a symlink in PRIVATE preview HOME. Resolve
+# the script itself, not argv[0]'s directory, before finding the release.
+resolved="$(readlink -f -- "$0")"
+[ -n "$resolved" ] || { echo 'Could not resolve native preview launcher' >&2; exit 72; }
+release="$(CDPATH= cd -- "$(dirname -- "$resolved")/.." && pwd -P)"
 . "$release/bin/tihulu-preview-env"
 export PATH="$release/bin:$PATH"
 export PYTHONPATH="$release/py"
