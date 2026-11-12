@@ -1,0 +1,140 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+"""Negative safety tests: no real models, tuner, services or user settings."""
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+import os
+import tempfile
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+MODULE = ROOT / "installer/preview_safety.py"
+spec = importlib.util.spec_from_file_location("media_preview_safety", MODULE)
+assert spec and spec.loader
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+
+
+@unittest.skipIf(os.geteuid() == 0, "Ownership tests run with non-root CI runner")
+class UninstallSafety(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.home = Path(self.tmp.name)
+        self.root = self.home / ".local/opt/tihulu-media-stable"
+        self.release = self.root / "releases/r-7821769eb7ae-20261112T080000-1"
+        self.launch = self.home / ".local/bin/tihulu-media-stable"
+        self.desktop = self.home / ".local/share/applications/tihulu-media-stable.desktop"
+        self.release.joinpath("native/bin").mkdir(parents=True)
+        self.launch.parent.mkdir(parents=True)
+        self.desktop.parent.mkdir(parents=True)
+        (self.root / m.MARKER).write_text(m.MARKER_VALUE)
+        (self.release / "native/bin/kaffeine").write_bytes(b"synthetic bin")
+        self.release.joinpath("py").mkdir()
+        (self.release / "py/ai.json").write_text("owned source\n")
+        (self.root / "preview-home/.config/tihulu-tv-center").mkdir(parents=True)
+        (self.root / "preview-home/.config/tihulu-tv-center/ai-settings.json").write_text("private preview settings\n")
+        (self.home / ".config/TIHULU").mkdir(parents=True)
+        (self.home / ".config/TIHULU/KaffeineRadio.conf").write_text("OWNER-KEEP\n")
+        (self.home / ".config/tihulu-tv-center").mkdir(parents=True)
+        (self.home / ".config/tihulu-tv-center/ai-settings.json").write_text("OWNER-AI-KEEP\n")
+        m.prepare_release(self.release)
+        (self.root / "current").symlink_to(str(self.release))
+        self.launch.write_text(m.LAUNCH)
+        self.desktop.write_text(m.desktop_text(self.home, self.root))
+
+    def assert_preserved(self):
+        self.assertEqual((self.home / ".config/TIHULU/KaffeineRadio.conf").read_text(), "OWNER-KEEP\n")
+        self.assertEqual((self.home / ".config/tihulu-tv-center/ai-settings.json").read_text(), "OWNER-AI-KEEP\n")
+
+    def test_uninstall_owned_binaries_preserves_private_preview_and_owner(self):
+        m.uninstall(self.home)
+        self.assertFalse(self.release.exists())
+        self.assertFalse(self.launch.exists())
+        self.assertFalse(self.desktop.exists())
+        self.assertFalse((self.root / "current").exists())
+        self.assertEqual((self.root / "preview-home/.config/tihulu-tv-center/ai-settings.json").read_text(),
+                         "private preview settings\n")
+        self.assert_preserved()
+
+    def test_no_second_uninstall_could_claim_private_home(self):
+        m.uninstall(self.home)
+        with self.assertRaises(m.SafetyError):
+            m.uninstall(self.home)
+        self.assert_preserved()
+
+    def test_modified_launcher_causes_total_refusal(self):
+        self.launch.write_text("#!/bin/sh\nexec arbitrary\n")
+        with self.assertRaises(m.SafetyError):
+            m.uninstall(self.home)
+        self.assertTrue(self.release.exists())
+        self.assert_preserved()
+
+    def test_modified_desktop_causes_total_refusal(self):
+        self.desktop.write_text(self.desktop.read_text() + "\nExec=/usr/bin/other\n")
+        with self.assertRaises(m.SafetyError):
+            m.uninstall(self.home)
+        self.assertTrue(self.launch.exists())
+        self.assert_preserved()
+
+    def test_changed_file_in_release_refuses_uninstall(self):
+        (self.release / "py/ai.json").write_text("USER MODIFIED\n")
+        with self.assertRaises(m.SafetyError):
+            m.uninstall(self.home)
+        self.assertTrue(self.launch.exists())
+        self.assert_preserved()
+
+    def test_extra_user_file_in_release_refuses_uninstall(self):
+        (self.release / "my-recording.wav").write_text("USER\n")
+        with self.assertRaises(m.SafetyError):
+            m.uninstall(self.home)
+        self.assertEqual((self.release / "my-recording.wav").read_text(), "USER\n")
+        self.assert_preserved()
+
+    def test_foreign_symlink_in_release_refuses_uninstall(self):
+        outside = self.home / "precious.txt"
+        outside.write_text("DO NOT DELETE")
+        (self.release / "foreign").symlink_to(outside)
+        with self.assertRaises(m.SafetyError):
+            m.uninstall(self.home)
+        self.assertEqual(outside.read_text(), "DO NOT DELETE")
+        self.assert_preserved()
+
+    def test_current_pointer_external_refuses(self):
+        (self.root / "current").unlink()
+        (self.root / "current").symlink_to(self.home / ".config")
+        with self.assertRaises(m.SafetyError):
+            m.uninstall(self.home)
+        self.assertTrue(self.launch.exists())
+        self.assert_preserved()
+
+    def test_incomplete_install_directory_refuses(self):
+        stage = self.root / ".stage.interrupted"
+        stage.mkdir()
+        (stage / "draft.txt").write_text("interrupted")
+        with self.assertRaises(m.SafetyError):
+            m.uninstall(self.home)
+        self.assertEqual((stage / "draft.txt").read_text(), "interrupted")
+        self.assert_preserved()
+
+    def test_symlink_profile_refuses(self):
+        profile = self.root / "preview-home"
+        # Deliberately test a hostile replacement of the preview profile root.
+        private_data = self.home / "retained-backup"
+        profile.rename(private_data)
+        profile.symlink_to(private_data, target_is_directory=True)
+        with self.assertRaises(m.SafetyError):
+            m.uninstall(self.home)
+        self.assertTrue(private_data.joinpath(".config/tihulu-tv-center/ai-settings.json").is_file())
+        self.assert_preserved()
+
+    def test_missing_owner_marker_refuses(self):
+        (self.root / m.MARKER).unlink()
+        with self.assertRaises(m.SafetyError):
+            m.uninstall(self.home)
+        self.assert_preserved()
+
+
+if __name__ == "__main__":
+    unittest.main()
