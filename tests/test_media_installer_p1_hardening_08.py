@@ -132,6 +132,27 @@ class P1InstallerSafety(unittest.TestCase):
         self.reject()
         self.assertEqual((incomplete / "private.txt").read_text(), "PRESERVE")
 
+    def test_preflight_rejects_pointer_to_foreign_location(self):
+        (self.root / "current").unlink()
+        (self.root / "current").symlink_to(self.private)
+        self.reject()
+        self.assertFalse((self.home / ".local/opt" / m.SERIAL_LOCK).exists())
+
+    def test_preflight_rejects_modified_release_manifest_before_lock_creation(self):
+        (self.release / "native/bin/kaffeine").write_bytes(b"modified after signing")
+        self.reject()
+        result = self.run_mode("--install")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((self.home / ".local/opt" / m.SERIAL_LOCK).exists())
+        self.assertEqual(self.private.read_text(), "OWNER UNTOUCHED\\n")
+
+    def test_preflight_rejects_undeclared_release_or_interrupted_path(self):
+        extra = self.root / "releases/foreign-partial"
+        extra.mkdir()
+        (extra / "keep.txt").write_text("PRESERVE")
+        self.reject()
+        self.assertEqual((extra / "keep.txt").read_text(), "PRESERVE")
+
     def test_symlink_operations_lock_cannot_overwrite_owner_file(self):
         lock = self.home / ".local/opt" / m.SERIAL_LOCK
         lock.symlink_to(self.private)
