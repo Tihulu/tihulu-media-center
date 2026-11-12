@@ -58,10 +58,11 @@ class UninstallSafety(unittest.TestCase):
                          "private preview settings\n")
         self.assert_preserved()
 
-    def test_no_second_uninstall_could_claim_private_home(self):
+    def test_second_uninstall_idempotent_preserves_private_home(self):
         m.uninstall(self.home)
-        with self.assertRaises(m.SafetyError):
-            m.uninstall(self.home)
+        m.uninstall(self.home)
+        self.assertTrue((self.root / m.MARKER).is_file())
+        self.assertFalse(self.release.exists())
         self.assert_preserved()
 
     def test_modified_launcher_causes_total_refusal(self):
