@@ -101,6 +101,160 @@ def iter_entries(root: Path):
                 fail(f"Unsupported special file: {rel}")
 
 
+
+# Pinned PR16 legal *content*, not a mutable manifest or self-hash.
+# These are exact Git blob object IDs of the three original notice files.
+LEGAL_NOTICE_BLOBS = {
+    "LICENSE": "c03664da635ac564fa53300fc7bd91848839ef68",
+    "NOTICE": "45798db6c4414a3848125fdd0a2cbdcb95b2825b",
+    "LICENSES/GPL-2.0-only.txt": "d159169d1050894d3ea3b98e1c965c4058208fe1",
+}
+LEGAL_MARKER = ".media-preview-legal-notices-v1"
+LEGAL_MARKER_BYTES = b"TIHULU_MEDIA_LEGAL_NOTICES_PINNED_V1\n"
+
+
+def _legal_blob_oid(raw: bytes) -> str:
+    return hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+
+
+def _legal_parent_fd(path: Path) -> int:
+    directory(path)
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        pinned, visible = os.fstat(fd), path.lstat()
+        if (pinned.st_dev, pinned.st_ino) != (visible.st_dev, visible.st_ino):
+            fail(f"Legal notice directory replaced: {path}")
+        if pinned.st_uid != os.geteuid() or not stat.S_ISDIR(pinned.st_mode):
+            fail(f"Foreign legal notice parent directory: {path}")
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def _legal_file_bytes(root: Path, relative: str, expected_blob: str | None,
+                      mode: int = 0o644) -> bytes:
+    """Pinned O_NOFOLLOW directory/file descriptors; no path re-open after checking.
+
+    Tests of noncooperating same-UID global namespace races remain separately HOLD.
+    """
+    parent_fd = _legal_parent_fd(root)
+    child_fd = -1
+    file_fd = -1
+    try:
+        file_parent_fd, name = parent_fd, relative
+        if "/" in relative:
+            folder, name = relative.split("/", 1)
+            if folder != "LICENSES" or "/" in name:
+                fail("Unknown legal notice path")
+            child_fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY |
+                               os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent_fd)
+            c = os.fstat(child_fd)
+            l = os.stat(folder, dir_fd=parent_fd, follow_symlinks=False)
+            if ((c.st_dev, c.st_ino) != (l.st_dev, l.st_ino)
+                    or not stat.S_ISDIR(c.st_mode) or c.st_uid != os.geteuid()
+                    or c.st_mode & 0o022):
+                fail("Unsafe legal license directory")
+            file_parent_fd = child_fd
+        before = os.stat(name, dir_fd=file_parent_fd, follow_symlinks=False)
+        if (not stat.S_ISREG(before.st_mode)
+                or before.st_uid != os.geteuid()
+                or before.st_nlink != 1
+                or stat.S_IMODE(before.st_mode) != mode
+                or before.st_size == 0 or before.st_size > 256 * 1024):
+            fail(f"Foreign, linked, mis-mode or oversized legal notice: {relative}")
+        file_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                          dir_fd=file_parent_fd)
+        pinned = os.fstat(file_fd)
+        if ((pinned.st_dev, pinned.st_ino) != (before.st_dev, before.st_ino)
+                or pinned.st_uid != os.geteuid()
+                or not stat.S_ISREG(pinned.st_mode) or pinned.st_nlink != 1
+                or stat.S_IMODE(pinned.st_mode) != mode
+                or pinned.st_size != before.st_size):
+            fail(f"Legal notice inode/permissions changed before read: {relative}")
+        with os.fdopen(os.dup(file_fd), "rb") as stream:
+            data = stream.read(256 * 1024 + 1)
+        after = os.fstat(file_fd)
+        named = os.stat(name, dir_fd=file_parent_fd, follow_symlinks=False)
+        if (len(data) != pinned.st_size
+                or (named.st_dev, named.st_ino) != (pinned.st_dev, pinned.st_ino)
+                or (after.st_dev, after.st_ino) != (pinned.st_dev, pinned.st_ino)
+                or any(getattr(after, field) != getattr(pinned, field)
+                       for field in ("st_mode", "st_uid", "st_nlink",
+                                     "st_size", "st_mtime_ns", "st_ctime_ns"))
+                or (root.lstat().st_dev, root.lstat().st_ino) != (
+                    os.fstat(parent_fd).st_dev, os.fstat(parent_fd).st_ino)):
+            fail(f"Legal notice modified/replaced during pinned read: {relative}")
+        if child_fd >= 0:
+            now = os.stat("LICENSES", dir_fd=parent_fd, follow_symlinks=False)
+            if (now.st_dev, now.st_ino) != (
+                    os.fstat(child_fd).st_dev, os.fstat(child_fd).st_ino):
+                fail("License directory replaced during read")
+        if expected_blob is not None and _legal_blob_oid(data) != expected_blob:
+            fail(f"Legal notice bytes differ from pinned PR16 blob: {relative}")
+        return data
+    finally:
+        if file_fd >= 0:
+            os.close(file_fd)
+        if child_fd >= 0:
+            os.close(child_fd)
+        os.close(parent_fd)
+
+
+def verify_legal_notice_bundle(root: Path) -> None:
+    for rel, oid in LEGAL_NOTICE_BLOBS.items():
+        _legal_file_bytes(root, rel, oid)
+    if _legal_file_bytes(root, LEGAL_MARKER, None, 0o600) != LEGAL_MARKER_BYTES:
+        fail("Invalid pinned legal bundle marker")
+
+
+def stage_legal_notice_bundle(repo: Path, stage: Path) -> None:
+    """Preflight all three immutable input files before creating anything.
+
+    Only a newly created disposable stage may be modified. Every file creation
+    is O_EXCL relative to pinned no-follow parent directory descriptors.
+    """
+    contents = {path: _legal_file_bytes(repo, path, oid)
+                for path, oid in LEGAL_NOTICE_BLOBS.items()}
+    parent_fd = _legal_parent_fd(stage)
+    license_fd = -1
+    try:
+        for name in ("LICENSE", "NOTICE", "LICENSES", LEGAL_MARKER):
+            try:
+                os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            fail(f"Legal stage contains preexisting foreign/unexpected data: {name}")
+        os.mkdir("LICENSES", mode=0o700, dir_fd=parent_fd)
+        license_fd = os.open("LICENSES", os.O_RDONLY | os.O_DIRECTORY |
+                             os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent_fd)
+
+        def new_file(fd: int, name: str, data: bytes, mode: int) -> None:
+            output = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL |
+                             os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=fd)
+            try:
+                with os.fdopen(os.dup(output), "wb") as stream:
+                    stream.write(data)
+                    stream.flush()
+                os.fchmod(output, mode)
+                os.fsync(output)
+            finally:
+                os.close(output)
+
+        for rel, data in contents.items():
+            if "/" in rel:
+                new_file(license_fd, rel.split("/", 1)[1], data, 0o644)
+            else:
+                new_file(parent_fd, rel, data, 0o644)
+        new_file(parent_fd, LEGAL_MARKER, LEGAL_MARKER_BYTES, 0o600)
+        os.fsync(license_fd)
+        os.fsync(parent_fd)
+    finally:
+        if license_fd >= 0:
+            os.close(license_fd)
+        os.close(parent_fd)
+    verify_legal_notice_bundle(stage)
+
 def release_manifest(root: Path) -> dict:
     directory(root)
     entries = dict(iter_entries(root))
@@ -113,6 +267,8 @@ def prepare_release(root: Path) -> None:
     target = root / MANIFEST
     if target.exists() or target.is_symlink():
         fail("Refusing existing release manifest")
+    if any(present(root / p) for p in (*LEGAL_NOTICE_BLOBS, "LICENSES", LEGAL_MARKER)):
+        verify_legal_notice_bundle(root)
     data = release_manifest(root)
     if not data["entries"].get("native/bin/kaffeine", {}).get("type") == "file":
         fail("Missing native executable")
@@ -131,6 +287,13 @@ def verify_release(root: Path) -> None:
         fail(f"Invalid release manifest: {exc}")
     if data.get("schema") != 1 or not isinstance(data.get("entries"), dict):
         fail("Invalid release manifest schema")
+    # Existing legacy test fixtures may predate this versioned bundle. Any
+    # current or manifest-recorded legal file, however, requires the complete
+    # pinned bundle and immutable marker before the release is trusted.
+    legal_paths = (*LEGAL_NOTICE_BLOBS, "LICENSES", LEGAL_MARKER)
+    if (any(p in data["entries"] for p in legal_paths)
+            or any(present(root / p) for p in legal_paths)):
+        verify_legal_notice_bundle(root)
     actual = release_manifest(root)
     if actual != data:
         missing = set(data["entries"]) - set(actual["entries"])
@@ -912,7 +1075,11 @@ def publish_entrypoints(home: Path) -> None:
 
 def main() -> int:
     try:
-        if len(sys.argv) == 3 and sys.argv[1] == "prepare-release":
+        if len(sys.argv) == 4 and sys.argv[1] == "stage-notices":
+            stage_legal_notice_bundle(Path(sys.argv[2]), Path(sys.argv[3]))
+        elif len(sys.argv) == 3 and sys.argv[1] == "verify-notices":
+            verify_legal_notice_bundle(Path(sys.argv[2]))
+        elif len(sys.argv) == 3 and sys.argv[1] == "prepare-release":
             prepare_release(Path(sys.argv[2]))
         elif len(sys.argv) == 3 and sys.argv[1] == "verify-release":
             # Read-only gate used for rollback and any existing current pointer.
