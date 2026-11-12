@@ -262,11 +262,16 @@ def exact_owned_text(path: Path, expected: str, label: str) -> None:
 
 def validate_existing(home: Path, *, allow_build: bool = False) -> None:
     """READ-ONLY check, including on initial install, before lock creation."""
-    root, launcher, desktop = paths(home)
+    try:
+        root, launcher, desktop = paths(home)
+    except SafetyError as exc:
+        fail(f"Unsafe rollback parent or install parent: {exc}")
     root_exists = directory(root, optional=True)
     if root_exists:
         marker = root / MARKER
-        exact_owned_text(marker, MARKER_VALUE, "owner marker")
+        if not present(marker):
+            fail("Missing installer ownership marker")
+        exact_owned_text(marker, MARKER_VALUE, "installer ownership marker")
         old_lock = root / ".install.lock"
         if present(old_lock):
             regular(old_lock)
