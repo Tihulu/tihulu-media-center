@@ -1,0 +1,35 @@
+{
+  "schema": "TIHULU media source provenance 19 / preliminary",
+  "evaluated_base_commit": "2f5699eeb47505468bf3327be4dbdd89fed3dff1",
+  "base_tree_git_oid": "06790356ea1deaf63e1e93b6d7fbc4ed471ab160",
+  "immutable_frozen_commit": "7821769eb7aed576dd426ec18ffce3696d93a00d",
+  "frozen_commit_tree_git_oid": "d471b3aa4e546e8d790512df37fad763254023c6",
+  "selected_source_prefix": "source/installed-package/",
+  "selected_source_file_count": 133,
+  "selected_components": [
+    {
+      "path": "source/installed-package/kaffeine_next",
+      "files": 34,
+      "purpose": "patch native upstream Kaffeine"
+    },
+    {
+      "path": "source/installed-package/tv_center",
+      "files": 79,
+      "purpose": "TV AI / Radio AI / web companion"
+    },
+    {
+      "path": "source/installed-package/textcenter",
+      "files": 20,
+      "purpose": "FM/RDS/DAB/TV integration"
+    }
+  ],
+  "excluded_archived_worktrees": "source/worktrees/** — source history only, not selected installer input",
+  "kde_kaffeine": {
+    "repository": "https://github.com/KDE/kaffeine",
+    "tag": "v2.0.19",
+    "git_commit": "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c"
+  },
+  "reported_private_installed_binary_sha256": "1211bd5f8e16267d4b7f7b537f2b2c5c218b204d786c85fa6119a0f8ffa0d502",
+  "statement": "Git object IDs are hashes of Git blobs/trees, not standalone SHA-1 checksums and not proof of license grants. Private binary equivalence and artifact reconstruction have NOT been established.",
+  "release_decision": "HOLD"
+}

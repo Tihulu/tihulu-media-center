@@ -1,0 +1,39 @@
+name: MEDIA-LICENSE-COMPLIANCE-ARTIFACTS-19 (static provenance, no installs)
+on:
+  pull_request:
+    paths:
+      - 'LICENSE'
+      - 'NOTICE'
+      - 'LICENSES/**'
+      - 'docs/compliance/**'
+      - 'tests/test_media_license_artifacts_19.py'
+      - '.github/workflows/media-license-compliance-19.yml'
+  push:
+    branches:
+      - 'audit/media-license-compliance-artifacts-19-20261112'
+permissions:
+  contents: read
+jobs:
+  license-artifacts-19:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact PR head with preserved Git source objects
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact checked-out commit
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git cat-file -e '7821769eb7aed576dd426ec18ffce3696d93a00d^{commit}'
+          git cat-file -e '2f5699eeb47505468bf3327be4dbdd89fed3dff1^{commit}'
+      - name: Source-only 14 compliance/integrity tests (zero downloads/models)
+        run: python3 -m unittest discover -s tests -p 'test_media_license_artifacts_19.py' -v
+      - name: Explicitly preserve release HOLD
+        run: |
+          echo 'These are STATIC synthetic tests; no license approval, actual hardware, CUDA inference, package install or redistribution test.'
+          echo 'PUBLIC RELEASE HOLD / OWNER APPROVAL REQUIRED'
