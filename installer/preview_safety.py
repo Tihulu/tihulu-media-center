@@ -8,6 +8,7 @@ data is always kept. No hardware, model or service actions.
 """
 from __future__ import annotations
 
+import ctypes
 import fcntl
 import hashlib
 import json
@@ -23,6 +24,11 @@ MARKER = ".media-preview-owner-v1"
 MARKER_VALUE = "TIHULU_MEDIA_PREVIEW_OWNED_V1\n"
 MANIFEST = ".media-preview-release.json"
 SERIAL_LOCK = ".tihulu-media-stable-operations.lock"
+UNINSTALL_TXN = ".media-uninstall-transaction-v1"
+TXN_PLAN = "plan.json"
+TXN_COMMITTED = "committed"
+TXN_COMMIT_TEXT = "TIHULU_MEDIA_UNINSTALL_COMMITTED_V1\n"
+
 RELEASE_NAME = re.compile(r"r-[0-9a-f]{12}-[0-9]{8}T[0-9]{6}-[0-9]+$")
 LAUNCH = '''#!/bin/sh
 set -eu
@@ -156,106 +162,410 @@ def verify_links(root: Path, names: set[str]) -> None:
             fail(f"Unknown/outside owned release pointer: {name}")
 
 
+def _sync_dir(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _write_owned_exclusive(path: Path, value: bytes) -> None:
+    directory(path.parent)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL |
+                 os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(os.dup(fd), "wb") as stream:
+            stream.write(value)
+            stream.flush()
+            os.fsync(stream.fileno())
+    finally:
+        os.close(fd)
+    _sync_dir(path.parent)
+
+
+def _rename_noreplace(srcfd: int, src: str, dstfd: int, dst: str) -> None:
+    """Linux renameat2(NO_REPLACE): never overwrite a raced destination."""
+    libc = ctypes.CDLL(None, use_errno=True)
+    operation = getattr(libc, "renameat2", None)
+    if operation is None:
+        fail("Linux renameat2(NO_REPLACE) unavailable: refusing unsafe rename")
+    operation.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
+                          ctypes.c_char_p, ctypes.c_uint)
+    operation.restype = ctypes.c_int
+    # RENAME_NOREPLACE=1. No shell-based mv and no overwrite fallback.
+    if operation(srcfd, os.fsencode(src), dstfd, os.fsencode(dst), 1):
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error), f"{src} -> {dst}")
+
+
+def _known_uninstall_paths(root: Path, launcher: Path, desktop: Path) -> dict:
+    return {"launcher": launcher, "desktop": desktop,
+            "current": root / "current", "previous": root / "previous"}
+
+
+def _expected_uninstall_content(home: Path, root: Path, plan: dict, slot: str) -> str:
+    if slot == "launcher":
+        return LAUNCH
+    if slot == "desktop":
+        return desktop_text(home, root)
+    return plan["pointers"][slot]
+
+
+def _audit_before_uninstall(home: Path, root: Path, launcher: Path, desktop: Path) -> dict:
+    """All old checks happen before the transaction directory is created."""
+    directory(root)
+    exact_owned_text(root / MARKER, MARKER_VALUE, "owner marker")
+    release_parent = root / "releases"
+    existing_releases = directory(release_parent, optional=True)
+    names = []
+    if existing_releases:
+        for entry in release_parent.iterdir():
+            if not RELEASE_NAME.fullmatch(entry.name):
+                fail(f"Unknown release entry: {entry.name}")
+            directory(entry)
+            verify_release(entry)
+            names.append(entry.name)
+    names.sort()
+    expected_targets = {str(release_parent / n) for n in names}
+    verify_links(root, expected_targets)
+    entrypoints = {}
+    for name, path in (("launcher", launcher), ("desktop", desktop)):
+        entrypoints[name] = present(path)
+        if entrypoints[name]:
+            exact_owned_text(path, LAUNCH if name == "launcher" else
+                             desktop_text(home, root), name)
+    if entrypoints["launcher"] != entrypoints["desktop"]:
+        fail("Incomplete launcher and desktop pair")
+    pointers = {}
+    for key in ("current", "previous"):
+        link = root / key
+        pointers[key] = os.readlink(link) if present(link) else None
+    allowed = {"releases", "current", "previous", ".install.lock",
+               MARKER, "preview-home"}
+    extras = {entry.name for entry in root.iterdir()} - allowed
+    if extras:
+        fail(f"Unknown/incomplete install files in app root: {sorted(extras)}")
+    directory(root / "preview-home", optional=True)
+    return {"schema": 1, "releases": names, "had_releases": existing_releases,
+            "entrypoints": entrypoints, "pointers": pointers}
+
+
+def _read_uninstall_plan(root: Path) -> dict:
+    txn = root / UNINSTALL_TXN
+    directory(txn)
+    expected = {TXN_PLAN, TXN_COMMITTED, "launcher", "desktop", "current", "previous"}
+    unknown = {p.name for p in txn.iterdir()} - expected
+    if unknown:
+        fail(f"Unknown private data in uninstall transaction: {sorted(unknown)}")
+    plan_file = txn / TXN_PLAN
+    regular(plan_file)
+    if plan_file.lstat().st_nlink != 1:
+        fail("Hardlinked uninstall transaction plan")
+    try:
+        data = json.loads(plan_file.read_bytes())
+    except (OSError, ValueError) as exc:
+        fail(f"Malformed uninstall transaction plan: {exc}")
+    if not isinstance(data, dict) or set(data) != {
+            "schema", "releases", "had_releases", "entrypoints", "pointers"}:
+        fail("Unexpected uninstall transaction schema")
+    names = data["releases"]
+    if (data["schema"] != 1 or not isinstance(names, list)
+            or any(not isinstance(n, str) or not RELEASE_NAME.fullmatch(n)
+                   for n in names)
+            or names != sorted(set(names))
+            or type(data["had_releases"]) is not bool):
+        fail("Untrusted release names in uninstall transaction")
+    if (data["entrypoints"] is None or set(data["entrypoints"]) != {"launcher", "desktop"}
+            or any(type(v) is not bool for v in data["entrypoints"].values())):
+        fail("Invalid uninstall entrypoint plan")
+    if set(data["pointers"]) != {"current", "previous"}:
+        fail("Invalid uninstall release pointer plan")
+    expected_targets = {str(root / "releases" / n) for n in names}
+    for value in data["pointers"].values():
+        if value is not None and (not isinstance(value, str) or value not in expected_targets):
+            fail("Untrusted release pointer in uninstall plan")
+    if not data["had_releases"] and names:
+        fail("Missing planned release root")
+    if present(txn / TXN_COMMITTED):
+        exact_owned_text(txn / TXN_COMMITTED, TXN_COMMIT_TEXT, "uninstall commit")
+    return data
+
+
+def validate_uninstall_recovery(home: Path) -> None:
+    """Read-only gate for EXPLICIT --uninstall with an existing known plan."""
+    root, launcher, desktop = paths(home)
+    directory(root)
+    exact_owned_text(root / MARKER, MARKER_VALUE, "owner marker")
+    txn = root / UNINSTALL_TXN
+    directory(txn)
+    _read_uninstall_plan(root)
+    allowed = {"releases", "current", "previous", ".install.lock",
+               MARKER, "preview-home", UNINSTALL_TXN}
+    extras = {entry.name for entry in root.iterdir()} - allowed
+    if extras:
+        fail(f"Foreign files obstruct uninstall recovery: {sorted(extras)}")
+    directory(root / "releases", optional=True)
+    directory(root / "preview-home", optional=True)
+    directory(launcher.parent)
+    directory(desktop.parent)
+
+
+def _stage_uninstall_path(home: Path, root: Path, plan: dict, slot: str) -> None:
+    """Quarantine a verified INODE by no-replace rename; no destructive unlink.
+
+    A raced foreign inode is never deleted. Attempt a non-overwriting reversal;
+    any ambiguity is a permanent HOLD pending owner inspection.
+    """
+    source = _known_uninstall_paths(root, home / ".local/bin/tihulu-media-stable",
+                                    home / ".local/share/applications/tihulu-media-stable.desktop")[slot]
+    destination = root / UNINSTALL_TXN / slot
+    exists = (plan["entrypoints"][slot] if slot in ("launcher", "desktop")
+              else plan["pointers"][slot] is not None)
+    if not exists:
+        if present(source) or present(destination):
+            fail(f"Unplanned file appeared during uninstall: {slot}")
+        return
+    expected = _expected_uninstall_content(home, root, plan, slot)
+    if present(destination):
+        if present(source):
+            fail(f"Duplicate live/staged uninstall entry: {slot}")
+        if slot in ("launcher", "desktop"):
+            exact_owned_text(destination, expected, slot)
+        elif not destination.is_symlink() or os.readlink(destination) != expected:
+            fail(f"Modified quarantined pointer: {slot}")
+        return
+    if not present(source):
+        fail(f"Missing live/staged uninstall entry: {slot}")
+    directory(source.parent)
+    directory(destination.parent)
+    if slot in ("launcher", "desktop"):
+        exact_owned_text(source, expected, slot)
+    elif not source.is_symlink() or os.readlink(source) != expected:
+        fail(f"Modified release pointer: {slot}")
+    source_fd = os.open(source.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    target_fd = os.open(destination.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    pinned_fd = -1
+    try:
+        original_parent = source.parent.lstat()
+        if (original_parent.st_dev, original_parent.st_ino) != (
+                os.fstat(source_fd).st_dev, os.fstat(source_fd).st_ino):
+            fail(f"Replaced parent before quarantine: {slot}")
+        if slot in ("launcher", "desktop"):
+            pinned_fd = os.open(source.name, os.O_RDONLY | os.O_NOFOLLOW,
+                                dir_fd=source_fd)
+            pinned = os.fstat(pinned_fd)
+            if (not stat.S_ISREG(pinned.st_mode) or pinned.st_uid != os.geteuid()
+                    or pinned.st_nlink != 1 or pinned.st_mode & 0o022):
+                fail(f"Foreign entrypoint before quarantine: {slot}")
+            with os.fdopen(os.dup(pinned_fd), "rb") as stream:
+                if stream.read() != expected.encode():
+                    fail(f"Modified entrypoint before quarantine: {slot}")
+        else:
+            pinned = os.stat(source.name, dir_fd=source_fd, follow_symlinks=False)
+            if not stat.S_ISLNK(pinned.st_mode):
+                fail(f"Foreign pointer before quarantine: {slot}")
+        _rename_noreplace(source_fd, source.name, target_fd, destination.name)
+        moved = os.stat(destination.name, dir_fd=target_fd, follow_symlinks=False)
+        if (moved.st_ino, moved.st_dev) != (pinned.st_ino, pinned.st_dev):
+            # Do not unlink/delete the substituted file. Best effort reversal
+            # guarded by no-replace; if it fails leave journal and HOLD.
+            try:
+                _rename_noreplace(target_fd, destination.name, source_fd, source.name)
+            finally:
+                fail(f"Entrypoint/pointer inode changed during quarantine: {slot}")
+        if slot in ("launcher", "desktop"):
+            exact_owned_text(destination, expected, slot)
+        elif os.readlink(destination) != expected:
+            fail(f"Pointer text changed during quarantine: {slot}")
+        os.fsync(source_fd)
+        os.fsync(target_fd)
+    finally:
+        if pinned_fd >= 0:
+            os.close(pinned_fd)
+        os.close(source_fd)
+        os.close(target_fd)
+
+
+def _stage_all_uninstall(home: Path, root: Path, plan: dict) -> None:
+    txn = root / UNINSTALL_TXN
+    for slot in ("launcher", "desktop", "current", "previous"):
+        _stage_uninstall_path(home, root, plan, slot)
+    expected = set(plan["releases"])
+    releases = root / "releases"
+    if directory(releases, optional=True):
+        actual = {p.name for p in releases.iterdir()}
+        if actual != expected:
+            fail(f"Release set changed during uninstall stage: {sorted(actual ^ expected)}")
+        for name in sorted(expected):
+            verify_release(releases / name)
+    elif plan["had_releases"]:
+        fail("Release root vanished before uninstall commit")
+    if not present(txn / TXN_COMMITTED):
+        _write_owned_exclusive(txn / TXN_COMMITTED, TXN_COMMIT_TEXT.encode())
+        _sync_dir(root)
+
+
+def _committed_uninstall_cleanup(home: Path, root: Path, plan: dict) -> None:
+    """Irreversible phase; a failure leaves a COMMITTED journal to resume.
+
+    Never auto-delete a partially modified release or unknown/private files.
+    """
+    txn = root / UNINSTALL_TXN
+    exact_owned_text(txn / TXN_COMMITTED, TXN_COMMIT_TEXT, "uninstall commit")
+    for slot, path in _known_uninstall_paths(
+            root, home / ".local/bin/tihulu-media-stable",
+            home / ".local/share/applications/tihulu-media-stable.desktop").items():
+        if present(path):
+            fail(f"Committed uninstall unexpectedly has live entry: {slot}")
+    releases = root / "releases"
+    if directory(releases, optional=True):
+        actual = {p.name for p in releases.iterdir()}
+        if not actual <= set(plan["releases"]):
+            fail(f"Unexpected release obstructs uninstall cleanup: {sorted(actual - set(plan['releases']))}")
+        releases_fd = os.open(releases, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            opened = os.fstat(releases_fd)
+            for name in plan["releases"]:
+                current_parent = releases.lstat()
+                if (current_parent.st_dev, current_parent.st_ino) != (
+                        opened.st_dev, opened.st_ino):
+                    fail("Release parent replaced while removing releases")
+                release = releases / name
+                if not present(release):
+                    continue  # Already irrevocably removed in an earlier attempt.
+                directory(releases)
+                verify_release(release)
+                lstat = release.lstat()
+                pinned = os.stat(name, dir_fd=releases_fd, follow_symlinks=False)
+                if ((lstat.st_dev, lstat.st_ino) != (pinned.st_dev, pinned.st_ino)
+                        or not stat.S_ISDIR(pinned.st_mode)):
+                    fail("Release substituted between verification and deletion")
+                parent = releases.lstat()
+                if (parent.st_dev, parent.st_ino) != (opened.st_dev, opened.st_ino):
+                    fail("Release parent switched before deletion")
+                shutil.rmtree(name, dir_fd=releases_fd)
+                # Do not continue if another same-UID actor replaced the
+                # visible releases parent during a destructive operation.
+                after = releases.lstat()
+                if (after.st_dev, after.st_ino) != (opened.st_dev, opened.st_ino):
+                    fail("Release parent replaced during committed cleanup")
+                os.fsync(releases_fd)
+        finally:
+            os.close(releases_fd)
+        if any(releases.iterdir()):
+            fail("Nonempty release root after committed cleanup")
+        releases.rmdir()
+        _sync_dir(root)
+    elif plan["had_releases"] and any((root / "releases" / n).exists()
+                                      for n in plan["releases"]):
+        fail("Inconsistent committed release directory")
+    # Only after *all* verified releases are gone may quarantined
+    # entrypoints be unlinked. The original live paths remain absent.
+    for slot in ("launcher", "desktop"):
+        path = txn / slot
+        if present(path):
+            exact_owned_text(path, _expected_uninstall_content(home, root, plan, slot), slot)
+            unlink_verified_entrypoint(path,
+                _expected_uninstall_content(home, root, plan, slot))
+    for slot in ("current", "previous"):
+        pointer = txn / slot
+        if present(pointer):
+            if not pointer.is_symlink() or os.readlink(pointer) != plan["pointers"][slot]:
+                fail(f"Modified staged release pointer: {slot}")
+            pointer.unlink()
+    # If interrupted while deleting journal metadata, refuse future cleanup
+    # of any unknown path; no owner profile is ever removed automatically.
+    (txn / TXN_COMMITTED).unlink()
+    (txn / TXN_PLAN).unlink()
+    txn.rmdir()
+    _sync_dir(root)
+    print("Owned preview launcher, desktop entry and built releases removed.")
+    if directory(root / "preview-home", optional=True):
+        print(f"Preserved private preview settings/data: {root / 'preview-home'}")
+
+
+def _resume_uninstall(home: Path, root: Path) -> None:
+    validate_uninstall_recovery(home)
+    plan = _read_uninstall_plan(root)
+    committed = present(root / UNINSTALL_TXN / TXN_COMMITTED)
+    if not committed:
+        _stage_all_uninstall(home, root, plan)
+    _committed_uninstall_cleanup(home, root, plan)
+
+
 def uninstall(home: Path) -> None:
     if os.geteuid() == 0:
         fail("Refusing root uninstall")
     root, launcher, desktop = paths(home)
     directory(root)
-    marker = root / MARKER
-    regular(marker)
-    if marker.read_text() != MARKER_VALUE:
-        fail("Wrong installer ownership marker")
+    exact_owned_text(root / MARKER, MARKER_VALUE, "owner marker")
     lock = root / ".install.lock"
-    if lock.is_symlink() or (lock.exists() and not regular(lock)):
-        fail("Unsafe installer lock")
+    if present(lock):
+        regular(lock)
+        if lock.lstat().st_nlink != 1:
+            fail("Hardlinked legacy install lock")
     fd = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        releases = root / "releases"
-        exists = directory(releases, optional=True)
-        names = {}
-        for entry in releases.iterdir() if exists else ():
-            if not RELEASE_NAME.fullmatch(entry.name):
-                fail(f"Unknown release entry: {entry.name}")
-            directory(entry)
-            verify_release(entry)
-            names[str(entry)] = entry
-        verify_links(root, set(names))
-        if launcher.exists() or launcher.is_symlink():
-            exact_owned_text(launcher, LAUNCH, "launcher")
-        if desktop.exists() or desktop.is_symlink():
-            exact_owned_text(desktop, desktop_text(home, root), "desktop entry")
-        allowed = {"releases", "current", "previous", ".install.lock", MARKER, "preview-home"}
-        extra = set(p.name for p in root.iterdir()) - allowed
-        if extra:
-            fail(f"Unknown/incomplete install files in app root: {sorted(extra)}")
-        profile = root / "preview-home"
-        if profile.exists() or profile.is_symlink():
-            directory(profile)
-        # Repeat verification immediately before ANY removal. This catches
-        # deterministic verify-then-mutate races; cooperative flock holds.
-        directory(root)
-        if exists:
-            directory(releases)
-        for entry in names.values():
-            verify_release(entry)
-        for file, expected in ((launcher, LAUNCH),
-                               (desktop, desktop_text(home, root))):
-            if present(file):
-                exact_owned_text(file, expected, file.name)
-        verify_links(root, set(names))
-        for file in (launcher, desktop):
-            if present(file):
-                unlink_verified_entrypoint(file, LAUNCH if file == launcher else desktop_text(home, root))
-        for name in ("current", "previous"):
-            pointer = root / name
-            if pointer.is_symlink():
-                pointer.unlink()
-        if exists:
-            # rmtree's Linux fd-safe traversal is rooted in the originally
-            # opened releases directory, not a newly substituted pathname.
-            releasesfd = os.open(releases, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-            try:
-                for release in names.values():
-                    directory(releases)
-                    verify_release(release)
-                    pinned = release.lstat()
-                    current = os.stat(release.name, dir_fd=releasesfd, follow_symlinks=False)
-                    if ((pinned.st_dev, pinned.st_ino) != (current.st_dev, current.st_ino)
-                            or not stat.S_ISDIR(current.st_mode)):
-                        fail("Release substituted between verification and deletion")
-                    shutil.rmtree(release.name, dir_fd=releasesfd)
-            finally:
-                os.close(releasesfd)
-            releases.rmdir()
-        # Deliberately preserve ownership marker and lock for safe reinstall.
-        # Deliberately retain preview-home: may contain recordings, settings,
-        # model selections or user data. Do not auto-purge or import them.
-        if profile.exists():
-            print(f"Preserved private preview settings/data: {profile}")
-        print("Owned preview launcher, desktop entry and built releases removed.")
+        txn = root / UNINSTALL_TXN
+        if present(txn):
+            _resume_uninstall(home, root)
+            return
+        plan = _audit_before_uninstall(home, root, launcher, desktop)
+        # Recheck after audit before any entrypoint is quarantined. If a
+        # manifest was modified during first verification, NOTHING is moved.
+        for name in plan["releases"]:
+            verify_release(root / "releases" / name)
+        txn.mkdir(mode=0o700)
+        _sync_dir(root)
+        _write_owned_exclusive(txn / TXN_PLAN, (json.dumps(
+            plan, sort_keys=True, separators=(",", ":")) + "\n").encode())
+        _stage_all_uninstall(home, root, plan)
+        _committed_uninstall_cleanup(home, root, plan)
     finally:
         os.close(fd)
 
 
-
 def unlink_verified_entrypoint(path: Path, expected: str) -> None:
-    """Unlink via an owned parent FD, never a retargeted parent symlink."""
-    directory(path.parent)
-    pfd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
-    try:
-        opened = os.fstat(pfd)
-        parent = path.parent.lstat()
-        if (opened.st_ino, opened.st_dev) != (parent.st_ino, parent.st_dev):
-            fail("Entrypoint parent replaced before unlink")
-        exact_owned_text(path, expected, path.name)
-        entry = os.stat(path.name, dir_fd=pfd, follow_symlinks=False)
-        if not stat.S_ISREG(entry.st_mode) or entry.st_uid != os.geteuid() or entry.st_nlink != 1:
-            fail("Entrypoint switched before deletion")
-        os.unlink(path.name, dir_fd=pfd)
-    finally:
-        os.close(pfd)
+    """Final unlink is allowed ONLY inside the owned, committed quarantine.
 
+    Pin the regular file on O_NOFOLLOW fd; verify its entire bytes and inode
+    both before and immediately before unlink. POSIX unlinkat is pathname-
+    based, so a hostile same-UID inode swap *after* the final stat remains
+    outside this limited guarantee and is a documented full-security HOLD.
+    """
+    if path.parent.name != UNINSTALL_TXN:
+        fail("Refusing live-path unlink outside committed uninstall transaction")
+    directory(path.parent)
+    exact_owned_text(path.parent / TXN_COMMITTED, TXN_COMMIT_TEXT, "uninstall commit")
+    pfd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    opened_file = -1
+    try:
+        parent = path.parent.lstat()
+        pinned_parent = os.fstat(pfd)
+        if (parent.st_ino, parent.st_dev) != (pinned_parent.st_ino, pinned_parent.st_dev):
+            fail("Quarantine parent replaced before unlink")
+        opened_file = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                              dir_fd=pfd)
+        pinned = os.fstat(opened_file)
+        if (not stat.S_ISREG(pinned.st_mode) or pinned.st_uid != os.geteuid()
+                or pinned.st_nlink != 1 or pinned.st_mode & 0o022):
+            fail("Untrusted quarantined entrypoint inode")
+        with os.fdopen(os.dup(opened_file), "rb") as stream:
+            if stream.read() != expected.encode():
+                fail("Modified quarantined entrypoint content")
+        exact_owned_text(path, expected, path.name)
+        current = os.stat(path.name, dir_fd=pfd, follow_symlinks=False)
+        if (current.st_dev, current.st_ino) != (pinned.st_dev, pinned.st_ino):
+            fail("Quarantined entrypoint replaced before unlink")
+        os.unlink(path.name, dir_fd=pfd)
+        os.fsync(pfd)
+    finally:
+        if opened_file >= 0:
+            os.close(opened_file)
+        os.close(pfd)
 
 def desktop_text(home: Path, root: Path) -> str:
     launcher = home / ".local/bin/tihulu-media-stable"
@@ -431,10 +741,16 @@ def verify_guard(home: Path, fd: int) -> None:
 def guard_command(home: Path, command: list[str], *, inherited_env: dict | None = None) -> int:
     if os.geteuid() == 0:
         fail("Refusing root operation")
-    validate_existing(home)
+    # A committed or interrupted explicit uninstall has an owned transaction
+    # record. Install/rollback stay blocked until that transaction is resolved.
+    root = home / ".local/opt/tihulu-media-stable"
+    recovering = (command[-1] in ("uninstall", "--uninstall")
+                  and present(root / UNINSTALL_TXN))
+    gate = validate_uninstall_recovery if recovering else validate_existing
+    gate(home)
     fd = secure_lock(home)
     try:
-        validate_existing(home)
+        gate(home)
         env = dict(os.environ if inherited_env is None else inherited_env)
         env["TIHULU_MEDIA_GUARD_FD"] = str(fd)
         # FD remains open in child while this parent holds the same lock until
