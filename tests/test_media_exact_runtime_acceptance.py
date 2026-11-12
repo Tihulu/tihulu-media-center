@@ -130,24 +130,33 @@ class ExactInstalledRuntime(unittest.TestCase):
                 proc.wait(timeout=6)
             proc.stderr.close()
 
-    def test_settings_collision_is_explicit_hold(self) -> None:
-        # This audit records a confirmed blocker; it must never be labelled GO
-        # merely because the installer creates a separately named launcher.
-        ai_settings = (RELEASE / "py/tv_center/ai_settings.py").read_text()
-        native_radio = (RELEASE / "py/kaffeine_next/native_radio_tab.h").read_text()
-        captions = (RELEASE / "py/kaffeine_next/captions_overlay.py").read_text()
-        self.assertIn('.config/tihulu-tv-center/ai-settings.json', ai_settings)
-        self.assertIn('QLatin1String("KaffeineRadio")', native_radio)
-        self.assertIn('QSettings("TIHULU", "KaffeineCaptionAppearance")', captions)
-        print("HOLD: preview shares legacy AI JSON and QSettings identities; "
-              "do not install alongside an existing user profile", flush=True)
+    def test_preview_settings_use_private_home_and_xdg(self) -> None:
+        # Frozen source identities remain, but the wrapper must relocate HOME
+        # and XDG paths before Qt or AI settings are initialized.
+        config = (RELEASE / "bin/tihulu-preview-env").read_text()
+        self.assertIn('HOME="$preview"', config)
+        self.assertIn('XDG_CONFIG_HOME="$preview/.config"', config)
+        self.assertIn('XDG_DATA_HOME="$preview/.local/share"', config)
+        self.assertIn('XDG_CACHE_HOME="$preview/.cache"', config)
+        self.assertIn('XDG_STATE_HOME="$preview/.local/state"', config)
+        for name in ("tihulu-kaffeine", "tihulu-tv-center"):
+            self.assertIn('. "$release/bin/tihulu-preview-env"',
+                          (RELEASE / "bin" / name).read_text())
+        self.assertIn('dbus-run-session -- "$release/bin/tihulu-kaffeine"',
+                      (RELEASE / "bin/tihulu-kaffeine").read_text())
+        self.assertTrue((HOME / ".local/opt/tihulu-media-stable/preview-home/.config").is_dir())
+        # Source-level KaffeineRadio / appearance/JSON names are still preserved.
+        self.assertIn('QLatin1String("KaffeineRadio")',
+                      (RELEASE / "py/kaffeine_next/native_radio_tab.h").read_text())
+        self.assertIn('QSettings("TIHULU", "KaffeineCaptionAppearance")',
+                      (RELEASE / "py/kaffeine_next/captions_overlay.py").read_text())
 
-    def test_uninstall_absent_is_explicit_hold(self) -> None:
-        # Missing --uninstall is not a successful uninstall implementation.
-        p = run("bash", str(ROOT / "installer/media-stable-first.sh"), "--uninstall")
-        self.assertNotEqual(p.returncode, 0)
-        self.assertIn("Unknown argument", p.stderr)
-        print("HOLD: reversible current symlink is not an uninstall operation", flush=True)
+    def test_uninstall_support_and_release_integrity_manifest(self) -> None:
+        p = run("bash", str(ROOT / "installer/media-stable-first.sh"), "--help")
+        self.assertEqual(p.returncode, 0)
+        self.assertIn("--uninstall", p.stdout)
+        self.assertTrue((RELEASE / ".media-preview-release.json").is_file())
+        self.assertTrue((HOME / ".local/opt/tihulu-media-stable/.media-preview-owner-v1").is_file())
 
 
     def test_optional_speech_translation_imports_without_models(self) -> None:
