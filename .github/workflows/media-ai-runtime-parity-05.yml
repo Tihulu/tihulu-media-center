@@ -1,0 +1,121 @@
+name: MEDIA-AI-RUNTIME-PARITY-05 disposable source and installed smoke
+on:
+  pull_request:
+    branches: [agent/media-install-safety-p0-20261112]
+    paths:
+      - installer/media-ai-compat.py
+      - tests/test_media_ai_runtime_parity_05.py
+      - docs/MEDIA_AI_RUNTIME_PARITY_05.md
+      - .github/workflows/media-ai-runtime-parity-05.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-fixtures-and-privacy:
+    name: Unmodified source QA + isolated AI fixtures (NO inference)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Syntax, existing feature/security tests, no private paths
+        run: |
+          set -euo pipefail
+          export PYTHONDONTWRITEBYTECODE=1
+          python3 -m py_compile installer/media-ai-compat.py tests/test_media_ai_runtime_parity_05.py
+          bash -n installer/media-stable-first.sh
+          python3 -m unittest discover -s tests -p 'test_stable_first_*.py' -v
+          python3 -m unittest discover -s tests -p 'test_media_install_safety_p0.py' -v
+          python3 -m unittest discover -s tests -p 'test_media_ai_runtime_parity_05.py' -v
+          bash installer/media-stable-first.sh --dry-run --no-ai
+          echo 'SOURCE/FAKE MODELS ONLY — no GPU, device, downloads or real inference'
+
+  disposable-installed-ai-paths:
+    name: Disposable native install, real imports, missing-runtime fail closed
+    needs: source-fixtures-and-privacy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: CI-only native build dependencies, no AI models
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git ca-certificates cmake g++ make pkg-config extra-cmake-modules \
+            qtbase5-dev libqt5x11extras5-dev libkf5coreaddons-dev \
+            libkf5dbusaddons-dev libkf5i18n-dev libkf5kio-dev libkf5solid-dev \
+            libkf5widgetsaddons-dev libkf5windowsystem-dev libkf5xmlgui-dev \
+            libvlc-dev libx11-dev libxss-dev libdvbv5-dev libudev-dev \
+            libqt5sql5-sqlite vlc python3 python3-pyqt5 \
+            ffmpeg mpv dvb-tools psmisc xvfb xauth dbus-x11
+      - name: Native install and opt-in compatibility in isolated runner HOME
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/media-ai-05-owner-fixture"
+          export XDG_CONFIG_HOME="$HOME/.config"
+          export XDG_DATA_HOME="$HOME/.local/share"
+          export XDG_CACHE_HOME="$HOME/.cache"
+          export XDG_STATE_HOME="$HOME/.local/state"
+          export PYTHONDONTWRITEBYTECODE=1
+          mkdir -p "$HOME/.config/tihulu-tv-center" "$HOME/.config/TIHULU" \
+                   "$HOME/Recordings" "$HOME/fixture-ssd"
+          printf 'OWNER-AI-KEEP\n' > "$HOME/.config/tihulu-tv-center/ai-settings.json"
+          printf 'OWNER-QT-KEEP\n' > "$HOME/.config/TIHULU/KaffeineRadio.conf"
+          printf 'OWNER-RECORDING-KEEP\n' > "$HOME/Recordings/private.wav"
+          # Synthetic file: passes metadata threshold but is NOT a speech model.
+          head -c 2048 /dev/zero > "$HOME/fixture-ssd/ggml-test.bin"
+          bash installer/media-stable-first.sh --install --no-ai
+          app="$HOME/.local/opt/tihulu-media-stable"
+          release="$(readlink "$app/current")"
+          test -d "$release/py/tv_center"
+          test -x "$release/bin/tihulu-tv-center"
+          python3 installer/media-ai-compat.py \
+            --model-path "$HOME/fixture-ssd/ggml-test.bin" --model-dir "$HOME/fixture-ssd"
+          test ! -e "$app/preview-home/.config/tihulu-tv-center/ai-settings.json"
+          python3 installer/media-ai-compat.py \
+            --model-path "$HOME/fixture-ssd/ggml-test.bin" --model-dir "$HOME/fixture-ssd" \
+            --apply --confirm-preview-only
+          PREVIEW="$app/preview-home" RELEASE="$release" \
+          HOME="$app/preview-home" XDG_CONFIG_HOME="$app/preview-home/.config" \
+          PYTHONPATH="$release/py" /usr/bin/python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          from tv_center.ai_settings import AISettings
+          from tv_center.runtime import AIRuntime
+          from tv_center.cuda_faster_whisper import FasterWhisperCUDA
+          from tv_center.qwen_forced_aligner import QwenForcedAlignerMarket
+          from tv_center.translation_service import NLLBService
+          from tv_center.translation_market import TranslationModelMarket
+          from tv_center.translation_madlad import MadladMarket
+
+          preview = Path(os.environ["PREVIEW"])
+          current = AISettings()
+          assert Path.home() == preview
+          assert current.path == preview / ".config/tihulu-tv-center/ai-settings.json"
+          assert not current.values["asr_enabled"]
+          assert not current.values["translation_enabled"]
+          assert current.values["active_profile"] == ""
+          assert current.values["model_dir"].endswith("fixture-ssd")
+          assert not AIRuntime().status()["installed"]
+          assert not FasterWhisperCUDA().installed()
+          assert not QwenForcedAlignerMarket().installed()
+          assert not TranslationModelMarket().status()["installed"]
+          assert not MadladMarket().status()["installed"]
+          try:
+              NLLBService()._start()
+          except RuntimeError as exc:
+              assert "missing" in str(exc).lower()
+          else:
+              raise AssertionError("Missing NLLB runtime incorrectly started")
+          PY
+          bash installer/media-stable-first.sh --uninstall
+          test -f "$app/preview-home/.config/tihulu-tv-center/ai-settings.json"
+          grep -Fxq OWNER-AI-KEEP "$HOME/.config/tihulu-tv-center/ai-settings.json"
+          grep -Fxq OWNER-QT-KEEP "$HOME/.config/TIHULU/KaffeineRadio.conf"
+          grep -Fxq OWNER-RECORDING-KEEP "$HOME/Recordings/private.wav"
+          cmp "$HOME/fixture-ssd/ggml-test.bin" <(head -c 2048 /dev/zero)
+          echo 'PASS: installed imports/isolated AI settings/unavailable-runtime paths and owner data preservation'
+          echo 'HOLD: fake model files and no actual Whisper/CUDA/translation/karaoke inference'
