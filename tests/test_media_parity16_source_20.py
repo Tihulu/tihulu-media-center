@@ -37,6 +37,7 @@ class Parity16SourceTests(unittest.TestCase):
         self.assertIn('Refusing unexpected preview TV entrypoint target', installer)
         self.assertIn('str(app / "current/bin/tihulu-kaffeine")', installer)
         self.assertIn('profile / ".local/bin"', installer)
+        self.assertIn('resolved="$(readlink -f -- "$0")"', installer)
 
 
 if __name__ == "__main__":
