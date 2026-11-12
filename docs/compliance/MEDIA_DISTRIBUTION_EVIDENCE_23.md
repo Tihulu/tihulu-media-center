@@ -29,3 +29,5 @@ The workflow uploads **only JSON evidence**, not a binary, source candidate, sou
 - Agent 05 source-only licensing PR #16: https://github.com/Tihulu/tihulu-media-center/pull/16 (preliminary notices, 133-file SPDX, 30-component declared SBOM, 9 opt-in models).
 - Agent 06 parity PR #17, Agent 02 physical acceptance PR #13 (0/41 physical tests at last handoff), Agent 03 real AI acceptance PR #14 (actual inference not approved).
 - Next: independent auditor inspects CI evidence JSON, resolves actual corresponding-source delivery and full notices, exact optional wheel/dlopen/codec dependency rights, every unlicensed file/icon rightsholder and model revision. Only owner approval can authorize any release. **PUBLIC RELEASE HOLD.**
+
+**Observed Debian diversion edge case:** dpkg-query -S for the ELF interpreter can first return a diversion record rather than an actual package. Evidence collector explicitly ignores such records and accepts only valid package-name lines (with a synthetic negative regression). This repairs package ownership reporting; copyright-file presence is still NOT a legal permission conclusion.

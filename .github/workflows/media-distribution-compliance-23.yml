@@ -30,7 +30,7 @@ jobs:
           actual=set(subprocess.check_output(['git','diff','--name-only','e5271965dadaf82c4be1a336396d0e9b3a083b8d','HEAD'],text=True).splitlines())
           assert wanted == actual,(wanted,actual)
           PY
-      - name: 14 synthetic detector and NC license regressions
+      - name: 15 synthetic detector, Debian diversion and NC license regressions
         run: |
           export PYTHONDONTWRITEBYTECODE=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
           python3 -m unittest discover -s tests -p 'test_media_distribution_evidence_23.py' -v

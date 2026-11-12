@@ -48,4 +48,8 @@ class Distribution23(unittest.TestCase):
     def test_14_missing_source_candidate_fails(self):
         e=evidence();e["source_candidate_required_missing"]=["COPYING"]
         with self.assertRaises(ValueError):m.verify(e)
+    def test_15_dpkg_diversion_not_fake_package(self):
+        listing="diversion by libc6 from: /lib64/ld-linux-x86-64.so.2\nlibc6:amd64: /lib64/ld-linux-x86-64.so.2\n"
+        self.assertEqual(m.parse_dpkg_owner(listing),"libc6:amd64")
+        self.assertIsNone(m.parse_dpkg_owner("diversion by libc6 from: /lib64/ld-linux-x86-64.so.2\n"))
 if __name__=="__main__":unittest.main()

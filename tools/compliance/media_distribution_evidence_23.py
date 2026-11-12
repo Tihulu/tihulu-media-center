@@ -74,11 +74,20 @@ def pkg(name):
             "copyright_sha256":digest(copyright) if copyright.is_file() else None,
             "license_concluded":"NOASSERTION"}
 
+def parse_dpkg_owner(text):
+    # dpkg -S may emit a 'diversion by...' record before a real PACKAGE: PATH.
+    for line in text.splitlines():
+        if line.startswith("diversion by ") or ": " not in line:
+            continue
+        package=line.split(": ",1)[0].split(",",1)[0].strip()
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.+:-]*",package):
+            return package
+    return None
+
 def owner(path):
     for p in (str(path),str(Path(path).resolve())):
-        r=run("dpkg-query","-S",p,check=False)
-        if r:
-            return r.split(": ",1)[0].split(",",1)[0].splitlines()[0].strip()
+        package=parse_dpkg_owner(run("dpkg-query","-S",p,check=False))
+        if package: return package
     return None
 
 def source_candidate(repo,target):
