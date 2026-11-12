@@ -28,6 +28,21 @@ jobs:
           trap 'rm -rf "$tmp"' EXIT
           git archive 7821769eb7aed576dd426ec18ffce3696d93a00d -- source/installed-package | tar -x -C "$tmp"
           python3 -m compileall -q "$tmp/source/installed-package/tv_center" "$tmp/source/installed-package/textcenter" "$tmp/source/installed-package/kaffeine_next"
+      - name: Reconstruct standalone layout and build source package (never install)
+        run: |
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          mkdir -p "$tmp/canonical" "$tmp/debs" "$tmp/unpacked"
+          git archive 7821769eb7aed576dd426ec18ffce3696d93a00d -- source/installed-package | tar -x -C "$tmp"
+          cp -a "$tmp/source/installed-package/." "$tmp/canonical/"
+          bash "$tmp/canonical/tv_center/packaging/build-deb.sh" "$tmp/debs"
+          pkg="$tmp/debs/tihulu-tv-center_0.1.0~dev1_all.deb"
+          test -s "$pkg"
+          dpkg-deb --extract "$pkg" "$tmp/unpacked"
+          test -f "$tmp/unpacked/usr/share/tihulu-tv-center/tv_center/radio_ai.py"
+          test -f "$tmp/unpacked/usr/share/tihulu-tv-center/textcenter/fm_rds.py"
+          test -f "$tmp/unpacked/usr/share/tihulu-tv-center/kaffeine_next/teletext_match.py"
+          echo "Source package build and non-root extraction PASS; not a release artifact"
   native-disposable-build:
     needs: source-and-syntax
     runs-on: ubuntu-24.04
