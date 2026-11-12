@@ -500,6 +500,8 @@ def uninstall(home: Path) -> None:
         fail("Refusing root uninstall")
     root, launcher, desktop = paths(home)
     directory(root)
+    if not present(root / MARKER):
+        fail("Missing installer ownership marker")
     exact_owned_text(root / MARKER, MARKER_VALUE, "owner marker")
     lock = root / ".install.lock"
     if present(lock):
