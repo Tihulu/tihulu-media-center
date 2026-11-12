@@ -86,7 +86,7 @@ class StableFirstContract(unittest.TestCase):
             release1 = root / "releases/r-7821769eb7ae-20261112T080000-1"
             release2 = root / "releases/r-7821769eb7ae-20261112T080001-2"
             (root / ".media-preview-owner-v1").parent.mkdir(parents=True)
-            (root / ".media-preview-owner-v1").write_text("TIHULU_MEDIA_PREVIEW_OWNED_V1\\n")
+            (root / ".media-preview-owner-v1").write_text("TIHULU_MEDIA_PREVIEW_OWNED_V1" + chr(10))
             for release in (release1, release2):
                 (release / "native/bin").mkdir(parents=True)
                 (release / "native/bin/kaffeine").write_bytes(b"synthetic native Kaffeine")
