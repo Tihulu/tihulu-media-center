@@ -1,0 +1,25 @@
+# C0-only: no receiver, sysfs, device node, service, model, network,
+# recordings, private settings, sudo, package installation or owner machine.
+name: MEDIA-REAL-HARDWARE-ACCEPTANCE-13 C0 plan contract ONLY
+on:
+  pull_request:
+    branches: [security/media-sec09-parent-race-hardening-10-20261112]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  acceptance-documentation-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate frozen-source identity and 41 NOT RUN hardware cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests \
+            -p 'test_media_real_hardware_plan_13.py' -v
+          echo 'C0 PASS: only documentation, QA case identifiers and frozen Git blobs checked'
+          echo 'OWNER-RF: 0/41 executed — HARDWARE HOLD; RELEASE HOLD'
