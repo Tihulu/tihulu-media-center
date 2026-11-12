@@ -278,7 +278,17 @@ def validate_existing(home: Path, *, allow_build: bool = False) -> None:
             if old_lock.stat().st_nlink != 1:
                 fail("Hardlinked legacy install lock")
         releases = root / "releases"
-        directory(releases, optional=True)
+        release_names = set()
+        if directory(releases, optional=True):
+            for entry in releases.iterdir():
+                if not RELEASE_NAME.fullmatch(entry.name):
+                    fail(f"Unknown or interrupted release directory: {entry.name}")
+                directory(entry)
+                verify_release(entry)
+                release_names.add(str(entry))
+        # Existing release links must already target fully verified releases,
+        # before the installer stages or builds anything new.
+        verify_links(root, release_names)
         profile = root / "preview-home"
         directory(profile, optional=True)
         if present(profile):
