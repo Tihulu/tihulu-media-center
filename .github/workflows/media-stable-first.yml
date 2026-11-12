@@ -1,0 +1,55 @@
+name: Media Stable-First draft acceptance
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-and-syntax:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install isolated CI syntax checker
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Bash syntax + ShellCheck
+        run: |
+          bash -n installer/media-stable-first.sh
+          shellcheck -s bash installer/media-stable-first.sh
+      - name: Source integrity and read-only dry run
+        run: |
+          python3 -m unittest discover -s tests -p 'test_stable_first_*.py' -v
+          bash installer/media-stable-first.sh --dry-run --no-ai
+      - name: Compile pinned Python packages in temporary workspace
+        run: |
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          git archive 7821769eb7aed576dd426ec18ffce3696d93a00d -- source/installed-package | tar -x -C "$tmp"
+          python3 -m compileall -q "$tmp/source/installed-package/tv_center" "$tmp/source/installed-package/textcenter" "$tmp/source/installed-package/kaffeine_next"
+  native-disposable-build:
+    needs: source-and-syntax
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install native Qt/KF5 and runtime dependencies ON CI ONLY
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends git ca-certificates cmake g++ make pkg-config extra-cmake-modules \
+            qtbase5-dev libqt5x11extras5-dev libkf5coreaddons-dev libkf5dbusaddons-dev \
+            libkf5i18n-dev libkf5kio-dev libkf5solid-dev libkf5widgetsaddons-dev \
+            libkf5windowsystem-dev libkf5xmlgui-dev libvlc-dev libx11-dev libxss-dev \
+            libdvbv5-dev libudev-dev libqt5sql5-sqlite vlc python3 python3-pyqt5 \
+            ffmpeg mpv dvb-tools psmisc
+      - name: Pinned source checks and native build in ephemeral HOME
+        run: |
+          bash installer/media-stable-first.sh --check --no-ai
+          bash installer/media-stable-first.sh --install --no-ai
+          test -x "$HOME/.local/opt/tihulu-media-stable/current/native/bin/kaffeine"
+          test -L "$HOME/.local/opt/tihulu-media-stable/current"
+          test -f "$HOME/.local/opt/tihulu-media-stable/current/SOURCE-PROVENANCE.txt"
+          bash installer/media-stable-first.sh --rollback
+          test ! -e "$HOME/.local/opt/tihulu-media-stable/current"
