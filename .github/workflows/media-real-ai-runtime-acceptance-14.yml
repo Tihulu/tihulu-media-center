@@ -1,0 +1,63 @@
+name: MEDIA-REAL-AI-RUNTIME-ACCEPTANCE-14 pure synthetic and source identity
+on:
+  pull_request:
+    branches: [security/media-sec09-parent-race-hardening-10-20261112]
+    paths:
+      - 'qa/media_real_ai_acceptance_14.py'
+      - 'tests/test_media_real_ai_acceptance_14.py'
+      - 'docs/MEDIA_REAL_AI_RUNTIME_ACCEPTANCE_14.md'
+      - '.github/workflows/media-real-ai-runtime-acceptance-14.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-evidence-only:
+    name: Frozen identity, unchanged source/security, EN-DE-TR synthetic gates
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact parent baseline and preserved source
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          BASE=2f5699eeb47505468bf3327be4dbdd89fed3dff1
+          FROZEN=7821769eb7aed576dd426ec18ffce3696d93a00d
+          git cat-file -e "$BASE^{commit}"
+          git cat-file -e "$FROZEN^{commit}"
+          git merge-base --is-ancestor "$BASE" HEAD
+          git diff --exit-code "$BASE" HEAD -- source/installed-package/ installer/ \
+            tests/test_stable_first_contract.py tests/test_stable_first_feature_parity.py \
+            tests/test_stable_first_mode_parity.py tests/test_media_install_safety_p0.py \
+            tests/test_media_ai_runtime_parity_05.py tests/test_media_installer_p1_hardening_08.py \
+            tests/test_media_sec09_parent_races_10.py
+          git diff --exit-code "$FROZEN" HEAD -- source/installed-package/
+          echo "PASS: exact PR #11 parent and frozen source identity; no application mutation"
+      - name: Only standard-library synthetic tests — no hardware, downloads or model loads
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+        run: |
+          set -euo pipefail
+          python3 -m py_compile qa/media_real_ai_acceptance_14.py tests/test_media_real_ai_acceptance_14.py
+          python3 -m unittest discover -s tests -p 'test_stable_first_*.py' -v
+          python3 -m unittest discover -s tests -p 'test_media_install_safety_p0.py' -v
+          python3 -m unittest discover -s tests -p 'test_media_ai_runtime_parity_05.py' -v
+          python3 -m unittest discover -s tests -p 'test_media_installer_p1_hardening_08.py' -v
+          python3 -m unittest discover -s tests -p 'test_media_sec09_parent_races_10.py' -v
+          python3 -m unittest discover -s tests -p 'test_media_real_ai_acceptance_14.py' -v
+          python3 qa/media_real_ai_acceptance_14.py | tee "$RUNNER_TEMP/media-ai-14-assessor.json"
+          python3 - "$RUNNER_TEMP/media-ai-14-assessor.json" <<'PY'
+          import json, sys
+          data = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert data["public_release"] == "HOLD"
+          assert data["real_inference_reported"] == 0
+          assert set(data["engine_decisions"].values()) == {"NOT_TESTED"}
+          print("PASS: accurate scoped source/synthetic QA; PUBLIC RELEASE HOLD")
+          PY
+          echo "HOLD: no RTX5080, CPU/GPU inference, optional weights, TV/Radio behavioral parity or private data"
