@@ -32,7 +32,7 @@ jobs:
           git cat-file -e '7821769eb7aed576dd426ec18ffce3696d93a00d^{commit}'
           git cat-file -e '2f5699eeb47505468bf3327be4dbdd89fed3dff1^{commit}'
       - name: Source-only 14 compliance/integrity tests (zero downloads/models)
-        run: python3 -m unittest -v tests/test_media_license_artifacts_19.py
+        run: python3 -m unittest discover -s tests -p 'test_media_license_artifacts_19.py' -v
       - name: Explicitly preserve release HOLD
         run: |
           echo 'These are STATIC synthetic tests; no license approval, actual hardware, CUDA inference, package install or redistribution test.'
