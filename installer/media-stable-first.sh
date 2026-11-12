@@ -81,6 +81,11 @@ valid_release() {
   [[ "$leaf" =~ ^r-[0-9a-f]{12}-[0-9]{8}T[0-9]{6}-[0-9]+$ ]] || return 1
   [[ "$target" == "$APPROOT/releases/$leaf" && -d "$target" && ! -L "$target" ]] || return 1
   [[ "$(stat -c '%u' -- "$target")" == "$EUID" ]] || return 1
+  # The directory name and ownership alone are not enough: interrupted or
+  # tampered releases must never become the active native executable.
+  local checker
+  checker="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/preview_safety.py" || return 1
+  python3 "$checker" verify-release "$target" >/dev/null 2>&1 || return 1
 }
 rollback() {
   # Rollback must enforce the same root/ancestor ownership as installation and
