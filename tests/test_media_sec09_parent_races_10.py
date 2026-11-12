@@ -152,6 +152,9 @@ class SEC09DirectoryAndRaceTests(unittest.TestCase):
             os.close(fd)
 
     def test_desktop_symlink_injection_during_exclusive_publish(self):
+        # Publication requires a complete pair or no pair: remove both fixture
+        # entrypoints so the injection occurs at the actual exclusive open.
+        self.launcher.unlink()
         self.desktop.unlink()
         raw_open = os.open
         def inject(path, flags, mode=0o777, *args, **kwargs):
