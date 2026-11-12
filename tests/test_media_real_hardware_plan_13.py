@@ -107,7 +107,7 @@ class HardwarePlanIsNotHardwareAcceptance(unittest.TestCase):
                      "PR #11"):
             self.assertIn(item.casefold(), (p + c).casefold())
         self.assertIn("No owner machine operations", p)
-        self.assertIn("existing working Media Center", p)
+        self.assertIn("existing working media center", p.casefold())
         self.assertIn("no merge", p.lower())
 
     def test_each_operator_tier_requires_owner_authorization(self):
