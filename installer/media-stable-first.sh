@@ -159,14 +159,21 @@ done
 [[ ! -L "$APPROOT" ]] || die 'Application root must not be a symlink'
 # Reinstall/upgrade is allowed only for exact application-owned launchers.
 if [[ -e "$LAUNCHER" || -L "$LAUNCHER" ]]; then
-  [[ -f "$LAUNCHER" && ! -L "$LAUNCHER" ]] &&
-    grep -Fxq 'exec "$HOME/.local/opt/tihulu-media-stable/current/bin/tihulu-kaffeine" "$@"' "$LAUNCHER" ||
+  if [[ ! -f "$LAUNCHER" || -L "$LAUNCHER" ]]; then
     die "Existing launcher is not ours: $LAUNCHER"
+  fi
+  # shellcheck disable=SC2016 # Match literal shell source, do not expand
+  if ! grep -Fxq 'exec "$HOME/.local/opt/tihulu-media-stable/current/bin/tihulu-kaffeine" "$@"' "$LAUNCHER"; then
+    die "Existing launcher is not ours: $LAUNCHER"
+  fi
 fi
 if [[ -e "$DESKTOP" || -L "$DESKTOP" ]]; then
-  [[ -f "$DESKTOP" && ! -L "$DESKTOP" ]] &&
-    grep -Fxq 'X-TIHULU-StableFirst=true' "$DESKTOP" ||
+  if [[ ! -f "$DESKTOP" || -L "$DESKTOP" ]]; then
     die "Existing desktop entry is not ours: $DESKTOP"
+  fi
+  if ! grep -Fxq 'X-TIHULU-StableFirst=true' "$DESKTOP"; then
+    die "Existing desktop entry is not ours: $DESKTOP"
+  fi
 fi
 command -v flock >/dev/null || die 'flock is required for safe installation'
 mkdir -p -- "$APPROOT/releases" "$HOME/.local/bin" "$HOME/.local/share/applications"
