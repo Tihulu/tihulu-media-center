@@ -19,7 +19,7 @@ PACKAGES=(git ca-certificates cmake g++ make pkg-config extra-cmake-modules
   libkf5dbusaddons-dev libkf5i18n-dev libkf5kio-dev libkf5solid-dev
   libkf5widgetsaddons-dev libkf5windowsystem-dev libkf5xmlgui-dev
   libvlc-dev libx11-dev libxss-dev libdvbv5-dev libudev-dev
-  libqt5sql5-sqlite vlc python3 python3-pyqt5 ffmpeg mpv dvb-tools psmisc)
+  libqt5sql5-sqlite vlc python3 python3-pyqt5 ffmpeg mpv dvb-tools psmisc dbus-bin)
 
 usage() {
   cat <<'HELP'
@@ -66,12 +66,17 @@ rollback() {
   exec 9>"$APPROOT/.install.lock"
   flock -n 9 || die 'Another stable installer or rollback is active'
   local current="$APPROOT/current" previous="$APPROOT/previous" old=""
+  [[ -d "$APPROOT/releases" && ! -L "$APPROOT/releases" ]] ||
+    die 'Unsafe release directory'
   [[ -L "$current" ]] || die 'No active stable release to roll back'
   old="$(readlink "$current")"
+  [[ "$old" == "$APPROOT"/releases/* && ! -L "$old" && -d "$old" ]] ||
+    die 'Invalid current release pointer'
   if [[ -L "$previous" ]]; then
     local target
     target="$(readlink "$previous")"
-    [[ -d "$target" && "$target" == "$APPROOT"/releases/* ]] || die 'Invalid rollback target'
+    [[ -d "$target" && ! -L "$target" &&
+        "$target" == "$APPROOT"/releases/* ]] || die 'Invalid rollback target'
     atomic_link "$target" "$current"
     atomic_link "$old" "$previous"
     log "Restored previous release: $target; previous active release kept for reactivation"
@@ -268,7 +273,8 @@ XDG_DATA_HOME="$preview/.local/share"
 XDG_CACHE_HOME="$preview/.cache"
 XDG_STATE_HOME="$preview/.local/state"
 KDEHOME="$preview/.kde"
-export TIHULU_MEDIA_OWNER_HOME HOME XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME KDEHOME
+PYTHONDONTWRITEBYTECODE=1
+export TIHULU_MEDIA_OWNER_HOME HOME XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME KDEHOME PYTHONDONTWRITEBYTECODE
 # Do not override XDG_RUNTIME_DIR: existing PID-scoped pipes need same runtime.
 # Do not import the original HOME's QSettings, models, recordings or channels.
 PREVIEWENV
