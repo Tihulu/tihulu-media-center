@@ -1,0 +1,97 @@
+name: MEDIA-DISTRIBUTION-COMPLIANCE-23 disposable GPL and SBOM evidence
+on:
+  pull_request:
+    branches: [integration/media-final-isolated-integration-22-20261112]
+  push:
+    branches: [audit/media-distribution-compliance-23-20261113]
+permissions:
+  contents: read
+jobs:
+  evidence-static:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Exact SHA, frozen tree and limited new-file delta
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          BASE=e5271965dadaf82c4be1a336396d0e9b3a083b8d
+          git merge-base --is-ancestor "$BASE" HEAD
+          test "$(git rev-parse HEAD:source/installed-package)" = "$(git rev-parse 7821769eb7aed576dd426ec18ffce3696d93a00d:source/installed-package)"
+          git diff --exit-code "$BASE" HEAD -- source installer
+          python3 - <<'PY'
+          import subprocess
+          wanted={'tools/compliance/media_distribution_evidence_23.py','tests/test_media_distribution_evidence_23.py','docs/compliance/MEDIA_DISTRIBUTION_EVIDENCE_23.md','.github/workflows/media-distribution-compliance-23.yml'}
+          actual=set(subprocess.check_output(['git','diff','--name-only','e5271965dadaf82c4be1a336396d0e9b3a083b8d','HEAD'],text=True).splitlines())
+          assert wanted == actual,(wanted,actual)
+          PY
+      - name: 15 synthetic detector, Debian diversion and NC license regressions
+        run: |
+          export PYTHONDONTWRITEBYTECODE=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+          python3 -m unittest discover -s tests -p 'test_media_distribution_evidence_23.py' -v
+          python3 - <<'PY'
+          import json,importlib.util
+          s=importlib.util.spec_from_file_location('probe','tools/compliance/media_distribution_evidence_23.py')
+          p=importlib.util.module_from_spec(s);s.loader.exec_module(p)
+          assert p.models_ok(json.load(open('docs/compliance/AI_MODEL_LICENSES_19.json')))
+          PY
+  disposable-native-evidence:
+    needs: evidence-static
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install native build dependencies in ephemeral runner only
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git ca-certificates cmake g++ make pkg-config extra-cmake-modules \
+            qtbase5-dev libqt5x11extras5-dev libkf5coreaddons-dev \
+            libkf5dbusaddons-dev libkf5i18n-dev libkf5kio-dev \
+            libkf5solid-dev libkf5widgetsaddons-dev libkf5windowsystem-dev \
+            libkf5xmlgui-dev libvlc-dev libx11-dev libxss-dev libdvbv5-dev \
+            libudev-dev libqt5sql5-sqlite vlc python3 python3-pyqt5 \
+            ffmpeg mpv dvb-tools psmisc xvfb xauth dbus-x11 binutils
+      - name: Actual native compile, candidate source, link and notice metadata
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          HF_HUB_OFFLINE: '1'
+          TRANSFORMERS_OFFLINE: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          export HOME="$RUNNER_TEMP/media-compliance23-ephemeral-home"
+          mkdir -p "$HOME"
+          bash installer/media-stable-first.sh --check --no-ai
+          bash installer/media-stable-first.sh --install --no-ai
+          release="$(readlink "$HOME/.local/opt/tihulu-media-stable/current")"
+          test -x "$release/native/bin/kaffeine"
+          python3 tools/compliance/media_distribution_evidence_23.py reconstruct \
+            --repo . --candidate "$RUNNER_TEMP/media-compliance23-source-candidate"
+          mkdir -p "$RUNNER_TEMP/media-compliance23-evidence"
+          python3 tools/compliance/media_distribution_evidence_23.py collect \
+            --repo . --release "$release" --candidate "$RUNNER_TEMP/media-compliance23-source-candidate" \
+            --output "$RUNNER_TEMP/media-compliance23-evidence/native-dependency-evidence.json"
+          cp "$RUNNER_TEMP/media-compliance23-source-candidate/candidate-manifest.json" \
+            "$RUNNER_TEMP/media-compliance23-evidence/candidate-manifest.json"
+          python3 tools/compliance/media_distribution_evidence_23.py verify \
+            --evidence "$RUNNER_TEMP/media-compliance23-evidence/native-dependency-evidence.json"
+          echo 'DISPOSABLE-BUILD PASS; FINAL LEGAL GPL/SBOM/NOTICE/MODEL/RELEASE HOLD'
+      - name: Upload JSON evidence only, not sources or binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: media-compliance23-disposable-evidence
+          path: ${{ runner.temp }}/media-compliance23-evidence/*.json
+          retention-days: 7
+          if-no-files-found: error
