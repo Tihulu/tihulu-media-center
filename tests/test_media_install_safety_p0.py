@@ -207,12 +207,32 @@ class UninstallSafety(unittest.TestCase):
 
     def test_rollback_valid_direct_release_still_works(self):
         second = self.root / "releases/r-7821769eb7ae-20261112T080001-2"
-        second.mkdir()
+        second.joinpath("native/bin").mkdir(parents=True)
+        (second / "native/bin/kaffeine").write_bytes(b"synthetic bin 2")
+        m.prepare_release(second)
         (self.root / "previous").symlink_to(str(second))
         proc = self.rollback_cli()
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(os.readlink(self.root / "current"), str(second))
         self.assertEqual(os.readlink(self.root / "previous"), str(self.release))
+        self.assert_preserved()
+
+    def test_rollback_rejects_incomplete_release_manifest(self):
+        invalid = self.root / "releases/r-7821769eb7ae-20261112T080001-3"
+        invalid.mkdir()
+        (self.root / "previous").symlink_to(str(invalid))
+        current = os.readlink(self.root / "current")
+        proc = self.rollback_cli()
+        self.assertNotEqual(proc.returncode, 0, proc.stdout)
+        self.assertEqual(os.readlink(self.root / "current"), current)
+        self.assertTrue(invalid.exists())
+        self.assert_preserved()
+
+    def test_rollback_rejects_modified_release_bytes(self):
+        (self.release / "py/ai.json").write_text("CHANGED SOURCE")
+        proc = self.rollback_cli()
+        self.assertNotEqual(proc.returncode, 0, proc.stdout)
+        self.assertEqual(os.readlink(self.root / "current"), str(self.release))
         self.assert_preserved()
 
     def test_modified_release_manifest_refuses_uninstall(self):
