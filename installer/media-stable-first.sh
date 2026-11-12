@@ -19,7 +19,7 @@ PACKAGES=(git ca-certificates cmake g++ make pkg-config extra-cmake-modules
   libkf5dbusaddons-dev libkf5i18n-dev libkf5kio-dev libkf5solid-dev
   libkf5widgetsaddons-dev libkf5windowsystem-dev libkf5xmlgui-dev
   libvlc-dev libx11-dev libxss-dev libdvbv5-dev libudev-dev
-  libqt5sql5-sqlite vlc python3 python3-pyqt5 ffmpeg mpv dvb-tools psmisc)
+  libqt5sql5-sqlite vlc python3 python3-pyqt5 ffmpeg mpv dvb-tools psmisc dbus-bin)
 
 usage() {
   cat <<'HELP'
@@ -29,6 +29,7 @@ Modes:
   --dry-run    Read-only operation plan (does not install anything)
   --install    Build KDE Kaffeine and the pinned AI companion in HOME only
   --rollback   Atomically restore prior TIHULU stable launcher (or deactivate)
+  --uninstall  Fail-closed removal of installer-owned binaries/launchers; keeps private settings
 Options:
   --no-ai      No model installation; AI source modules remain available
   --allow-apt  Opt in to INTERACTIVE sudo/apt approval if dependencies missing
@@ -40,7 +41,7 @@ die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 log() { printf 'TIHULU stable-first: %s\n' "$*"; }
 for arg in "$@"; do
   case "$arg" in
-    --check|--dry-run|--install|--rollback)
+    --check|--dry-run|--install|--rollback|--uninstall)
       [[ -z "$MODE" ]] || die 'Select exactly one mode'; MODE="$arg" ;;
     --no-ai) NO_AI=1 ;;
     --allow-apt) ALLOW_APT=1 ;;
@@ -59,18 +60,33 @@ atomic_link() {
   ln -s -- "$target" "$tmp"
   mv -Tf -- "$tmp" "$link"
 }
+lock_owned() {
+  local lock="$APPROOT/.install.lock"
+  command -v flock >/dev/null || die 'flock is required for ownership-safe changes'
+  [[ ! -L "$lock" ]] || die 'Refusing symlinked install lock'
+  if [[ -e "$lock" ]]; then
+    [[ -f "$lock" && "$(stat -c '%u' -- "$lock")" == "$EUID" ]] ||
+      die 'Refusing foreign or non-regular install lock'
+  fi
+  # Append rather than truncate even a valid user-owned lock file.
+  exec 9>>"$lock"
+  flock -n 9 || die 'Another stable installer or rollback is active'
+}
 rollback() {
   [[ -d "$APPROOT" && ! -L "$APPROOT" ]] || die 'No owned stable installation directory'
-  command -v flock >/dev/null || die 'flock is required for safe rollback'
-  exec 9>"$APPROOT/.install.lock"
-  flock -n 9 || die 'Another stable installer or rollback is active'
+  lock_owned
   local current="$APPROOT/current" previous="$APPROOT/previous" old=""
+  [[ -d "$APPROOT/releases" && ! -L "$APPROOT/releases" ]] ||
+    die 'Unsafe release directory'
   [[ -L "$current" ]] || die 'No active stable release to roll back'
   old="$(readlink "$current")"
+  [[ "$old" == "$APPROOT"/releases/* && ! -L "$old" && -d "$old" ]] ||
+    die 'Invalid current release pointer'
   if [[ -L "$previous" ]]; then
     local target
     target="$(readlink "$previous")"
-    [[ -d "$target" && "$target" == "$APPROOT"/releases/* ]] || die 'Invalid rollback target'
+    [[ -d "$target" && ! -L "$target" &&
+        "$target" == "$APPROOT"/releases/* ]] || die 'Invalid rollback target'
     atomic_link "$target" "$current"
     atomic_link "$old" "$previous"
     log "Restored previous release: $target; previous active release kept for reactivation"
@@ -80,6 +96,10 @@ rollback() {
   fi
 }
 if [[ "$MODE" == --rollback ]]; then rollback; exit 0; fi
+if [[ "$MODE" == --uninstall ]]; then
+  SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+  exec python3 "$SCRIPT_DIR/preview_safety.py" uninstall
+fi
 
 [[ "$(uname -s)" == Linux && -r /etc/os-release ]] || die 'Linux/Debian-family only'
 # shellcheck disable=SC1091
@@ -133,6 +153,7 @@ if [[ "$MODE" == --dry-run ]]; then
   log "DRY RUN ONLY: would create dedicated launcher $LAUNCHER and desktop entry"
   log "DRY RUN ONLY: AI models/downloads=OFF (no-ai=$NO_AI); sudo/apt only with separate confirmation"
   log 'DRY RUN ONLY: rollback exchanges owned symlinks, never deletes user files'
+  log 'DRY RUN ONLY: uninstall audits every owned file and retains preview private data'
   exit 0
 fi
 if [[ "$MODE" == --check ]]; then
@@ -157,6 +178,17 @@ for command in cmake c++ make tar mktemp mv ln; do
   command -v "$command" >/dev/null || die "Build dependency executable missing: $command"
 done
 [[ ! -L "$APPROOT" ]] || die 'Application root must not be a symlink'
+for parent in "$HOME/.local" "$HOME/.local/opt" "$HOME/.local/bin" "$HOME/.local/share" "$HOME/.local/share/applications"; do
+  [[ ! -L "$parent" ]] || die "Symlinked install parent is not accepted: $parent"
+done
+if [[ -d "$APPROOT" ]]; then
+  [[ -f "$APPROOT/.media-preview-owner-v1" && ! -L "$APPROOT/.media-preview-owner-v1" ]] ||
+    die 'Existing application root lacks installer-owned marker (legacy installs require independent migration)'
+  [[ "$(<"$APPROOT/.media-preview-owner-v1")" == 'TIHULU_MEDIA_PREVIEW_OWNED_V1' ]] ||
+    die 'Existing application root has invalid ownership marker'
+elif [[ -e "$APPROOT" ]]; then
+  die 'Application root is not a real directory'
+fi
 # Reinstall/upgrade is allowed only for exact application-owned launchers.
 if [[ -e "$LAUNCHER" || -L "$LAUNCHER" ]]; then
   if [[ ! -f "$LAUNCHER" || -L "$LAUNCHER" ]]; then
@@ -177,8 +209,17 @@ if [[ -e "$DESKTOP" || -L "$DESKTOP" ]]; then
 fi
 command -v flock >/dev/null || die 'flock is required for safe installation'
 mkdir -p -- "$APPROOT/releases" "$HOME/.local/bin" "$HOME/.local/share/applications"
-exec 9>"$APPROOT/.install.lock"
-flock -n 9 || die 'Another stable installer or rollback is active'
+if [[ ! -e "$APPROOT/.media-preview-owner-v1" ]]; then
+  printf 'TIHULU_MEDIA_PREVIEW_OWNED_V1\n' > "$APPROOT/.media-preview-owner-v1"
+fi
+[[ ! -L "$APPROOT/releases" ]] || die 'Symlinked release directory is forbidden'
+profile="$APPROOT/preview-home"
+[[ ! -L "$profile" ]] || die 'Symlinked preview private home is forbidden'
+mkdir -p -- "$profile/.config" "$profile/.local/share" "$profile/.cache" "$profile/.local/state"
+for p in "$profile" "$profile/.config" "$profile/.local" "$profile/.local/share" "$profile/.cache" "$profile/.local/state"; do
+  [[ -d "$p" && ! -L "$p" ]] || die "Invalid preview private directory: $p"
+done
+lock_owned
 work="$(mktemp -d "$APPROOT/.work.XXXXXXXX")"
 stage="$(mktemp -d "$APPROOT/.stage.XXXXXXXX")"
 cleanup() {
@@ -220,10 +261,37 @@ rmdir "$stage/native"
 mv -T -- "$installed" "$stage/native"
 [[ -x "$stage/native/bin/kaffeine" ]] || die 'Native Kaffeine binary missing after build'
 ln -s kaffeine "$stage/native/bin/tihulu-media-center"
+cat > "$stage/bin/tihulu-preview-env" <<'PREVIEWENV'
+#!/bin/sh
+# Shared by native and Python; PRIVATE HOME forces Qt QSettings and AI JSON
+# into the preview container without copying existing user models/settings.
+owner_home="${TIHULU_MEDIA_OWNER_HOME:-$HOME}"
+preview="$owner_home/.local/opt/tihulu-media-stable/preview-home"
+if [ "$HOME" != "$owner_home" ] && [ "$HOME" != "$preview" ]; then
+  echo 'Refusing inconsistent preview HOME' >&2; exit 72
+fi
+for dir in "$preview" "$preview/.config" "$preview/.local" "$preview/.local/share" "$preview/.cache" "$preview/.local/state"; do
+  if [ ! -d "$dir" ] || [ -L "$dir" ]; then
+    echo "Missing or symlinked isolated preview profile: $dir" >&2; exit 72
+  fi
+done
+TIHULU_MEDIA_OWNER_HOME="$owner_home"
+HOME="$preview"
+XDG_CONFIG_HOME="$preview/.config"
+XDG_DATA_HOME="$preview/.local/share"
+XDG_CACHE_HOME="$preview/.cache"
+XDG_STATE_HOME="$preview/.local/state"
+KDEHOME="$preview/.kde"
+PYTHONDONTWRITEBYTECODE=1
+export TIHULU_MEDIA_OWNER_HOME HOME XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME KDEHOME PYTHONDONTWRITEBYTECODE
+# Do not override XDG_RUNTIME_DIR: existing PID-scoped pipes need same runtime.
+# Do not import the original HOME's QSettings, models, recordings or channels.
+PREVIEWENV
 cat > "$stage/bin/tihulu-tv-center" <<'PYLAUNCH'
 #!/bin/sh
 set -eu
 release="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
+. "$release/bin/tihulu-preview-env"
 export PYTHONPATH="$release/py"
 if [ -n "${WAYLAND_DISPLAY:-}" ]; then QT_QPA_PLATFORM=xcb; export QT_QPA_PLATFORM; fi
 case "${1:-}" in
@@ -237,8 +305,17 @@ cat > "$stage/bin/tihulu-kaffeine" <<'NATIVELAUNCH'
 #!/bin/sh
 set -eu
 release="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
+. "$release/bin/tihulu-preview-env"
 export PATH="$release/bin:$PATH"
 export PYTHONPATH="$release/py"
+# A private session bus prevents KDBusService from activating the existing
+# system/user Kaffeine instance under a shared desktop session.
+if [ "${TIHULU_MEDIA_PRIVATE_DBUS:-0}" != 1 ]; then
+  command -v dbus-run-session >/dev/null 2>&1 || { echo 'dbus-run-session required' >&2; exit 73; }
+  TIHULU_MEDIA_PRIVATE_DBUS=1
+  export TIHULU_MEDIA_PRIVATE_DBUS
+  exec dbus-run-session -- "$release/bin/tihulu-kaffeine" "$@"
+fi
 if [ -n "${WAYLAND_DISPLAY:-}" ]; then QT_QPA_PLATFORM=xcb; export QT_QPA_PLATFORM; fi
 if [ -z "${TIHULU_VLC_PROFILE:-}" ]; then
   if [ -n "${WAYLAND_DISPLAY:-}" ] && [ -r /proc/driver/nvidia/version ]; then
@@ -259,6 +336,7 @@ exec "$HOME/.local/opt/tihulu-media-stable/current/bin/tihulu-kaffeine" "$@"
 STABLELAUNCH
 chmod 755 "$stage/bin/tihulu-media-stable"
 sha256sum "$stage/native/bin/kaffeine" > "$stage/NATIVE-BINARY-SHA256.txt"
+python3 "$SCRIPT_DIR/preview_safety.py" prepare-release "$stage"
 # Publish complete release BEFORE changing the stable symlink.
 mv -T -- "$stage" "$final"
 stage=""
@@ -270,10 +348,10 @@ elif [[ -e "$APPROOT/current" ]]; then
   die 'Current release slot is not owned symlink'
 fi
 # Only create brand-new names; never replace a user's existing app launchers.
-if [[ ! -e "$LAUNCHER" ]]; then
+if [[ ! -e "$LAUNCHER" && ! -L "$LAUNCHER" ]]; then
   install -m 755 -- "$final/bin/tihulu-media-stable" "$LAUNCHER"
 fi
-if [[ ! -e "$DESKTOP" ]]; then
+if [[ ! -e "$DESKTOP" && ! -L "$DESKTOP" ]]; then
   cat > "$DESKTOP" <<DESKTOPFILE
 [Desktop Entry]
 Type=Application
@@ -295,3 +373,5 @@ log "Start on demand: $LAUNCHER"
 log "Revert: bash $SCRIPT_DIR/media-stable-first.sh --rollback"
 log 'Hardware, system Kaffeine, user models, recordings and existing settings have not been intentionally opened or edited'
 log 'Install does NOT prove hardware/runtime equivalence; acceptance remains HOLD'
+log 'Preview QSettings/AI JSON use isolated HOME/XDG_CONFIG_HOME; no private settings import'
+log 'Uninstall binaries safely with --uninstall; preview user settings remain private'

@@ -1,0 +1,96 @@
+name: MEDIA-INSTALL-SAFETY-P0 isolated native acceptance
+on:
+  pull_request:
+    branches: [qa/media-exact-cleaninstall-02-20261112]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-and-negative-safety:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Source syntax and shell lint
+        run: |
+          set -euo pipefail
+          bash -n installer/media-stable-first.sh
+          python3 -m py_compile installer/preview_safety.py tests/test_media_install_safety_p0.py
+          shellcheck installer/media-stable-first.sh
+      - name: Original feature QA plus new negative tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_stable_first_*.py' -v
+          python3 -m unittest discover -s tests -p 'test_media_install_safety_p0.py' -v
+          bash installer/media-stable-first.sh --dry-run --no-ai
+  native-settings-uninstall:
+    needs: source-and-negative-safety
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install CI-only build and GUI dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git ca-certificates cmake g++ make pkg-config extra-cmake-modules \
+            qtbase5-dev libqt5x11extras5-dev libkf5coreaddons-dev \
+            libkf5dbusaddons-dev libkf5i18n-dev libkf5kio-dev libkf5solid-dev \
+            libkf5widgetsaddons-dev libkf5windowsystem-dev libkf5xmlgui-dev \
+            libvlc-dev libx11-dev libxss-dev libdvbv5-dev libudev-dev \
+            libqt5sql5-sqlite vlc python3 python3-pyqt5 \
+            ffmpeg mpv dvb-tools psmisc xvfb xauth dbus-x11 shellcheck
+      - name: "Disposable HOME: build, native GUI, repeat, rollback and owned-only uninstall"
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/media-install-safety-p0-home"
+          export XDG_CONFIG_HOME="$HOME/.config"
+          export XDG_DATA_HOME="$HOME/.local/share"
+          export XDG_CACHE_HOME="$HOME/.cache"
+          export XDG_STATE_HOME="$HOME/.local/state"
+          export PYTHONDONTWRITEBYTECODE=1
+          mkdir -p "$HOME/.config/tihulu-tv-center" "$HOME/.config/TIHULU" \
+                   "$HOME/.local/share/tihulu-tv-center" "$HOME/Recordings"
+          printf '%s\n' 'private-owner-ai-settings-placeholder' > "$HOME/.config/tihulu-tv-center/private-owner-sentinel"
+          printf '%s\n' 'private-owner-qt-settings-placeholder' > "$HOME/.config/TIHULU/KaffeineRadio.conf"
+          printf '%s\n' 'private-owner-channel-placeholder' > "$HOME/.local/share/tihulu-tv-center/private-owner-channel-sentinel"
+          printf '%s\n' 'private-owner-recording-placeholder' > "$HOME/Recordings/private-owner-recording-sentinel"
+          bash installer/media-stable-first.sh --check --no-ai
+          bash installer/media-stable-first.sh --install --no-ai
+          app="$HOME/.local/opt/tihulu-media-stable"
+          first="$(readlink "$app/current")"
+          test -x "$first/native/bin/kaffeine"
+          export TIHULU_MEDIA_QA_RELEASE="$first"
+          dbus-run-session -- xvfb-run -a /usr/bin/python3 -m unittest discover -s tests \
+            -p 'test_media_exact_runtime_acceptance.py' -v
+          bash installer/media-stable-first.sh --install --no-ai
+          second="$(readlink "$app/current")"
+          test "$first" != "$second"
+          test "$first" = "$(readlink "$app/previous")"
+          export TIHULU_MEDIA_QA_RELEASE="$second"
+          dbus-run-session -- xvfb-run -a /usr/bin/python3 -m unittest discover -s tests \
+            -p 'test_media_exact_runtime_acceptance.py' -v
+          bash installer/media-stable-first.sh --rollback
+          test "$first" = "$(readlink "$app/current")"
+          test "$second" = "$(readlink "$app/previous")"
+          # Uninstall is an ownership-verified program uninstall, NOT a private data purge.
+          bash installer/media-stable-first.sh --uninstall
+          test ! -e "$first"
+          test ! -e "$second"
+          test ! -L "$app/current"
+          test ! -e "$HOME/.local/bin/tihulu-media-stable"
+          test ! -e "$HOME/.local/share/applications/tihulu-media-stable.desktop"
+          test -d "$app/preview-home"
+          test -f "$app/.media-preview-owner-v1"
+          bash installer/media-stable-first.sh --uninstall
+          # No original application, private preferences, channel data, or recordings modified.
+          grep -Fxq private-owner-ai-settings-placeholder "$HOME/.config/tihulu-tv-center/private-owner-sentinel"
+          grep -Fxq private-owner-qt-settings-placeholder "$HOME/.config/TIHULU/KaffeineRadio.conf"
+          grep -Fxq private-owner-channel-placeholder "$HOME/.local/share/tihulu-tv-center/private-owner-channel-sentinel"
+          grep -Fxq private-owner-recording-placeholder "$HOME/Recordings/private-owner-recording-sentinel"
+          echo 'PASS: CI-only build, native GUI, repeat install, rollback, uninstall, private user sentinel preservation'
+          echo 'HOLD: real DVB/DAB/Whisper/CUDA/translator/settings cross-app UX and release acceptance'
