@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import shutil
 import stat
 import sys
@@ -21,6 +22,7 @@ import sys
 MARKER = ".media-preview-owner-v1"
 MARKER_VALUE = "TIHULU_MEDIA_PREVIEW_OWNED_V1\n"
 MANIFEST = ".media-preview-release.json"
+SERIAL_LOCK = ".tihulu-media-stable-operations.lock"
 RELEASE_NAME = re.compile(r"r-[0-9a-f]{12}-[0-9]{8}T[0-9]{6}-[0-9]+$")
 LAUNCH = '''#!/bin/sh
 set -eu
@@ -176,13 +178,9 @@ def uninstall(home: Path) -> None:
             names[str(entry)] = entry
         verify_links(root, set(names))
         if launcher.exists() or launcher.is_symlink():
-            regular(launcher)
-            if launcher.read_text() != LAUNCH:
-                fail("Launcher is modified/shared; refusing uninstall")
+            exact_owned_text(launcher, LAUNCH, "launcher")
         if desktop.exists() or desktop.is_symlink():
-            regular(desktop)
-            if desktop.read_text() != desktop_text(home, root):
-                fail("Desktop entry is modified/shared; refusing uninstall")
+            exact_owned_text(desktop, desktop_text(home, root), "desktop entry")
         allowed = {"releases", "current", "previous", ".install.lock", MARKER, "preview-home"}
         extra = set(p.name for p in root.iterdir()) - allowed
         if extra:
@@ -228,6 +226,168 @@ X-TIHULU-StableFirst=true
 """
 
 
+
+def present(path: Path) -> bool:
+    """lstat-based existence: dangling symlinks are NEVER treated as missing."""
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return False
+    return True
+
+
+def exact_owned_text(path: Path, expected: str, label: str) -> None:
+    """Compare whole bytes on O_NOFOLLOW fd and reject foreign/hardlinked files."""
+    before = path.lstat()
+    if (not stat.S_ISREG(before.st_mode) or before.st_uid != os.geteuid()
+            or before.st_nlink != 1 or before.st_mode & 0o022):
+        fail(f"Foreign, linked or writable {label}: {path}")
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        opened = os.fstat(fd)
+        if (opened.st_ino != before.st_ino or opened.st_dev != before.st_dev
+                or opened.st_uid != os.geteuid() or opened.st_nlink != 1
+                or not stat.S_ISREG(opened.st_mode)):
+            fail(f"Replaced or foreign {label}: {path}")
+        with os.fdopen(os.dup(fd), "rb") as stream:
+            value = stream.read()
+        after = path.lstat()
+        if (after.st_dev, after.st_ino) != (opened.st_dev, opened.st_ino):
+            fail(f"Replaced {label} during verification: {path}")
+        if value != expected.encode("utf-8"):
+            fail(f"Modified {label}; refusing to overwrite: {path}")
+    finally:
+        os.close(fd)
+
+
+def validate_existing(home: Path, *, allow_build: bool = False) -> None:
+    """READ-ONLY check, including on initial install, before lock creation."""
+    root, launcher, desktop = paths(home)
+    root_exists = directory(root, optional=True)
+    if root_exists:
+        marker = root / MARKER
+        exact_owned_text(marker, MARKER_VALUE, "owner marker")
+        old_lock = root / ".install.lock"
+        if present(old_lock):
+            regular(old_lock)
+            if old_lock.stat().st_nlink != 1:
+                fail("Hardlinked legacy install lock")
+        releases = root / "releases"
+        directory(releases, optional=True)
+        profile = root / "preview-home"
+        directory(profile, optional=True)
+        if present(profile):
+            for part in (".config", ".local", ".local/share", ".cache", ".local/state"):
+                directory(profile / part, optional=True)
+        # Incomplete/suspicious stages are never swept up or silently resumed.
+        if not allow_build:
+            extra = [p.name for p in root.iterdir()
+                     if p.name not in {"releases", "current", "previous",
+                                       ".install.lock", MARKER, "preview-home"}]
+            if extra:
+                fail(f"Ambiguous/incomplete preview root: {sorted(extra)}")
+        for pointer in ("current", "previous"):
+            p = root / pointer
+            if present(p) and not p.is_symlink():
+                fail(f"Foreign release pointer: {pointer}")
+    elif present(root):
+        fail("Existing application root is not a real owned directory")
+    launch_exists, desktop_exists = present(launcher), present(desktop)
+    if launch_exists != desktop_exists:
+        fail("Incomplete launcher/desktop pair; manual owner review required")
+    if launch_exists:
+        if not root_exists:
+            fail("Orphaned launcher/desktop not owned by an installation")
+        exact_owned_text(launcher, LAUNCH, "launcher")
+        exact_owned_text(desktop, desktop_text(home, root), "desktop entry")
+    # Refuse a present executable entrypoint with no source release pointer.
+    if launch_exists and not present(root / "current") and not present(root / "previous"):
+        # A first-release rollback intentionally deactivates current. It leaves
+        # releases available; permit that fully-owned case for reinstallation.
+        if not directory(root / "releases", optional=True) or not any((root / "releases").iterdir()):
+            fail("Entrypoint exists without a valid owned release")
+
+
+def secure_lock(home: Path) -> int:
+    """Per-app sibling lock predates APPROOT, so install/uninstall share it."""
+    for part in (home / ".local", home / ".local/opt"):
+        if not present(part):
+            part.mkdir(mode=0o700)
+        directory(part)
+    lock = home / ".local/opt" / SERIAL_LOCK
+    fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        st, pathst = os.fstat(fd), lock.lstat()
+        if (not stat.S_ISREG(st.st_mode) or st.st_uid != os.geteuid()
+                or st.st_nlink != 1 or st.st_mode & 0o077
+                or (st.st_dev, st.st_ino) != (pathst.st_dev, pathst.st_ino)):
+            fail("Foreign, hardlinked, or insecure operations lock")
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            fail("Another Media install, rollback or uninstall is active")
+        if (lock.lstat().st_dev, lock.lstat().st_ino) != (st.st_dev, st.st_ino):
+            fail("Operations lock replaced during acquisition")
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def verify_guard(home: Path, fd: int) -> None:
+    lock = home / ".local/opt" / SERIAL_LOCK
+    opened, current = os.fstat(fd), lock.lstat()
+    if (not stat.S_ISREG(opened.st_mode) or opened.st_uid != os.geteuid()
+            or opened.st_nlink != 1 or opened.st_mode & 0o077
+            or (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino)):
+        fail("Missing/insecure inherited operations lock")
+    # Re-locking the SAME inherited open file description is idempotent.
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        fail("Operations lock descriptor is not owned by this operation")
+
+
+def guard_command(home: Path, command: list[str], *, inherited_env: dict | None = None) -> int:
+    if os.geteuid() == 0:
+        fail("Refusing root operation")
+    validate_existing(home)
+    fd = secure_lock(home)
+    try:
+        validate_existing(home)
+        env = dict(os.environ if inherited_env is None else inherited_env)
+        env["TIHULU_MEDIA_GUARD_FD"] = str(fd)
+        # FD remains open in child while this parent holds the same lock until
+        # the *entire* build, rollback, or uninstall finishes.
+        return subprocess.run(command, env=env, pass_fds=(fd,), check=False).returncode
+    finally:
+        os.close(fd)
+
+
+def publish_entrypoints(home: Path) -> None:
+    """Never truncate/overwrite: create exact files with exclusive open only."""
+    validate_existing(home, allow_build=True)
+    root, launcher, desktop = paths(home)
+    directory(root)
+    for path, expected, mode in ((launcher, LAUNCH, 0o755),
+                                 (desktop, desktop_text(home, root), 0o644)):
+        directory(path.parent)
+        if present(path):
+            exact_owned_text(path, expected, path.name)
+            continue
+        # O_EXCL defeats the post-check symlink/file replacement race.
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, mode)
+        try:
+            os.fchmod(fd, mode)
+            with os.fdopen(os.dup(fd), "wb") as stream:
+                stream.write(expected.encode("utf-8"))
+                stream.flush()
+                os.fsync(stream.fileno())
+        finally:
+            os.close(fd)
+        exact_owned_text(path, expected, path.name)
+    validate_existing(home, allow_build=True)
+
 def main() -> int:
     try:
         if len(sys.argv) == 3 and sys.argv[1] == "prepare-release":
@@ -236,10 +396,26 @@ def main() -> int:
             # Read-only gate used for rollback and any existing current pointer.
             verify_release(Path(sys.argv[2]))
         elif len(sys.argv) == 2 and sys.argv[1] == "uninstall":
+            fd = os.environ.get("TIHULU_MEDIA_GUARD_FD")
+            if fd is None:
+                return guard_command(Path.home(), [sys.executable, str(Path(__file__).resolve()), "uninstall"])
+            verify_guard(Path.home(), int(fd))
             uninstall(Path.home())
+        elif len(sys.argv) == 2 and sys.argv[1] == "preflight-install":
+            validate_existing(Path.home())
+        elif len(sys.argv) == 2 and sys.argv[1] == "publish-entrypoints":
+            fd = os.environ.get("TIHULU_MEDIA_GUARD_FD")
+            if fd is None:
+                fail("Publishing launchers requires locked installer operation")
+            verify_guard(Path.home(), int(fd))
+            publish_entrypoints(Path.home())
+        elif len(sys.argv) == 3 and sys.argv[1] == "verify-guard":
+            verify_guard(Path.home(), int(sys.argv[2]))
+        elif len(sys.argv) >= 4 and sys.argv[1] == "guarded-exec":
+            return guard_command(Path.home(), ["bash", sys.argv[2], *sys.argv[3:]])
         else:
             fail("Usage: preview_safety.py prepare-release STAGE | verify-release RELEASE | uninstall")
-    except (SafetyError, BlockingIOError, OSError) as exc:
+    except (SafetyError, BlockingIOError, OSError, ValueError) as exc:
         print(f"PREVIEW-SAFETY HOLD: {exc}", file=sys.stderr)
         return 4
     return 0
