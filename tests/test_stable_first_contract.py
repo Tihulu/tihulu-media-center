@@ -83,10 +83,19 @@ class StableFirstContract(unittest.TestCase):
             self.skipTest("Root intentionally refused; CI uses unprivileged runner")
         with tempfile.TemporaryDirectory() as fakehome:
             root = Path(fakehome) / ".local/opt/tihulu-media-stable"
-            release1 = root / "releases/a"
-            release2 = root / "releases/b"
-            release1.mkdir(parents=True)
-            release2.mkdir(parents=True)
+            release1 = root / "releases/r-7821769eb7ae-20261112T080000-1"
+            release2 = root / "releases/r-7821769eb7ae-20261112T080001-2"
+            (root / ".media-preview-owner-v1").parent.mkdir(parents=True)
+            (root / ".media-preview-owner-v1").write_text("TIHULU_MEDIA_PREVIEW_OWNED_V1\\n")
+            for release in (release1, release2):
+                (release / "native/bin").mkdir(parents=True)
+                (release / "native/bin/kaffeine").write_bytes(b"synthetic native Kaffeine")
+                p_prepare = subprocess.run(
+                    ["python3", str(ROOT / "installer/preview_safety.py"),
+                     "prepare-release", str(release)],
+                    capture_output=True, text=True,
+                )
+                self.assertEqual(p_prepare.returncode, 0, p_prepare.stderr)
             (root / "current").symlink_to(str(release2))
             (root / "previous").symlink_to(str(release1))
             p = subprocess.run(["bash", str(SCRIPT), "--rollback"],
