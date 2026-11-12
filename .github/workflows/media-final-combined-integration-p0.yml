@@ -93,7 +93,10 @@ jobs:
           test -x "$first/native/bin/kaffeine"
           export TIHULU_MEDIA_QA_RELEASE="$first"
           dbus-run-session -- xvfb-run -a /usr/bin/python3 -m unittest discover             -s tests -p 'test_media_exact_runtime_acceptance.py' -v
-          dbus-run-session -- xvfb-run -a /usr/bin/python3 -m unittest discover             -s tests -p 'test_media_tv_radio_exact_parity_04.py' -v
+          # These fixtures start Qt directly: use the private preview profile just like the installed launcher.
+          env HOME="$app/preview-home" XDG_CONFIG_HOME="$app/preview-home/.config" XDG_DATA_HOME="$app/preview-home/.local/share" XDG_CACHE_HOME="$app/preview-home/.cache" XDG_STATE_HOME="$app/preview-home/.local/state" dbus-run-session -- xvfb-run -a /usr/bin/python3 -m unittest discover -s tests -p 'test_media_tv_radio_exact_parity_04.py' -v
+          # Fail immediately if an unisolated GUI fixture touched the owner's settings.
+          grep -Fxq OWNER-APPEARANCE-KEEP "$HOME/.config/TIHULU/KaffeineCaptionAppearance.conf"
 
           # A synthetic file is ONLY a metadata/permission fixture, not a model.
           head -c 2048 /dev/zero > "$HOME/fixture-ssd/ggml-test.bin"
@@ -137,10 +140,11 @@ jobs:
           test "$first" = "$(readlink "$app/previous")"
           export TIHULU_MEDIA_QA_RELEASE="$second"
           dbus-run-session -- xvfb-run -a /usr/bin/python3 -m unittest discover             -s tests -p 'test_media_exact_runtime_acceptance.py' -v
-          dbus-run-session -- xvfb-run -a /usr/bin/python3 -m unittest discover             -s tests -p 'test_media_tv_radio_exact_parity_04.py' -v
+          # These fixtures start Qt directly: use the private preview profile just like the installed launcher.
+          env HOME="$app/preview-home" XDG_CONFIG_HOME="$app/preview-home/.config" XDG_DATA_HOME="$app/preview-home/.local/share" XDG_CACHE_HOME="$app/preview-home/.cache" XDG_STATE_HOME="$app/preview-home/.local/state" dbus-run-session -- xvfb-run -a /usr/bin/python3 -m unittest discover -s tests -p 'test_media_tv_radio_exact_parity_04.py' -v
+          # Fail immediately if an unisolated GUI fixture touched the owner's settings.
+          grep -Fxq OWNER-APPEARANCE-KEEP "$HOME/.config/TIHULU/KaffeineCaptionAppearance.conf"
           bash installer/media-stable-first.sh --rollback
-          # Trace ONLY final synthetic fixture/owned-file cleanup assertions.
-          set -x
           test "$first" = "$(readlink "$app/current")"
           test "$second" = "$(readlink "$app/previous")"
           bash installer/media-stable-first.sh --uninstall
