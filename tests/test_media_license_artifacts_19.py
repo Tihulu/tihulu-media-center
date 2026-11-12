@@ -131,7 +131,7 @@ class LicenseArtifacts19(unittest.TestCase):
         self.assertIn("NOT a blanket license grant", lic)
         self.assertIn("PUBLIC RELEASE", lic)
         self.assertIn("NONCOMMERCIAL", note)
-        self.assertIn("GPL", (ROOT / "LICENSES/GPL-2.0-only.txt").read_text())
+        self.assertIn("GNU GENERAL PUBLIC LICENSE", (ROOT / "LICENSES/GPL-2.0-only.txt").read_text())
 
     def test_11_negative_fixture_missing_spdx_file_rejected(self):
         bad = copy.deepcopy(self.spdx)
