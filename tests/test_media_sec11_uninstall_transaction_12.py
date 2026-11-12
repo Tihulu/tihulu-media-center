@@ -261,6 +261,7 @@ class SEC11UninstallTransaction(unittest.TestCase):
             nonlocal changed
             if (path == "launcher" and kwargs.get("dir_fd") is not None
                     and kwargs.get("follow_symlinks") is False and not changed
+                    and (self.txn / m.TXN_COMMITTED).is_file()
                     and (self.txn / "launcher").exists()):
                 changed = True
                 (self.txn / "launcher").rename(self.home / "saved-quarantine-launcher")
