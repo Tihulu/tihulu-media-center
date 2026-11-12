@@ -210,7 +210,14 @@ final="$APPROOT/releases/r-${SNAPSHOT:0:12}-$(date -u +%Y%m%dT%H%M%S)-$$"
 build_env=(env -i "HOME=$HOME" "USER=$(id -un)" "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "LANG=C.UTF-8")
 "${build_env[@]}" cmake -S "$work/upstream" -B "$work/build" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX="$final/native"
 "${build_env[@]}" cmake --build "$work/build" --parallel 2
-"${build_env[@]}" cmake --install "$work/build" --prefix "$stage/native"
+# DESTDIR catches even upstream absolute paths inside isolated staging.
+# Configure with final prefix so compiled paths agree after release promotion.
+mkdir -p "$stage/DESTDIR"
+"${build_env[@]}" "DESTDIR=$stage/DESTDIR" cmake --install "$work/build"
+installed="$stage/DESTDIR$final/native"
+[[ -d "$installed" ]] || die 'Native staging prefix missing after CMake install'
+rmdir "$stage/native"
+mv -T -- "$installed" "$stage/native"
 [[ -x "$stage/native/bin/kaffeine" ]] || die 'Native Kaffeine binary missing after build'
 ln -s kaffeine "$stage/native/bin/tihulu-media-center"
 cat > "$stage/bin/tihulu-tv-center" <<'PYLAUNCH'
@@ -219,6 +226,11 @@ set -eu
 release="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
 export PYTHONPATH="$release/py"
 if [ -n "${WAYLAND_DISPLAY:-}" ]; then QT_QPA_PLATFORM=xcb; export QT_QPA_PLATFORM; fi
+case "${1:-}" in
+  ''|tv|watch)
+    if [ "$#" -gt 0 ]; then shift; fi
+    exec "$release/bin/tihulu-kaffeine" "$@" ;;
+esac
 exec /usr/bin/python3 -m tv_center "$@"
 PYLAUNCH
 cat > "$stage/bin/tihulu-kaffeine" <<'NATIVELAUNCH'
