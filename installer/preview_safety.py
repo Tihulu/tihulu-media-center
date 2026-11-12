@@ -165,10 +165,10 @@ def uninstall(home: Path) -> None:
     fd = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        directory(root / "releases")
         releases = root / "releases"
+        exists = directory(releases, optional=True)
         names = {}
-        for entry in releases.iterdir():
+        for entry in releases.iterdir() if exists else ():
             if not RELEASE_NAME.fullmatch(entry.name):
                 fail(f"Unknown release entry: {entry.name}")
             directory(entry)
@@ -200,8 +200,9 @@ def uninstall(home: Path) -> None:
                 pointer.unlink()
         for release in names.values():
             shutil.rmtree(release)
-        releases.rmdir()
-        marker.unlink()
+        if exists:
+            releases.rmdir()
+        # Deliberately preserve ownership marker and lock for safe reinstall.
         # Deliberately retain preview-home: may contain recordings, settings,
         # model selections or user data. Do not auto-purge or import them.
         if profile.exists():
