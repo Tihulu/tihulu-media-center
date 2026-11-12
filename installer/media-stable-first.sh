@@ -423,6 +423,13 @@ exec "$HOME/.local/opt/tihulu-media-stable/current/bin/tihulu-kaffeine" "$@"
 STABLELAUNCH
 chmod 755 "$stage/bin/tihulu-media-stable"
 sha256sum "$stage/native/bin/kaffeine" > "$stage/NATIVE-BINARY-SHA256.txt"
+# Legal notices must be present as exact pinned PR16 blobs in the COMPLETE
+# versioned stage, before release manifest creation and irreversible promotion.
+# No automatic copyright/license approval or owner-data changes implied.
+python3 "$SCRIPT_DIR/preview_safety.py" stage-notices "$REPO" "$stage" ||
+  die 'Legal notice package staging refused; owner release untouched'
+python3 "$SCRIPT_DIR/preview_safety.py" verify-notices "$stage" ||
+  die 'Staged legal bundle altered; owner release untouched'
 python3 "$SCRIPT_DIR/preview_safety.py" prepare-release "$stage"
 # Publish complete release BEFORE changing the stable symlink.
 # Verify parent directory permissions and the inherited lock just before
