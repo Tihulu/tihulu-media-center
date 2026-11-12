@@ -13,7 +13,6 @@ NO_AI=0
 ALLOW_APT=0
 APPROOT="${HOME}/.local/opt/tihulu-media-stable"
 LAUNCHER="${HOME}/.local/bin/tihulu-media-stable"
-DESKTOP="${HOME}/.local/share/applications/tihulu-media-stable.desktop"
 PACKAGES=(git ca-certificates cmake g++ make pkg-config extra-cmake-modules
   qtbase5-dev libqt5x11extras5-dev libkf5coreaddons-dev
   libkf5dbusaddons-dev libkf5i18n-dev libkf5kio-dev libkf5solid-dev
