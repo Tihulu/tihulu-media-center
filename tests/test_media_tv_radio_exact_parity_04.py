@@ -189,8 +189,8 @@ class InstalledTVRadioBehavior(unittest.TestCase):
     def test_real_capture_clock_offset_buffer_and_live_translation_render(self):
         timing = self.mods["kaffeine_next.caption_timing"]
         base = timing.CaptionConfig(source="de", target="en",
-              target_languages=("en", "tr"), playback_delay_ms=0, offset_ms=0)
-        shifted = replace(base, playback_delay_ms=5000, offset_ms=1200)
+              target_languages=("en", "tr"), playback_delay_ms=2000, offset_ms=0)
+        shifted = replace(base, playback_delay_ms=7000, offset_ms=1200)
         result = {"original":"Die Sendung beginnt jetzt.",
                   "translations":{"en":"The programme begins now.",
                                   "tr":"Program şimdi başlıyor."},
