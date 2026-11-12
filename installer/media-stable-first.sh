@@ -60,11 +60,21 @@ atomic_link() {
   ln -s -- "$target" "$tmp"
   mv -Tf -- "$tmp" "$link"
 }
+lock_owned() {
+  local lock="$APPROOT/.install.lock"
+  command -v flock >/dev/null || die 'flock is required for ownership-safe changes'
+  [[ ! -L "$lock" ]] || die 'Refusing symlinked install lock'
+  if [[ -e "$lock" ]]; then
+    [[ -f "$lock" && "$(stat -c '%u' -- "$lock")" == "$EUID" ]] ||
+      die 'Refusing foreign or non-regular install lock'
+  fi
+  # Append rather than truncate even a valid user-owned lock file.
+  exec 9>>"$lock"
+  flock -n 9 || die 'Another stable installer or rollback is active'
+}
 rollback() {
   [[ -d "$APPROOT" && ! -L "$APPROOT" ]] || die 'No owned stable installation directory'
-  command -v flock >/dev/null || die 'flock is required for safe rollback'
-  exec 9>"$APPROOT/.install.lock"
-  flock -n 9 || die 'Another stable installer or rollback is active'
+  lock_owned
   local current="$APPROOT/current" previous="$APPROOT/previous" old=""
   [[ -d "$APPROOT/releases" && ! -L "$APPROOT/releases" ]] ||
     die 'Unsafe release directory'
@@ -209,8 +219,7 @@ mkdir -p -- "$profile/.config" "$profile/.local/share" "$profile/.cache" "$profi
 for p in "$profile" "$profile/.config" "$profile/.local" "$profile/.local/share" "$profile/.cache" "$profile/.local/state"; do
   [[ -d "$p" && ! -L "$p" ]] || die "Invalid preview private directory: $p"
 done
-exec 9>"$APPROOT/.install.lock"
-flock -n 9 || die 'Another stable installer or rollback is active'
+lock_owned
 work="$(mktemp -d "$APPROOT/.work.XXXXXXXX")"
 stage="$(mktemp -d "$APPROOT/.stage.XXXXXXXX")"
 cleanup() {
