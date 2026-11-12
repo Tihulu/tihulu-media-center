@@ -232,10 +232,13 @@ def main() -> int:
     try:
         if len(sys.argv) == 3 and sys.argv[1] == "prepare-release":
             prepare_release(Path(sys.argv[2]))
+        elif len(sys.argv) == 3 and sys.argv[1] == "verify-release":
+            # Read-only gate used for rollback and any existing current pointer.
+            verify_release(Path(sys.argv[2]))
         elif len(sys.argv) == 2 and sys.argv[1] == "uninstall":
             uninstall(Path.home())
         else:
-            fail("Usage: preview_safety.py prepare-release STAGE | uninstall")
+            fail("Usage: preview_safety.py prepare-release STAGE | verify-release RELEASE | uninstall")
     except (SafetyError, BlockingIOError, OSError) as exc:
         print(f"PREVIEW-SAFETY HOLD: {exc}", file=sys.stderr)
         return 4

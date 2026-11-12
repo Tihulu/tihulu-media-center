@@ -151,6 +151,99 @@ class UninstallSafety(unittest.TestCase):
             m.uninstall(self.home)
         self.assert_preserved()
 
+    def rollback_cli(self):
+        import subprocess
+        return subprocess.run(
+            ["bash", str(ROOT / "installer/media-stable-first.sh"), "--rollback"],
+            capture_output=True, text=True,
+            env={**os.environ, "HOME": str(self.home)},
+        )
+
+    def test_rollback_previous_traversal_is_rejected_without_mutation(self):
+        # The old glob allowed releases/../preview-home, redirecting current
+        # to arbitrary directories outside the releases subtree.
+        other = str(self.root / "releases/../preview-home")
+        (self.root / "previous").symlink_to(other)
+        original = os.readlink(self.root / "current")
+        proc = self.rollback_cli()
+        self.assertNotEqual(proc.returncode, 0, proc.stdout)
+        self.assertEqual(os.readlink(self.root / "current"), original)
+        self.assertEqual(os.readlink(self.root / "previous"), other)
+        self.assertTrue(self.release.exists())
+        self.assert_preserved()
+
+    def test_rollback_current_traversal_is_rejected_without_mutation(self):
+        old = str(self.root / "releases/../preview-home")
+        (self.root / "current").unlink()
+        (self.root / "current").symlink_to(old)
+        (self.root / "previous").symlink_to(str(self.release))
+        proc = self.rollback_cli()
+        self.assertNotEqual(proc.returncode, 0, proc.stdout)
+        self.assertEqual(os.readlink(self.root / "current"), old)
+        self.assertTrue(self.release.exists())
+        self.assert_preserved()
+
+    def test_rollback_requires_valid_owner_marker(self):
+        (self.root / m.MARKER).unlink()
+        (self.root / "previous").symlink_to(str(self.release))
+        original = os.readlink(self.root / "current")
+        proc = self.rollback_cli()
+        self.assertNotEqual(proc.returncode, 0, proc.stdout)
+        self.assertIn("ownership marker", proc.stderr)
+        self.assertEqual(os.readlink(self.root / "current"), original)
+        self.assertFalse((self.root / ".install.lock").exists())
+        self.assert_preserved()
+
+    def test_rollback_rejects_symlinked_app_parent(self):
+        opt = self.home / ".local/opt"
+        original = self.home / ".local/opt-preserved"
+        opt.rename(original)
+        opt.symlink_to(original, target_is_directory=True)
+        proc = self.rollback_cli()
+        self.assertNotEqual(proc.returncode, 0, proc.stdout)
+        self.assertIn("Unsafe rollback parent", proc.stderr)
+        self.assertTrue((original / "tihulu-media-stable/current").is_symlink())
+        self.assert_preserved()
+
+    def test_rollback_valid_direct_release_still_works(self):
+        second = self.root / "releases/r-7821769eb7ae-20261112T080001-2"
+        second.joinpath("native/bin").mkdir(parents=True)
+        (second / "native/bin/kaffeine").write_bytes(b"synthetic bin 2")
+        m.prepare_release(second)
+        (self.root / "previous").symlink_to(str(second))
+        proc = self.rollback_cli()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(os.readlink(self.root / "current"), str(second))
+        self.assertEqual(os.readlink(self.root / "previous"), str(self.release))
+        self.assert_preserved()
+
+    def test_rollback_rejects_incomplete_release_manifest(self):
+        invalid = self.root / "releases/r-7821769eb7ae-20261112T080001-3"
+        invalid.mkdir()
+        (self.root / "previous").symlink_to(str(invalid))
+        current = os.readlink(self.root / "current")
+        proc = self.rollback_cli()
+        self.assertNotEqual(proc.returncode, 0, proc.stdout)
+        self.assertEqual(os.readlink(self.root / "current"), current)
+        self.assertTrue(invalid.exists())
+        self.assert_preserved()
+
+    def test_rollback_rejects_modified_release_bytes(self):
+        (self.release / "py/ai.json").write_text("CHANGED SOURCE")
+        proc = self.rollback_cli()
+        self.assertNotEqual(proc.returncode, 0, proc.stdout)
+        self.assertEqual(os.readlink(self.root / "current"), str(self.release))
+        self.assert_preserved()
+
+    def test_modified_release_manifest_refuses_uninstall(self):
+        manifest = self.release / m.MANIFEST
+        manifest.write_text('{"schema": 1, "entries": {}}\\n')
+        with self.assertRaises(m.SafetyError):
+            m.uninstall(self.home)
+        self.assertTrue(self.launch.exists())
+        self.assertTrue(self.release.exists())
+        self.assert_preserved()
+
 
 if __name__ == "__main__":
     unittest.main()

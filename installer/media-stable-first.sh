@@ -72,25 +72,54 @@ lock_owned() {
   exec 9>>"$lock"
   flock -n 9 || die 'Another stable installer or rollback is active'
 }
+# A release pointer must be one direct, owned release directory.  A glob match
+# alone accepts releases/../preview-home and can redirect the native launcher.
+valid_release() {
+  local target="$1" leaf=""
+  [[ "$target" == "$APPROOT/releases/"* ]] || return 1
+  leaf="${target#"$APPROOT/releases/"}"
+  [[ "$leaf" =~ ^r-[0-9a-f]{12}-[0-9]{8}T[0-9]{6}-[0-9]+$ ]] || return 1
+  [[ "$target" == "$APPROOT/releases/$leaf" && -d "$target" && ! -L "$target" ]] || return 1
+  [[ "$(stat -c '%u' -- "$target")" == "$EUID" ]] || return 1
+  # The directory name and ownership alone are not enough: interrupted or
+  # tampered releases must never become the active native executable.
+  local checker
+  checker="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/preview_safety.py" || return 1
+  python3 "$checker" verify-release "$target" >/dev/null 2>&1 || return 1
+}
 rollback() {
-  [[ -d "$APPROOT" && ! -L "$APPROOT" ]] || die 'No owned stable installation directory'
+  # Rollback must enforce the same root/ancestor ownership as installation and
+  # uninstall, before acquiring a lock or changing any symlink.
+  local parent marker="$APPROOT/.media-preview-owner-v1"
+  for parent in "$HOME/.local" "$HOME/.local/opt"; do
+    [[ -d "$parent" && ! -L "$parent" &&
+       "$(stat -c '%u' -- "$parent")" == "$EUID" ]] ||
+      die "Unsafe rollback parent: $parent"
+  done
+  [[ -d "$APPROOT" && ! -L "$APPROOT" &&
+     "$(stat -c '%u' -- "$APPROOT")" == "$EUID" ]] ||
+    die 'No installer-owned stable installation directory'
+  [[ -f "$marker" && ! -L "$marker" &&
+     "$(stat -c '%u' -- "$marker")" == "$EUID" &&
+     "$(<"$marker")" == 'TIHULU_MEDIA_PREVIEW_OWNED_V1' ]] ||
+    die 'Rollback blocked: missing or foreign installer ownership marker'
+  [[ -d "$APPROOT/releases" && ! -L "$APPROOT/releases" &&
+     "$(stat -c '%u' -- "$APPROOT/releases")" == "$EUID" ]] ||
+    die 'Unsafe release directory'
   lock_owned
   local current="$APPROOT/current" previous="$APPROOT/previous" old=""
-  [[ -d "$APPROOT/releases" && ! -L "$APPROOT/releases" ]] ||
-    die 'Unsafe release directory'
   [[ -L "$current" ]] || die 'No active stable release to roll back'
   old="$(readlink "$current")"
-  [[ "$old" == "$APPROOT"/releases/* && ! -L "$old" && -d "$old" ]] ||
-    die 'Invalid current release pointer'
+  valid_release "$old" || die 'Invalid current release pointer'
   if [[ -L "$previous" ]]; then
     local target
     target="$(readlink "$previous")"
-    [[ -d "$target" && ! -L "$target" &&
-        "$target" == "$APPROOT"/releases/* ]] || die 'Invalid rollback target'
+    valid_release "$target" || die 'Invalid rollback target'
     atomic_link "$target" "$current"
     atomic_link "$old" "$previous"
     log "Restored previous release: $target; previous active release kept for reactivation"
   else
+    [[ ! -e "$previous" ]] || die 'Foreign non-symlink previous release slot'
     rm -- "$current" # Owned symlink only; never delete installed releases.
     log 'First release deactivated; existing user data and release files preserved'
   fi
@@ -343,7 +372,7 @@ stage=""
 old=""
 if [[ -L "$APPROOT/current" ]]; then
   old="$(readlink "$APPROOT/current")"
-  [[ "$old" == "$APPROOT"/releases/* && -d "$old" ]] || die 'Current release symlink points outside approved release directory'
+  valid_release "$old" || die 'Current release symlink is not a direct, owned release'
 elif [[ -e "$APPROOT/current" ]]; then
   die 'Current release slot is not owned symlink'
 fi
