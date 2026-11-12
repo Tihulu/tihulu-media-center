@@ -238,11 +238,41 @@ fi
 [[ ! -L "$APPROOT/releases" ]] || die 'Symlinked release directory is forbidden'
 profile="$APPROOT/preview-home"
 [[ ! -L "$profile" ]] || die 'Symlinked preview private home is forbidden'
-mkdir -p -- "$profile/.config" "$profile/.local/share" "$profile/.cache" "$profile/.local/state"
-for p in "$profile" "$profile/.config" "$profile/.local" "$profile/.local/share" "$profile/.cache" "$profile/.local/state"; do
+mkdir -p -- "$profile/.config" "$profile/.local/share" "$profile/.local/bin" "$profile/.cache" "$profile/.local/state"
+for p in "$profile" "$profile/.config" "$profile/.local" "$profile/.local/share" "$profile/.local/bin" "$profile/.cache" "$profile/.local/state"; do
   [[ -d "$p" && ! -L "$p" ]] || die "Invalid preview private directory: $p"
 done
 lock_owned
+# Frozen tv_center.__main__ resolves ~/.local/bin/tihulu-kaffeine.
+# Supply that name ONLY in the isolated preview HOME. Never alter the
+# owner's real ~/.local/bin or replace any preview-private entry.
+python3 - "$profile" "$APPROOT" <<'TV_COMPAT'
+import os
+from pathlib import Path
+import stat
+import sys
+
+profile, app = map(Path, sys.argv[1:])
+parents = (profile, profile / ".local", profile / ".local/bin")
+for parent in parents:
+    st = parent.lstat()
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.geteuid() or st.st_mode & 0o022:
+        raise SystemExit("Unsafe private TV compatibility directory: " + str(parent))
+fd = os.open(parents[-1], os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+expected = str(app / "current/bin/tihulu-kaffeine")
+try:
+    try:
+        existing = os.stat("tihulu-kaffeine", dir_fd=fd, follow_symlinks=False)
+    except FileNotFoundError:
+        os.symlink(expected, "tihulu-kaffeine", dir_fd=fd)
+        existing = os.stat("tihulu-kaffeine", dir_fd=fd, follow_symlinks=False)
+    if not stat.S_ISLNK(existing.st_mode) or existing.st_uid != os.geteuid():
+        raise SystemExit("Refusing foreign preview TV entrypoint")
+    if os.readlink("tihulu-kaffeine", dir_fd=fd) != expected:
+        raise SystemExit("Refusing unexpected preview TV entrypoint target")
+finally:
+    os.close(fd)
+TV_COMPAT
 work="$(mktemp -d "$APPROOT/.work.XXXXXXXX")"
 stage="$(mktemp -d "$APPROOT/.stage.XXXXXXXX")"
 cleanup() {
@@ -264,6 +294,31 @@ git clone --quiet --depth 1 --single-branch --branch "$KAFFEINE_TAG" https://git
 actual_kaffeine="$(git -C "$work/upstream" rev-parse HEAD)"
 [[ "$actual_kaffeine" == "$KAFFEINE" ]] || die "Upstream KDE commit mismatch: $actual_kaffeine"
 PYTHONDONTWRITEBYTECODE=1 python3 "$stage/py/kaffeine_next/patch_upstream.py" "$work/upstream"
+# Frozen patch targets the original user's HOME; standalone uses a different
+# private HOME and must instead resolve the bundled diagnostics at runtime
+# relative to the native executable's own (versioned) installed directory.
+# This patches ONLY the disposable KDE build tree, never frozen source files.
+[[ -f "$stage/py/kaffeine_next/dvb_diagnostics.sh" ]] ||
+  die 'Frozen DVB diagnostics script missing from staged package'
+python3 - "$work/upstream/src/mainwindow.cpp" <<'DVB_DIAGNOSTICS_ROUTE'
+from pathlib import Path
+import re
+import sys
+
+source = Path(sys.argv[1])
+text = source.read_text()
+legacy = re.compile(
+    r'QStringList\(\)\s*<<\s*QDir::homePath\(\)\s*\+\s*'
+    r'QLatin1String\("/\.local/share/tihulu-kaffeine/dvb_diagnostics\.sh"\)'
+)
+replacement = ('QStringList() << QDir::cleanPath(\n'
+               '\t\t\t\tQCoreApplication::applicationDirPath() +\n'
+               '\t\t\t\tQLatin1String("/../../py/kaffeine_next/dvb_diagnostics.sh"))')
+updated, count = legacy.subn(lambda _: replacement, text)
+if count != 1:
+    raise SystemExit("Expected exactly one original DVB diagnostics action; refused")
+source.write_text(updated)
+DVB_DIAGNOSTICS_ROUTE
 grep -Fq 'std::prev(container.constEnd())' "$work/upstream/src/sqlinterface.h" || die 'Native SQL iterator patch missing'
 ! grep -Fq 'std::prev(container.constEnd(), -1)' "$work/upstream/src/sqlinterface.h" || die 'Unsafe SQL iterator remains'
 git -C "$work/upstream" diff --check
@@ -283,6 +338,11 @@ installed="$stage/DESTDIR$final/native"
 rmdir "$stage/native"
 mv -T -- "$installed" "$stage/native"
 [[ -x "$stage/native/bin/kaffeine" ]] || die 'Native Kaffeine binary missing after build'
+grep -aFq '/../../py/kaffeine_next/dvb_diagnostics.sh' "$stage/native/bin/kaffeine" ||
+  die 'Built native Kaffeine lacks bundled DVB diagnostics route'
+if grep -aFq '/.local/share/tihulu-kaffeine/dvb_diagnostics.sh' "$stage/native/bin/kaffeine"; then
+  die 'Built native Kaffeine still embeds the stale HOME diagnostics route'
+fi
 ln -s kaffeine "$stage/native/bin/tihulu-media-center"
 cat > "$stage/bin/tihulu-preview-env" <<'PREVIEWENV'
 #!/bin/sh
@@ -327,7 +387,11 @@ PYLAUNCH
 cat > "$stage/bin/tihulu-kaffeine" <<'NATIVELAUNCH'
 #!/bin/sh
 set -eu
-release="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
+# Direct Python TV enters through a symlink in PRIVATE preview HOME. Resolve
+# the script itself, not argv[0]'s directory, before finding the release.
+resolved="$(readlink -f -- "$0")"
+[ -n "$resolved" ] || { echo 'Could not resolve native preview launcher' >&2; exit 72; }
+release="$(CDPATH= cd -- "$(dirname -- "$resolved")/.." && pwd -P)"
 . "$release/bin/tihulu-preview-env"
 export PATH="$release/bin:$PATH"
 export PYTHONPATH="$release/py"
