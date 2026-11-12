@@ -1,7 +1,7 @@
 name: MEDIA-INSTALL-SAFETY-P0 isolated native acceptance
 on:
   pull_request:
-    branches: [qa/media-exact-cleaninstall-02-20261112]
+    branches: [qa/media-exact-cleaninstall-02-20261112, agent/media-install-safety-p0-20261112]
   workflow_dispatch:
 permissions:
   contents: read
