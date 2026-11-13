@@ -327,7 +327,7 @@ python3 -m compileall -q "$stage/py"
 # The release's independently inspected directory name is a mandatory
 # generation format discriminator; manifests are writable and cannot on their
 # own prove modern/legal-v2 provenance after a total legal-file removal.
-final="$APPROOT/releases/r2-${SNAPSHOT:0:12}-$(date -u +%Y%m%dT%H%M%S)-$"
+final="$APPROOT/releases/r2-${SNAPSHOT:0:12}-$(date -u +%Y%m%dT%H%M%S)-$$"
 [[ ! -e "$final" ]] || die 'Chosen release destination already exists'
 build_env=(env -i "HOME=$HOME" "USER=$(id -un)" "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "LANG=C.UTF-8")
 "${build_env[@]}" cmake -S "$work/upstream" -B "$work/build" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX="$final/native"

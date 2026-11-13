@@ -208,4 +208,12 @@ class Notice20P2(unittest.TestCase):
         self.assertNotEqual(r.returncode,0)
         self.assertIn("PREVIEW-SAFETY HOLD",r.stderr);self.intact()
 
+
+    def test_22_native_release_name_contains_numeric_pid_expression(self):
+        shell=(ROOT/"installer/media-stable-first.sh").read_text()
+        final_line=next(line for line in shell.splitlines() if line.startswith('final='))
+        self.assertIn('$(date -u +%Y%m%dT%H%M%S)-$$"',final_line)
+        self.assertNotIn('$(date -u +%Y%m%dT%H%M%S)-$"',final_line)
+        self.intact()
+
 if __name__=="__main__":unittest.main()

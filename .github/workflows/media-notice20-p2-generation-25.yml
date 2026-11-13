@@ -149,7 +149,7 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_media_parity16_source_20.py' -v
           python3 -m unittest discover -s tests -p 'test_media_distribution_evidence_23.py' -v
           python3 -m unittest discover -s tests -p 'test_media_notice20_p2_generation_25.py' -v
-          echo 'PASS: 96 current SHA cases, including all new P2 attack/rollback/uninstall negatives and 44 compatible original stable/security cases'
+          echo 'PASS: 97 current SHA cases including 22 new P2 downgrade/rollback/uninstall/PID regressions, 44 compatible original stable/security cases'
           bash installer/media-stable-first.sh --dry-run --no-ai
           echo 'PASS: unchanged original source/security and explicit AI compatibility tests'
           echo 'HOLD: synthetic checks alone are not runtime, device or model inference evidence'
