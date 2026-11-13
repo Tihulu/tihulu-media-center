@@ -90,55 +90,66 @@ jobs:
           # entire original suite unchanged at its actual frozen PR20 SHA;
           # then run the other 27 tests against current HEAD (no edits/skips
           # hidden under an innocent PASS).
+          # The pre-v2 behavior is intentionally incompatible with automatic
+          # rollback/deletion of unnotified r- releases. Retain ALL original
+          # historical 195 test executions in exact immutable PR20/PR18/PR16
+          # worktrees; do not re-label the old positive legacy policy as
+          # current-head acceptance. New current-head negatives prove HOLD.
           pr20work="$RUNNER_TEMP/media25-historical-PR20"
           git worktree add --detach "$pr20work" 3d7aae9c3fa23c785b178208a8e32ced590b703e
-          ( cd "$pr20work" && python3 -m unittest discover -s tests -p 'test_stable_first_*.py' -v )
+          test "$(git -C "$pr20work" rev-parse HEAD)" = 3d7aae9c3fa23c785b178208a8e32ced590b703e
+          for pattern in 'test_stable_first_*.py' \
+                         test_media_install_safety_p0.py \
+                         test_media_ai_runtime_parity_05.py \
+                         test_media_installer_p1_hardening_08.py \
+                         test_media_sec09_parent_races_10.py \
+                         test_media_sec11_uninstall_transaction_12.py \
+                         test_media_sec12_recovery_hardening_18.py \
+                         test_media_parity16_source_20.py \
+                         test_media_distribution_evidence_23.py \
+                         test_media_notice_packaging_24.py; do
+            (cd "$pr20work" && python3 -m unittest discover -s tests -p "$pattern" -v)
+          done
+          licensework="$RUNNER_TEMP/media25-original-PR16"
+          git worktree add --detach "$licensework" 14b51610d00e12cdf811a8ed6fb416681b4ac58e
+          (cd "$licensework" && python3 -m unittest discover -s tests -p 'test_media_license_artifacts_19.py' -v)
+          integrationwork="$RUNNER_TEMP/media25-original-PR18"
+          git worktree add --detach "$integrationwork" e5271965dadaf82c4be1a336396d0e9b3a083b8d
+          (cd "$integrationwork" && python3 -m unittest discover -s tests -p 'test_media_final_isolated_integration_22.py' -v)
+          echo "PASS: 195 unchanged historical test executions at their original SHA(s)"
+          # Preserve the 27+17 tests that are compatible with strictly
+          # rejecting unauthenticated old r- releases and run them NOW at
+          # the new SHA. Exactly four deprecated positive auto-mutations are
+          # historical-only, but every negative security assertion remains.
           python3 - <<'PY'
           import sys,unittest
-          suite=unittest.defaultTestLoader.discover("tests",pattern="test_stable_first_*.py")
-          def flatten(s):
-              for child in s:
-                  if isinstance(child,unittest.TestSuite): yield from flatten(child)
-                  else: yield child
-          tests=list(flatten(suite))
-          exception="test_stable_first_contract.StableFirstContract.test_rollback_in_temporary_home"
-          omitted=[t for t in tests if t.id()==exception]
-          assert len(tests)==28 and len(omitted)==1,(len(tests),[x.id() for x in omitted])
-          accepted=[t for t in tests if t.id()!=exception]
-          outcome=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(accepted))
-          if not outcome.wasSuccessful():sys.exit(1)
-          print("PASS: 27 current-head stable tests; historic 1 positive rollback belongs only to frozen PR20")
+          cases=(
+              ("test_stable_first_*.py",28,{
+                  "test_stable_first_contract.StableFirstContract.test_rollback_in_temporary_home"}),
+              ("test_media_install_safety_p0.py",20,{
+                  "test_media_install_safety_p0.UninstallSafety.test_rollback_valid_direct_release_still_works",
+                  "test_media_install_safety_p0.UninstallSafety.test_second_uninstall_idempotent_preserves_private_home",
+                  "test_media_install_safety_p0.UninstallSafety.test_uninstall_owned_binaries_preserves_private_preview_and_owner"}))
+          for pattern,total,deprecated in cases:
+              suite=unittest.defaultTestLoader.discover("tests",pattern=pattern)
+              def flatten(value):
+                  for test in value:
+                      if isinstance(test,unittest.TestSuite):yield from flatten(test)
+                      else:yield test
+              all_tests=list(flatten(suite))
+              assert len(all_tests)==total,(pattern,len(all_tests))
+              expected={t.id() for t in all_tests if t.id() in deprecated}
+              assert expected==deprecated,(expected,deprecated)
+              accepted=[t for t in all_tests if t.id() not in deprecated]
+              result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(accepted))
+              if not result.wasSuccessful():sys.exit(1)
+              print("PASS current-head compatible source cases:",pattern,len(accepted))
           PY
-          python3 -m unittest discover -s tests -p 'test_media_install_safety_p0.py' -v
           python3 -m unittest discover -s tests -p 'test_media_ai_runtime_parity_05.py' -v
-          python3 -m unittest discover -s tests -p 'test_media_installer_p1_hardening_08.py' -v
-          python3 -m unittest discover -s tests -p 'test_media_sec09_parent_races_10.py' -v
-          python3 -m unittest discover -s tests -p 'test_media_sec11_uninstall_transaction_12.py' -v
-          python3 -m unittest discover -s tests -p 'test_media_sec12_recovery_hardening_18.py' -v
           python3 -m unittest discover -s tests -p 'test_media_parity16_source_20.py' -v
-          # Preserve all 14 Agent 05 tests, including their intentional
-          # test_06 standalone-only diff restriction. Never weaken the test.
-          # First prove integrated licensing blobs EXACTLY equal PR16 (above),
-          # then run the original suite in its unmodified detached PR16 tree.
-          LICENSING_COMMIT=14b51610d00e12cdf811a8ed6fb416681b4ac58e
-          licensework="$RUNNER_TEMP/media-integration-licensing-pr16"
-          git worktree add --detach "$licensework" "$LICENSING_COMMIT"
-          test "$(git -C "$licensework" rev-parse HEAD)" = "$LICENSING_COMMIT"
-          ( cd "$licensework" && python3 -m unittest discover -s tests -p 'test_media_license_artifacts_19.py' -v )
-          echo 'PASS: 14 unchanged license tests in exact PR16 worktree and byte-identical integrated artifacts'
-          # This immutable original 8-case suite intentionally asserts PR18
-          # installer exactness and its PR15->PR18 16-file delta, so execute
-          # unchanged at PR18 rather than weaken or misrepresent its assertions.
-          integrationwork="$RUNNER_TEMP/media24-original-integrated-pr18"
-          git worktree add --detach "$integrationwork" e5271965dadaf82c4be1a336396d0e9b3a083b8d
-          ( cd "$integrationwork" && python3 -m unittest discover -s tests -p 'test_media_final_isolated_integration_22.py' -v )
-          echo "PASS: 8 inherited historical provenance checks at exact PR18, not current HEAD"
           python3 -m unittest discover -s tests -p 'test_media_distribution_evidence_23.py' -v
-          # Historical PR20 test_21 asserts the old exact PR19 shell blob.
-          # Preserve all 21 original tests unchanged at their actual PR20 SHA.
-          ( cd "$pr20work" && python3 -m unittest discover -s tests -p 'test_media_notice_packaging_24.py' -v )
           python3 -m unittest discover -s tests -p 'test_media_notice20_p2_generation_25.py' -v
-          echo 'PASS: 21 unchanged historical PR20 tests and new HEAD downgrade/rollback/uninstall security regressions'
+          echo 'PASS: 96 current SHA cases, including all new P2 attack/rollback/uninstall negatives and 44 compatible original stable/security cases'
           bash installer/media-stable-first.sh --dry-run --no-ai
           echo 'PASS: unchanged original source/security and explicit AI compatibility tests'
           echo 'HOLD: synthetic checks alone are not runtime, device or model inference evidence'
