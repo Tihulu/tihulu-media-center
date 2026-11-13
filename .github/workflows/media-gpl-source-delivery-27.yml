@@ -1,0 +1,60 @@
+name: MEDIA-GPL-SOURCE-DELIVERY-27 immutable license and paired-source review gates
+on:
+  push:
+    branches: [audit/media-gpl-source-delivery-license-gates-27-20261113]
+  pull_request:
+    branches: [qa/media-r2-crash-recovery-p2-qa25-01-20261113]
+permissions:
+  contents: read
+jobs:
+  license-source-read-only:
+    name: PR22 immutable source, owner-HOLD policy, 20 synthetic source-pair adversarial tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Confirm exact HEAD, frozen PR22 ancestry, source and only five evidence paths
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          BASE=77f46af46335b3c91286c327780d657ebe7f0bf4
+          git merge-base --is-ancestor "$BASE" HEAD
+          test "$(git rev-parse HEAD:source/installed-package)" = c572e6eccc5118c5130b1b5827af2f643633c26d
+          git diff --exit-code "$BASE" HEAD -- source installer LICENSE NOTICE LICENSES
+          python3 - <<'PY'
+          import subprocess
+          allowed={
+            'tools/compliance/media_gpl_delivery_guard_27.py',
+            'tests/test_media_gpl_delivery_guard_27.py',
+            'docs/compliance/MEDIA_GPL_SOURCE_DELIVERY_GATES_27.json',
+            'docs/compliance/MEDIA_GPL_SOURCE_DELIVERY_PLAN_27.md',
+            '.github/workflows/media-gpl-source-delivery-27.yml',
+          }
+          actual=set(subprocess.check_output(['git','diff','--name-only','77f46af46335b3c91286c327780d657ebe7f0bf4','HEAD'],text=True).splitlines())
+          assert actual == allowed,(actual,allowed)
+          print('PASS: exactly five added evidence-only paths; PR22 application and security unchanged')
+          PY
+      - name: Check conservative GPL and all nine unbundled AI model policies
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+          HF_HUB_OFFLINE: '1'
+          TRANSFORMERS_OFFLINE: '1'
+        run: |
+          set -euo pipefail
+          python3 tools/compliance/media_gpl_delivery_guard_27.py --repo .
+      - name: Run 20 synthetic fail-closed future binary-source pair regressions
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+          HF_HUB_OFFLINE: '1'
+          TRANSFORMERS_OFFLINE: '1'
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_media_gpl_delivery_guard_27.py' -v
+          echo 'ONLY SYNTHETIC PAIR CHECKS: no actual Kaffeine build, recipient delivery, physical devices or model data'
+          echo 'Complete GPL source, final copyright rights, complete SBOM, owner approval and PUBLIC RELEASE HOLD'
