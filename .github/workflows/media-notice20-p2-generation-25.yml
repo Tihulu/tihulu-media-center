@@ -84,7 +84,31 @@ jobs:
           bash -n installer/media-stable-first.sh
           shellcheck installer/media-stable-first.sh
           python3 -m py_compile installer/preview_safety.py installer/media-ai-compat.py             tests/test_media_install_safety_p0.py tests/test_media_tv_radio_exact_parity_04.py             tests/test_media_ai_runtime_parity_05.py tests/test_media_installer_p1_hardening_08.py tests/test_media_sec09_parent_races_10.py tests/test_media_sec11_uninstall_transaction_12.py tests/test_media_sec12_recovery_hardening_18.py tests/test_media_parity16_source_20.py tests/test_media_parity16_native_20.py tests/test_media_license_artifacts_19.py tests/test_media_final_isolated_integration_22.py tests/test_media_distribution_evidence_23.py tests/test_media_notice_packaging_24.py tests/test_media_notice_native_24.py tools/compliance/media_package_candidate_24.py tests/test_media_notice20_p2_generation_25.py
-          python3 -m unittest discover -s tests -p 'test_stable_first_*.py' -v
+          # Historical PR20 28-source suite includes one positive automatic
+          # rollback into an unattested notice-less legacy release. This
+          # behavior is intentionally forbidden by NOTICE20-P2-01. Run the
+          # entire original suite unchanged at its actual frozen PR20 SHA;
+          # then run the other 27 tests against current HEAD (no edits/skips
+          # hidden under an innocent PASS).
+          pr20work="$RUNNER_TEMP/media25-historical-PR20"
+          git worktree add --detach "$pr20work" 3d7aae9c3fa23c785b178208a8e32ced590b703e
+          ( cd "$pr20work" && python3 -m unittest discover -s tests -p 'test_stable_first_*.py' -v )
+          python3 - <<'PY'
+          import sys,unittest
+          suite=unittest.defaultTestLoader.discover("tests",pattern="test_stable_first_*.py")
+          def flatten(s):
+              for child in s:
+                  if isinstance(child,unittest.TestSuite): yield from flatten(child)
+                  else: yield child
+          tests=list(flatten(suite))
+          exception="test_stable_first_contract.StableFirstContract.test_rollback_in_temporary_home"
+          omitted=[t for t in tests if t.id()==exception]
+          assert len(tests)==28 and len(omitted)==1,(len(tests),[x.id() for x in omitted])
+          accepted=[t for t in tests if t.id()!=exception]
+          outcome=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(accepted))
+          if not outcome.wasSuccessful():sys.exit(1)
+          print("PASS: 27 current-head stable tests; historic 1 positive rollback belongs only to frozen PR20")
+          PY
           python3 -m unittest discover -s tests -p 'test_media_install_safety_p0.py' -v
           python3 -m unittest discover -s tests -p 'test_media_ai_runtime_parity_05.py' -v
           python3 -m unittest discover -s tests -p 'test_media_installer_p1_hardening_08.py' -v
@@ -112,8 +136,6 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_media_distribution_evidence_23.py' -v
           # Historical PR20 test_21 asserts the old exact PR19 shell blob.
           # Preserve all 21 original tests unchanged at their actual PR20 SHA.
-          pr20work="$RUNNER_TEMP/media25-historical-PR20"
-          git worktree add --detach "$pr20work" 3d7aae9c3fa23c785b178208a8e32ced590b703e
           ( cd "$pr20work" && python3 -m unittest discover -s tests -p 'test_media_notice_packaging_24.py' -v )
           python3 -m unittest discover -s tests -p 'test_media_notice20_p2_generation_25.py' -v
           echo 'PASS: 21 unchanged historical PR20 tests and new HEAD downgrade/rollback/uninstall security regressions'
