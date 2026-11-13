@@ -86,7 +86,7 @@ valid_release() {
   local target="$1" leaf=""
   [[ "$target" == "$APPROOT/releases/"* ]] || return 1
   leaf="${target#"$APPROOT/releases/"}"
-  [[ "$leaf" =~ ^r-[0-9a-f]{12}-[0-9]{8}T[0-9]{6}-[0-9]+$ ]] || return 1
+  [[ "$leaf" =~ ^(r|r2)-[0-9a-f]{12}-[0-9]{8}T[0-9]{6}-[0-9]+$ ]] || return 1
   [[ "$target" == "$APPROOT/releases/$leaf" && -d "$target" && ! -L "$target" ]] || return 1
   [[ "$(stat -c '%u' -- "$target")" == "$EUID" ]] || return 1
   # The directory name and ownership alone are not enough: interrupted or
@@ -324,7 +324,10 @@ grep -Fq 'std::prev(container.constEnd())' "$work/upstream/src/sqlinterface.h" |
 git -C "$work/upstream" diff --check
 python3 -m compileall -q "$stage/py"
 # Distro Qt/KF5 only: avoid Conda and mismatched custom Qt plugin search paths.
-final="$APPROOT/releases/r-${SNAPSHOT:0:12}-$(date -u +%Y%m%dT%H%M%S)-$$"
+# The release's independently inspected directory name is a mandatory
+# generation format discriminator; manifests are writable and cannot on their
+# own prove modern/legal-v2 provenance after a total legal-file removal.
+final="$APPROOT/releases/r2-${SNAPSHOT:0:12}-$(date -u +%Y%m%dT%H%M%S)-$"
 [[ ! -e "$final" ]] || die 'Chosen release destination already exists'
 build_env=(env -i "HOME=$HOME" "USER=$(id -un)" "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "LANG=C.UTF-8")
 "${build_env[@]}" cmake -S "$work/upstream" -B "$work/build" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX="$final/native"
@@ -430,7 +433,7 @@ python3 "$SCRIPT_DIR/preview_safety.py" stage-notices "$REPO" "$stage" ||
   die 'Legal notice package staging refused; owner release untouched'
 python3 "$SCRIPT_DIR/preview_safety.py" verify-notices "$stage" ||
   die 'Staged legal bundle altered; owner release untouched'
-python3 "$SCRIPT_DIR/preview_safety.py" prepare-release "$stage"
+python3 "$SCRIPT_DIR/preview_safety.py" prepare-release "$stage" "${final##*/}"
 # Publish complete release BEFORE changing the stable symlink.
 # Verify parent directory permissions and the inherited lock just before
 # publishing the complete release. No automatic repair or chmod.
