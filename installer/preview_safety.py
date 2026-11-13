@@ -29,7 +29,12 @@ TXN_PLAN = "plan.json"
 TXN_COMMITTED = "committed"
 TXN_COMMIT_TEXT = "TIHULU_MEDIA_UNINSTALL_COMMITTED_V1\n"
 
-RELEASE_NAME = re.compile(r"r-[0-9a-f]{12}-[0-9]{8}T[0-9]{6}-[0-9]+$")
+# The basename is separate from the release-controlled manifest and notice files.
+# r-... is historical/unattested without legal; r2-... irrevocably demands v2.
+RELEASE_NAME = re.compile(r"(?:r|r2)-[0-9a-f]{12}-[0-9]{8}T[0-9]{6}-[0-9]+$")
+RELEASE_NAME_V2 = re.compile(r"r2-[0-9a-f]{12}-[0-9]{8}T[0-9]{6}-[0-9]+$")
+RELEASE_NAME_LEGACY = re.compile(r"r-[0-9a-f]{12}-[0-9]{8}T[0-9]{6}-[0-9]+$")
+RELEASE_V2_FORMAT = "TIHULU_MEDIA_LEGAL_NOTICE_RELEASE_V2"
 LAUNCH = '''#!/bin/sh
 set -eu
 exec "$HOME/.local/opt/tihulu-media-stable/current/bin/tihulu-kaffeine" "$@"
@@ -202,10 +207,15 @@ def _legal_file_bytes(root: Path, relative: str, expected_blob: str | None,
 
 
 def verify_legal_notice_bundle(root: Path) -> None:
-    for rel, oid in LEGAL_NOTICE_BLOBS.items():
-        _legal_file_bytes(root, rel, oid)
-    if _legal_file_bytes(root, LEGAL_MARKER, None, 0o600) != LEGAL_MARKER_BYTES:
-        fail("Invalid pinned legal bundle marker")
+    try:
+        for rel, oid in LEGAL_NOTICE_BLOBS.items():
+            _legal_file_bytes(root, rel, oid)
+        if _legal_file_bytes(root, LEGAL_MARKER, None, 0o600) != LEGAL_MARKER_BYTES:
+            fail("Invalid pinned legal bundle marker")
+    except OSError as exc:
+        # An entirely missing bundle is a policy refusal, not an
+        # unhandled trace that might be mistaken for a retryable install.
+        fail(f"Missing/inaccessible generation-v2 legal bundle: {exc}")
 
 
 def stage_legal_notice_bundle(repo: Path, stage: Path) -> None:
@@ -255,29 +265,43 @@ def stage_legal_notice_bundle(repo: Path, stage: Path) -> None:
         os.close(parent_fd)
     verify_legal_notice_bundle(stage)
 
-def release_manifest(root: Path) -> dict:
+def release_manifest(root: Path, *, v2_release_name: str | None = None) -> dict:
     directory(root)
     entries = dict(iter_entries(root))
     entries.pop(MANIFEST, None)
+    if v2_release_name is not None:
+        if not RELEASE_NAME_V2.fullmatch(v2_release_name):
+            fail("Untrusted versioned release name")
+        return {"schema": 2, "format": RELEASE_V2_FORMAT,
+                "release_name": v2_release_name, "entries": entries}
     return {"schema": 1, "entries": entries}
 
 
-def prepare_release(root: Path) -> None:
+def prepare_release(root: Path, *, v2_release_name: str | None = None) -> None:
     directory(root)
     target = root / MANIFEST
     if target.exists() or target.is_symlink():
         fail("Refusing existing release manifest")
-    if any(present(root / p) for p in (*LEGAL_NOTICE_BLOBS, "LICENSES", LEGAL_MARKER)):
+    legal_paths = (*LEGAL_NOTICE_BLOBS, "LICENSES", LEGAL_MARKER)
+    if v2_release_name is not None:
+        # New release generation is an externally supplied destination NAME
+        # (not a self-asserted manifest flag). Refuse to mint a new generation
+        # before its actual source-pinned legal payload exists.
+        if not RELEASE_NAME_V2.fullmatch(v2_release_name):
+            fail("Cannot mint an unversioned/legacy release")
         verify_legal_notice_bundle(root)
-    data = release_manifest(root)
-    if not data["entries"].get("native/bin/kaffeine", {}).get("type") == "file":
+    elif any(present(root / p) for p in legal_paths):
+        # Historical testing and explicit manual fixture creation only.
+        verify_legal_notice_bundle(root)
+    data = release_manifest(root, v2_release_name=v2_release_name)
+    if data["entries"].get("native/bin/kaffeine", {}).get("type") != "file":
         fail("Missing native executable")
     target.write_text(json.dumps(data, sort_keys=True, indent=2) + "\n")
     target.chmod(0o600)
     print(f"Recorded {len(data['entries'])} owned release entries")
 
 
-def verify_release(root: Path) -> None:
+def verify_release(root: Path, *, audit_unattested_legacy: bool = False) -> None:
     directory(root)
     manifest = root / MANIFEST
     regular(manifest)
@@ -285,16 +309,51 @@ def verify_release(root: Path) -> None:
         data = json.loads(manifest.read_text())
     except (OSError, ValueError) as exc:
         fail(f"Invalid release manifest: {exc}")
-    if data.get("schema") != 1 or not isinstance(data.get("entries"), dict):
+    if type(data) is not dict or type(data.get("entries")) is not dict:
         fail("Invalid release manifest schema")
-    # Existing legacy test fixtures may predate this versioned bundle. Any
-    # current or manifest-recorded legal file, however, requires the complete
-    # pinned bundle and immutable marker before the release is trusted.
+    if type(data.get("schema")) is not int:
+        fail("Invalid release manifest schema type")
     legal_paths = (*LEGAL_NOTICE_BLOBS, "LICENSES", LEGAL_MARKER)
-    if (any(p in data["entries"] for p in legal_paths)
-            or any(present(root / p) for p in legal_paths)):
+    legal_present = (any(p in data["entries"] for p in legal_paths)
+                     or any(present(root / p) for p in legal_paths))
+    is_v2 = bool(RELEASE_NAME_V2.fullmatch(root.name))
+    if is_v2:
+        # This rule is NOT derivable from the mutable release manifest or
+        # legal marker, hence deleting all four and rewriting a schema-1
+        # manifest can never turn an r2- release into a trusted legacy one.
+        if (set(data) != {"schema", "format", "release_name", "entries"}
+                or data["schema"] != 2
+                or data["format"] != RELEASE_V2_FORMAT
+                or data["release_name"] != root.name):
+            fail("Versioned release identity/manifest downgrade: NOTICE20-P2-01")
         verify_legal_notice_bundle(root)
-    actual = release_manifest(root)
+        actual = release_manifest(root, v2_release_name=root.name)
+    elif RELEASE_NAME_LEGACY.fullmatch(root.name):
+        if set(data) != {"schema", "entries"} or data["schema"] != 1:
+            fail("Untrusted legacy manifest/version metadata")
+        if legal_present:
+            # Valid PR20-era old-name release, provided notices are intact.
+            verify_legal_notice_bundle(root)
+        elif not audit_unattested_legacy:
+            # A pre-PR20 genuine legacy and a PR20 release stripped of ALL
+            # legal files plus rewritten manifest are indistinguishable from
+            # mutable on-disk bytes. Never auto-delete or roll back to either.
+            fail("UNATTESTED legacy/possible NOTICE20-P2-01 downgrade: "
+                 "manual owner-led recovery required")
+        actual = release_manifest(root)
+    elif root.parent.name != "releases":
+        # Pure disposable standalone staging/fixture validation; NEVER an
+        # installed release. Production entrypoints only operate on children
+        # of APPROOT/releases and cannot get this compatibility exception.
+        if set(data) != {"schema", "entries"} or data["schema"] != 1:
+            fail("Untrusted standalone stage schema")
+        if legal_present:
+            verify_legal_notice_bundle(root)
+        elif not audit_unattested_legacy:
+            fail("Unsigned/unattested standalone stage")
+        actual = release_manifest(root)
+    else:
+        fail("Unknown/untrusted release generation name")
     if actual != data:
         missing = set(data["entries"]) - set(actual["entries"])
         extra = set(actual["entries"]) - set(data["entries"])
@@ -1079,8 +1138,18 @@ def main() -> int:
             stage_legal_notice_bundle(Path(sys.argv[2]), Path(sys.argv[3]))
         elif len(sys.argv) == 3 and sys.argv[1] == "verify-notices":
             verify_legal_notice_bundle(Path(sys.argv[2]))
+        elif len(sys.argv) == 4 and sys.argv[1] == "prepare-release":
+            prepare_release(Path(sys.argv[2]), v2_release_name=sys.argv[3])
         elif len(sys.argv) == 3 and sys.argv[1] == "prepare-release":
+            # Compatibility for existing read-only historical/fixture callers.
             prepare_release(Path(sys.argv[2]))
+        elif len(sys.argv) == 3 and sys.argv[1] == "audit-unattested-legacy":
+            inspected = Path(sys.argv[2])
+            if not RELEASE_NAME_LEGACY.fullmatch(inspected.name):
+                fail("Audit accepts only a historical r- release")
+            verify_release(inspected, audit_unattested_legacy=True)
+            print("UNATTESTED LEGACY OR REWRITTEN PR20; READ-ONLY AUDIT; "
+                  "AUTO UNINSTALL/ROLLBACK HOLD; manual owner recovery required")
         elif len(sys.argv) == 3 and sys.argv[1] == "verify-release":
             # Read-only gate used for rollback and any existing current pointer.
             verify_release(Path(sys.argv[2]))
