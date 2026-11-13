@@ -207,10 +207,15 @@ def _legal_file_bytes(root: Path, relative: str, expected_blob: str | None,
 
 
 def verify_legal_notice_bundle(root: Path) -> None:
-    for rel, oid in LEGAL_NOTICE_BLOBS.items():
-        _legal_file_bytes(root, rel, oid)
-    if _legal_file_bytes(root, LEGAL_MARKER, None, 0o600) != LEGAL_MARKER_BYTES:
-        fail("Invalid pinned legal bundle marker")
+    try:
+        for rel, oid in LEGAL_NOTICE_BLOBS.items():
+            _legal_file_bytes(root, rel, oid)
+        if _legal_file_bytes(root, LEGAL_MARKER, None, 0o600) != LEGAL_MARKER_BYTES:
+            fail("Invalid pinned legal bundle marker")
+    except OSError as exc:
+        # An entirely missing bundle is a policy refusal, not an
+        # unhandled trace that might be mistaken for a retryable install.
+        fail(f"Missing/inaccessible generation-v2 legal bundle: {exc}")
 
 
 def stage_legal_notice_bundle(repo: Path, stage: Path) -> None:
