@@ -1,21 +1,61 @@
 #!/bin/bash
 # TIHULU Media First Stable — Install Script
-# Installs preserved FIRST STABLE binary to target prefix
+#
+# OWNER-SIDE TOOL — READ FIRST:
+# This script requires the locally hosted private archive at ../../archive
+# relative to its own location. The published GitHub package intentionally
+# does NOT include the archive (no binary publication authorization), so this
+# script is documentation/reference outside the owner's archive layout.
+#
+# Installs the preserved FIRST STABLE binary to a TARGET prefix.
 # Usage: bash install.sh [--dry-run] [--target PREFIX]
+# The default target is an ISOLATED prefix. The live installation is never a
+# target of this script.
 
 set -euo pipefail
-# Archive is at ../../archive relative to this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARCHIVE_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)/archive"
-TARGET="${2:-$HOME/.local/opt/tihulu-kaffeine-first-stable}"
+TARGET=""
 DRY_RUN=false
 
-if [ "${1:-}" = "--dry-run" ]; then
-    DRY_RUN=true
+usage() { echo "Usage: bash install.sh [--dry-run] [--target PREFIX]" >&2; }
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --dry-run) DRY_RUN=true; shift ;;
+        --target)  TARGET="${2:?--target requires PREFIX}"; shift 2 ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "ERROR: unknown argument: $1" >&2; usage; exit 2 ;;
+    esac
+done
+
+# No positional fallback: a non-default target must be explicit.
+if [ -z "${TARGET}" ]; then
+    TARGET="$HOME/.local/opt/tihulu-kaffeine-first-stable"
 fi
 
-if [ "${2:-}" = "--target" ]; then
-    TARGET="${3:-$HOME/.local/opt/tihulu-kaffeine-first-stable}"
+# Path normalization + destination safety pre-checks before any write.
+TARGET_NORM="$(realpath -m -- "${TARGET}")"
+LIVE_NORM="$(realpath -m -- "$HOME/.local/opt/tihulu-kaffeine")"
+if [ "${TARGET_NORM}" = "${LIVE_NORM}" ]; then
+    echo "ERROR: refusing to target the LIVE installation." >&2
+    exit 3
+fi
+if [ -L "${TARGET}" ]; then
+    echo "ERROR: TARGET must be a real directory, not a symlink: ${TARGET}" >&2
+    exit 2
+fi
+if [ -e "${TARGET}" ] && [ ! -d "${TARGET}" ]; then
+    echo "ERROR: TARGET exists and is not a directory: ${TARGET}" >&2
+    exit 2
+fi
+if [ -e "${TARGET}" ] && [ ! -O "${TARGET}" ] && [ "$(id -u)" != "0" ]; then
+    echo "ERROR: TARGET is not owned by the current user: ${TARGET}" >&2
+    exit 2
+fi
+if [ -d "${TARGET}" ] && find "${TARGET}" -type l | grep -q .; then
+    echo "ERROR: TARGET contains symlinks; refusing to write through them." >&2
+    exit 2
 fi
 
 echo "=== TIHULU Media First Stable — Install ==="
@@ -26,13 +66,15 @@ echo "Target:  ${TARGET}"
 echo ""
 echo "--- Verifying archive integrity ---"
 cd "${ARCHIVE_DIR}"
-if command -v sha256sum &>/dev/null; then
-    if sha256sum -c manifest-verified.sha256 2>&1 | grep -q "FAILED"; then
-        echo "ERROR: Archive integrity check FAILED"
-        exit 1
-    fi
-    echo "Archive integrity: OK"
+if grep -q '^/' manifest-verified.sha256; then
+    echo "ERROR: manifest contains absolute paths; refusing." >&2
+    exit 1
 fi
+if sha256sum -c manifest-verified.sha256 2>&1 | grep -q "FAILED"; then
+    echo "ERROR: Archive integrity check FAILED"
+    exit 1
+fi
+echo "Archive integrity: OK"
 
 # Verify critical binary
 echo ""
@@ -53,28 +95,22 @@ if ${DRY_RUN}; then
     exit 0
 fi
 
-mkdir -p "${TARGET}"
+install -d -m 755 "${TARGET}/bin" "${TARGET}/share"
 
-# Install files
+# Install files (no-dereference copy; destination symlinks already refused)
 echo ""
 echo "--- Installing files ---"
-
-# Bin directory
-mkdir -p "${TARGET}/bin"
 cp "${ARCHIVE_DIR}/bin/kaffeine" "${TARGET}/bin/kaffeine"
 ln -sf kaffeine "${TARGET}/bin/tihulu-media-center"
 chmod 755 "${TARGET}/bin/kaffeine"
 echo "  Installed: ${TARGET}/bin/kaffeine"
 echo "  Symlink: ${TARGET}/bin/tihulu-media-center -> kaffeine"
 
-# Share directory
 if [ -d "${ARCHIVE_DIR}/share" ]; then
-    mkdir -p "${TARGET}/share"
-    cp -a "${ARCHIVE_DIR}/share/"* "${TARGET}/share/" 2>/dev/null || true
+    cp -a --no-dereference "${ARCHIVE_DIR}/share/." "${TARGET}/share/"
     echo "  Installed: ${TARGET}/share/*"
 fi
 
-# Launcher script
 cp "${ARCHIVE_DIR}/tihulu-kaffeine" "${TARGET}/tihulu-kaffeine"
 chmod 755 "${TARGET}/tihulu-kaffeine"
 echo "  Installed: ${TARGET}/tihulu-kaffeine (launcher)"
