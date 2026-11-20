@@ -12,6 +12,8 @@
 # The LIVE installation (~/.local/opt/tihulu-kaffeine) is never touched unless
 # the caller explicitly passes --live.
 
+# Known limitation: a same-UID writer can race the destination pre-checks (TOCTOU
+# window); use only on trusted single-user systems.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARCHIVE_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)/archive"

@@ -12,6 +12,8 @@
 # The default target is an ISOLATED prefix. The live installation is never a
 # target of this script.
 
+# Known limitation: a same-UID writer can race the destination pre-checks (TOCTOU
+# window); use only on trusted single-user systems.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARCHIVE_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)/archive"
