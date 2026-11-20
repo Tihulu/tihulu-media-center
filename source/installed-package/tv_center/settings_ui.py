@@ -52,48 +52,18 @@ def open_ai_settings(parent, ai, after_save=None):
             if not previous or not self.frameGeometry().intersects(screen):
                 self.move(max(screen.left()+10, screen.right()-self.width()-18),
                           screen.top()+38)
+            # Keep the platform palette, including popup Base/Text and
+            # Highlight/HighlightedText pairs when the desktop switches theme.
             self.setStyleSheet("""
-                QDialog { background:#0c151f; color:#deebf5; }
-                QTabWidget::pane {
-                    background:#111d28; border:1px solid #284052;
-                    border-radius:8px; top:-1px;
+                QTabBar::tab { padding:8px 12px; }
+                QGroupBox { margin-top:12px; padding-top:6px; }
+                QGroupBox::title { subcontrol-origin:margin; left:10px; }
+                QPushButton { padding:5px 9px; min-height:22px; }
+                QComboBox QAbstractItemView {
+                    color:palette(text); background-color:palette(base);
+                    selection-color:palette(highlighted-text);
+                    selection-background-color:palette(highlight);
                 }
-                QTabBar::tab {
-                    background:#1c2d3b; color:#aec2d0;
-                    border:1px solid #2d4658; padding:10px 14px;
-                    border-top-left-radius:6px;
-                    border-top-right-radius:6px;
-                }
-                QTabBar::tab:selected {
-                    background:#164d63; color:white;
-                    border-bottom:2px solid #42b3c8;
-                }
-                QScrollArea { background:#111d28; border:0; }
-                QWidget#marketPage { background:#111d28; }
-                QGroupBox {
-                    border:1px solid #2b4355; border-radius:9px;
-                    margin-top:15px; padding-top:6px;
-                    background:#162430; color:#e6f0f7;
-                }
-                QGroupBox::title {
-                    subcontrol-origin:margin; left:12px;
-                    padding:0 5px; color:#b9d8ea;
-                }
-                QPushButton {
-                    background:#20384c; color:#e8f0f6;
-                    border:1px solid #36546b; border-radius:6px;
-                    padding:7px 12px; min-height:24px;
-                }
-                QPushButton:hover { background:#2a526e; }
-                QPushButton:disabled {
-                    background:#192833; color:#6f8798; border-color:#2b3845;
-                }
-                QLineEdit, QComboBox, QListWidget {
-                    background:#0f1a24; color:#ebf4fb;
-                    border:1px solid #3a566d; border-radius:6px;
-                    padding:5px; selection-background-color:#21678c;
-                }
-                QLabel, QCheckBox { color:#d9e8f2; }
             """)
             self.ai = ai
             self.work = queue.Queue()
@@ -955,13 +925,13 @@ def open_ai_settings(parent, ai, after_save=None):
                 name.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Preferred)
                 estimate=QLabel(component_estimate(code))
                 estimate.setWordWrap(True)
-                estimate.setStyleSheet("color:#a4bdd0;font-size:11px")
+                estimate.setStyleSheet("font-size:11px")
                 estimate.setMaximumWidth(320)
                 header.addWidget(name,3)
                 header.addWidget(estimate,2)
                 row.addLayout(header)
                 state=QLabel("Not inspected yet")
-                state.setStyleSheet("color:#bdd6e5;font-size:11px")
+                state.setStyleSheet("font-size:11px")
                 row.addWidget(state)
                 bar=QProgressBar()
                 bar.setMaximumHeight(12)
