@@ -1,0 +1,51 @@
+{
+  "schema": "tihulu.stable_first.codex_handoff.v1",
+  "as_of_utc": "2026-11-20",
+  "repo": "Tihulu/tihulu-media-center",
+  "branch": "docs/stable-first-codex-handoff-20261120",
+  "summary": "Preserve custom Kaffeine-based Media Center working installation and frozen source; public release HOLD.",
+  "public_release": "HOLD",
+  "status": "documentation_only_candidate",
+  "stable_baseline": {
+    "name": "stable-first-local-2026-11-12",
+    "commit": "7821769eb7aed576dd426ec18ffce3696d93a00d",
+    "kind": "frozen source snapshot; not rebuilt binary equivalence"
+  },
+  "latest_inspected_work": {
+    "name": "Draft PR #23",
+    "url": "https://github.com/Tihulu/tihulu-media-center/pull/23",
+    "commit": "9da09f2ec12d3e7ad6ad78898048e0da20bff479",
+    "kind": "GPL corresponding-source delivery design and synthetic checks; not released"
+  },
+  "invariants": [
+    "No owner-host installation, binaries, settings, recordings, hardware, background services, model downloads, merges or release actions.",
+    "Do not change the frozen source branch, existing TEXT-CENTER worktrees or previous Draft PRs.",
+    "Source snapshot does not establish exact matching source/build for the installed binary.",
+    "Optional models and redistributable rights need exact-artifact legal review."
+  ],
+  "blockers": [
+    "Exact installed-binary/source provenance and clean reproducible install acceptance",
+    "Native DVB-T2/FM/DAB+, teletext, Whisper/translation and EN/TR/DE behavior on real hardware",
+    "Complete GPL corresponding source, notices, SBOM and optional model rights",
+    "Hostile same-UID/process-recovery and actual rollback interruption acceptance"
+  ],
+  "next_safe_actions": [
+    "Read GitHub issue #1, frozen source manifest and Draft PR #23 without modifying either.",
+    "Verify latest exact PR head and CI yourself; treat prior test counts as scoped reports only.",
+    "Plan isolated clean Pop!_OS/Ubuntu install and real-device parity tests, subject to owner approval.",
+    "Keep any local binary or private archive off GitHub; only owner-approved audited artifacts may be published."
+  ],
+  "source_links": [
+    "https://github.com/Tihulu/tihulu-media-center/issues/1",
+    "https://github.com/Tihulu/tihulu-media-center/pull/23"
+  ],
+  "evidence_policy": "Distinguish repository facts, PR author reports, independent QA and owner-host acceptance. Never invent percentages or imply CI equals actual hardware acceptance.",
+  "retrieval": {
+    "chunks": "docs/codex/KNOWLEDGE.jsonl",
+    "history": "docs/codex/HISTORY.md",
+    "builder": "docs/codex/index_local.py",
+    "keyword_index": "offline SQLite FTS5",
+    "semantic_index": "opt-in local already-installed model; not precomputed",
+    "data_egress": "none"
+  }
+}
