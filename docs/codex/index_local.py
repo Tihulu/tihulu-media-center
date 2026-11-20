@@ -84,7 +84,7 @@ def search(db_path, query, model, limit):
             expression = " OR ".join('"' + t.replace('"', '""') + '"' for t in terms)
             results = [(-float(rank), id_, title, content, source)
                        for id_, title, content, source, rank in connection.execute(
-                        "SELECT s.id,s.title,s.content,s.source,bm25(f) FROM snippets_fts f JOIN snippets s ON s.id=f.id WHERE f MATCH ? ORDER BY bm25(f) LIMIT ?",
+                        "SELECT s.id,s.title,s.content,s.source,bm25(snippets_fts) FROM snippets_fts JOIN snippets s ON s.id=snippets_fts.id WHERE snippets_fts MATCH ? ORDER BY bm25(snippets_fts) LIMIT ?",
                         (expression, limit))]
         for score, id_, title, content, source in results[:limit]:
             print("\n%s | %.3f | %s\n%s\n%s" % (id_, score, title, content, source))
