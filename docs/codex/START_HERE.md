@@ -3,6 +3,8 @@
 Updated: 2026-11-20 (UTC). Status: **PUBLIC RELEASE HOLD**. This branch is documentation-only and is not an approved stable release.
 
 ## Read order (minimum context)
+**To resume this application in a new Codex session, copy the ready-to-run [application-specific prompt](CODEX_RESUME_PROMPT.md).**
+
 1. This file (constraints + entry point).
 2. [STATE.json](STATE.json) (machine-readable exact baseline, current Draft, blockers, next actions).
 3. [KNOWLEDGE.jsonl](KNOWLEDGE.jsonl) (small source-linked retrieval chunks; not embeddings).
