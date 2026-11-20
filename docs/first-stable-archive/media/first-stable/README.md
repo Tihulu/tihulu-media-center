@@ -40,6 +40,13 @@ the owner's Pop!_OS workstation. It preserves:
 
 ## Quick Verification
 
+> **Tool status:** the scripts in this directory are **owner-side tools** for the
+> private FIRST STABLE archive layout. They resolve the archive at
+> `../../archive` relative to their own location. The GitHub copy of this
+> package is documentation/reference only — the archive (binary + share) is
+> **not published** and requires separate explicit authorization. Run the
+> commands below only inside the owner's archive layout.
+
 ```bash
 cd /path/to/this/directory
 sha256sum -c manifest.sha256
@@ -53,7 +60,9 @@ bash verify.sh
 bash install.sh
 ```
 
-This installs to an isolated prefix and does NOT touch the live installation.
+This installs to an isolated prefix and does NOT touch the live installation. Requires the
+private archive at `../../archive` (owner-side layout); `restore.sh` refuses the live
+installation path unless `--live` is explicitly passed.
 
 ## Platform
 
@@ -67,8 +76,10 @@ This installs to an isolated prefix and does NOT touch the live installation.
 
 - Base branch: `agent/media-stable-first-01` (Draft PR #2); frozen snapshot branch: `stable-first-local-2026-11-12`
 - PR: [Draft PR #2](https://github.com/Tihulu/tihulu-media-center/pull/2) — source/native CI green; real feature parity HOLD
+- Package Draft: [Draft PR #25](https://github.com/Tihulu/tihulu-media-center/pull/25) (branch `docs/first-stable-archive-evidence-20261120`, base Draft PR #2 `agent/media-stable-first-01`)
 - Binary NOT uploaded — requires separate explicit authorization
 - Source provenance: HOLD (see `source-provenance.md`)
+- Repository is PUBLIC; no merge/tag/release/install action from this package
 
 ## Safety
 
