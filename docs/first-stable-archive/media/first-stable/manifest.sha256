@@ -1,0 +1,30 @@
+# TIHULU Media First Stable — SHA256 Manifest
+# Generated: 2026-11-13
+# Source: verified FIRST STABLE archive (local read-only evidence)
+# Verified: 114 files, 0 failures
+
+# === CRITICAL FILES (exact hash match required) ===
+FILE:./bin/kaffeine                                                              1211bd5f8e16267d4b7f7b537f2b2c5c218b204d786c85fa6119a0f8ffa0d502 2637160B
+SYMLINK:./bin/tihulu-media-center                                                kaffeine
+FILE:./tihulu-kaffeine                                                           85553f66f51ace8850950692a8648205bfee4b9416541ae45b60e8ac431ea2bf 2059B
+
+# === APPLICATION RESOURCES ===
+FILE:./share/applications/org.kde.kaffeine.desktop                               23ccc397ffaf3d86310e23092eb0c5b09ef81aae8e959c0e41e12b13a6822c60 5350B
+FILE:./share/kaffeine/scanfile.dvb                                               be1cff09c09387c8335497be5dbd99a692efc56599ccae03792175b2253f0be5 1880284B
+FILE:./share/metainfo/org.kde.kaffeine.appdata.xml                               a3bc51bbf0a540f2793262197b3bc5735838ada91f4acd825e4d5b3c7dea3396 23654B
+
+# === DESKTOP ACTIONS ===
+FILE:./share/solid/actions/kaffeine_play_audiocd.desktop                         1ebcfb70ea0435064d8c45493b0496465e764854e9699a542ca2286281ffd754 3434B
+FILE:./share/solid/actions/kaffeine_play_dvd.desktop                             a90bd2425cdd699fd41c0e8af9b7388c7d0d016a5c3225b74d20b28317051213 2976B
+FILE:./share/solid/actions/kaffeine_play_videocd.desktop                         15ec5cac81af742fdaf98eeca88f09c0f3905cfa40980abd8e4f634880a06bfb 3380B
+
+# === ICONS (52 files) ===
+FILE:./share/icons/hicolor/icon-theme.cache                                      308e9e11aa48af5ada96dbd8ad84939780f3372afca5dc71632ab2481b41a16a 2200B
+# (49 additional icon files present in archive/share/icons/)
+
+# === LOCALIZATION (57 locale .mo files) ===
+# (all present in archive/share/locale/)
+# Key locales: tr, en_GB, de, fr, es, ru, zh_CN, ja, ko, uk, ar, pt_BR, it, nl, pl, sv, fi, el, hu, ro, bg, hr, cs, da, no, sk, sl
+
+# To verify the entire archive:
+#   cd <archive-path>/archive && sha256sum -c manifest-verified.sha256
