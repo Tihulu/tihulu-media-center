@@ -28,19 +28,22 @@ PARTIAL_MARKER = ".tihulu-faster-whisper-install-in-progress"
 
 class FasterWhisperCUDA:
     def __init__(self, root=None, model_dir=None):
-        self.root = Path(root or ROOT).expanduser()
+        from .local_assets import existing_asset
+        self.root = Path(root).expanduser() if root is not None else existing_asset(ROOT)
         if model_dir is None:
             from .ai_settings import AISettings
             model_dir = AISettings().values.get("model_dir", "")
         base = (Path(model_dir).expanduser() if model_dir else
                 Path.home()/".local/share/tihulu-tv-center")
-        self.model_dir = base / "faster-whisper-models" / "large-v3-turbo"
+        self.model_dir = existing_asset(base / "faster-whisper-models" / "large-v3-turbo")
 
     @property
     def python(self):
         return self.root / "bin/python3"
 
     def _guard(self):
+        from .local_assets import require_asset_write
+        require_asset_write()
         if self.root.is_symlink() or not self.root.resolve().is_relative_to(
                 Path.home().resolve()):
             raise RuntimeError("CUDA worker runtime must be a non-symlinked user directory")

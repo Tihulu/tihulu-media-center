@@ -12,9 +12,8 @@ UPSTREAM = "https://github.com/KDE/kaffeine.git"
 TAG = "v2.0.19"
 REVISION = "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c"
 PATHS = ("src/mainwindow.cpp", "src/mainwindow.h", "src/CMakeLists.txt",
-          "src/abstractmediawidget.h", "src/dvb/dvbdevice_linux.cpp",
          "src/dvb/dvbliveview.cpp",
-         "src/dvb/dvbliveview_p.h", "src/dvb/dvbliveview.h", "src/dvb/dvbmanager.cpp", "src/dvb/dvbtab.cpp",
+         "src/dvb/dvbliveview_p.h", "src/dvb/dvbmanager.cpp", "src/dvb/dvbtab.cpp",
          "src/dvb/dvbtab.h", "src/dvb/dvbconfigdialog.cpp", "src/dvb/dvbscandialog.cpp",
          "src/dvb/dvbscandialog.h", "src/backend-vlc/vlcmediawidget.cpp",
          "src/backend-vlc/vlcmediawidget.h",
@@ -2047,186 +2046,12 @@ private slots:''')
         source_epg = source_epg.replace(name + "[nibble1]", name + "()[nibble1]")
     files[epg] = source_epg
 
-    # ---- Independent acceptance-fix set (FIRST STABLE acceptance review) ----
-    # 1) Start-tile shortcuts: Qt5 string-based connections silently fail
-    # against these slots; use compile-time checked function pointers.
-    hdrmain = "src/mainwindow.h"
-    moved_slots = '\tvoid playRadio();\n\tvoid playHardware();\n'
-    if files[hdrmain].count(moved_slots) != 1:
-        raise ValueError("Unexpected native tab slot declarations")
-    files[hdrmain] = files[hdrmain].replace(moved_slots, '', 1)
-    change(hdrmain, '\tvoid run();',
-           '\tvoid playRadio();\n\tvoid playHardware();\n\tvoid run();')
-    change(main, 'connect(button, SIGNAL(clicked(bool)), mainWindow, SLOT(playRadio()));',
-           'connect(button, &QAbstractButton::clicked, mainWindow, &MainWindow::playRadio);')
-    change(main, 'connect(button,SIGNAL(clicked(bool)),mainWindow,SLOT(playHardware()));',
-           'connect(button, &QAbstractButton::clicked, mainWindow, &MainWindow::playHardware);')
-
-    # 2) Home screen follows the system palette: light themes keep readable text.
-    change(main, 'background:#101d2d;color:#e2f6ff',
-           'background:palette(window);color:palette(window-text)')
-    change(main, 'background:#1b3b53;color:#f3fbff;',
-           'background:palette(button);color:palette(button-text);')
-    change(main, 'border:1px solid #366b89', 'border:1px solid palette(mid)')
-    change(main, 'QToolButton:hover{background:#215875}',
-           'QToolButton:hover{background:palette(highlight);color:palette(highlighted-text)}')
-    change(main, 'color:#b6f6fe;padding:12px', 'color:palette(window-text);padding:12px')
-
-    # 3) Honest UI telemetry for the shared MediaWidget: real libVLC state
-    # and buffer percentage in addition to the legacy playing/paused/idle.
-    change("src/mediawidget.h", '\tPlaybackStatus getPlaybackStatus() const;',
-           '\tPlaybackStatus getPlaybackStatus() const;\n'
-           '\t// UI telemetry only: do not change the legacy Playing/Paused/Idle contract.\n'
-           '\tenum StreamState { StreamStopped, StreamOpening, StreamPlaying, StreamPaused, StreamFailed };\n'
-           '\tStreamState streamState() const;\n'
-           '\tint bufferPercent() const;')
-    change("src/abstractmediawidget.h", '\tint getCurrentTime() const',
-           '\tvirtual MediaWidget::StreamState streamState() const { return MediaWidget::StreamStopped; }\n'
-           '\tvirtual int bufferPercent() const { return -1; }\n'
-           '\tint getCurrentTime() const')
-    change("src/mediawidget.cpp", 'MediaWidget::PlaybackStatus MediaWidget::getPlaybackStatus() const',
-           'MediaWidget::StreamState MediaWidget::streamState() const { return backend->streamState(); }\n'
-           'int MediaWidget::bufferPercent() const { return backend->bufferPercent(); }\n\n'
-           'MediaWidget::PlaybackStatus MediaWidget::getPlaybackStatus() const')
-
-    # 4) libVLC: report buffering, rebind the video surface across reparents
-    # (a separate TV window must never strand the shared widget), surface errors.
-    change("src/backend-vlc/vlcmediawidget.h", '\tbool registerEvents();',
-           '\tbool registerEvents();\n'
-           '\tMediaWidget::StreamState streamState() const override;\n'
-           '\tint bufferPercent() const override { return cachePercent.loadRelaxed(); }')
-    change("src/backend-vlc/vlcmediawidget.h", '\tQTimer *timer;',
-           '\tQAtomicInt cachePercent{-1}, streamError{0};\n'
-           '\tbool event(QEvent *event) override;\n'
-           '\tQTimer *timer;')
-    change("src/backend-vlc/vlcmediawidget.cpp", 'libvlc_event_e events[] = {',
-           'libvlc_event_e events[] = {\n\t\tlibvlc_MediaPlayerBuffering,')
-    vlc = "src/backend-vlc/vlcmediawidget.cpp"
-    stale_surface = '\tlibvlc_media_player_set_xwindow(vlcMediaPlayer, quint32(winId()));\n\tsetAttribute(Qt::WA_NativeWindow);'
-    if files[vlc].count(stale_surface) != 1:
-        raise ValueError("Unexpected libVLC surface binding site")
-    files[vlc] = files[vlc].replace(stale_surface, '\tsetAttribute(Qt::WA_NativeWindow);')
-    change("src/backend-vlc/vlcmediawidget.cpp", '\treturn libvlc_media_player_play(vlcMediaPlayer);',
-           '\t// The shared MediaWidget is reparented when switching tabs. Bind the\n'
-           '\t// *current* native surface before VLC creates its video output.\n'
-           '\tlibvlc_media_player_set_xwindow(vlcMediaPlayer, quint32(winId()));\n'
-           '\tcachePercent.storeRelaxed(-1);\n'
-           '\tstreamError.storeRelaxed(0);\n'
-           '\treturn libvlc_media_player_play(vlcMediaPlayer);')
-    change("src/backend-vlc/vlcmediawidget.cpp", 'void VlcMediaWidget::playDirection(int direction)',
-           'bool VlcMediaWidget::event(QEvent *e)\n'
-           '{\n'
-           '\tconst bool handled = AbstractMediaWidget::event(e);\n'
-           '\tif (e->type() == QEvent::WinIdChange && vlcMediaPlayer && internalWinId())\n'
-           '\t\tlibvlc_media_player_set_xwindow(vlcMediaPlayer, quint32(internalWinId()));\n'
-           '\treturn handled;\n'
-           '}\n\n'
-           'MediaWidget::StreamState VlcMediaWidget::streamState() const\n'
-           '{\n'
-           '\tif (streamError.loadRelaxed()) return MediaWidget::StreamFailed;\n'
-           '\tswitch (libvlc_media_player_get_state(vlcMediaPlayer)) {\n'
-           '\tcase libvlc_Buffering: case libvlc_Opening: return MediaWidget::StreamOpening;\n'
-           '\tcase libvlc_Playing: return MediaWidget::StreamPlaying;\n'
-           '\tcase libvlc_Paused: return MediaWidget::StreamPaused;\n'
-           '\tcase libvlc_Error: return MediaWidget::StreamFailed;\n'
-           '\tdefault: return MediaWidget::StreamStopped;\n'
-           '\t}\n'
-           '}\n\n'
-           'void VlcMediaWidget::playDirection(int direction)')
-    change("src/backend-vlc/vlcmediawidget.cpp",
-           '\tcase libvlc_MediaPlayerEncounteredError:\n\t\tpendingUpdatesToBeAdded = PlaybackStatus;',
-           '\tcase libvlc_MediaPlayerBuffering:\n'
-           '\t\tcachePercent.storeRelaxed(qBound(0, int(event->u.media_player_buffering.new_cache), 100));\n'
-           '\t\treturn;\n'
-           '\tcase libvlc_MediaPlayerEncounteredError:\n'
-           '\t\tstreamError.storeRelaxed(1);\n'
-           '\t\tpendingUpdatesToBeAdded = PlaybackStatus;')
-    change("src/backend-vlc/vlcmediawidget.cpp", 'void VlcMediaWidget::stop()\n{',
-           'void VlcMediaWidget::stop()\n{\n\tcachePercent.storeRelaxed(-1);\n\tstreamError.storeRelaxed(0);')
-
-    # 5) Live TV recording without a second tuner: tee the already-filtered
-    # service TS into a user-chosen file. Silence creates nothing, an existing
-    # file is never overwritten, I/O failure keeps the partial file.
-    change("src/dvb/dvbliveview_p.h", '#include <QFile>',
-           '#include <QFile>\n#include "livecapture.h"')
-    change("src/dvb/dvbliveview_p.h", '\tQFile timeShiftFile;',
-           '\tLiveCapture capture;\n\tQFile timeShiftFile;')
-    live = "src/dvb/dvbliveview.cpp"
-    change(live, 'void DvbLiveView::insertPatPmt()\n{\n\tinternal->buffer.append(internal->patGenerator.generatePackets());\n\tinternal->buffer.append(internal->pmtGenerator.generatePackets());\n}',
-           'bool DvbLiveView::beginCapture(const QString &path)\n'
-           '{\n'
-           '\treturn device && channel.isValid() && internal->capture.begin(path);\n'
-           '}\n\n'
-           'void DvbLiveView::endCapture()\n'
-           '{\n'
-           '\tif (!internal->capture.active()) return;\n'
-           '\tQString reason;\n'
-           '\tconst QString path = internal->capture.finish(reason);\n'
-           '\temit captureFinished(path, reason);\n'
-           '}\n\n'
-           'QString DvbLiveView::captureError() const { return internal->capture.failure(); }\n'
-           'bool DvbLiveView::waitingForDevice() const { return channel.isValid() && !device && internal->tihuluDeviceRetryCount > 0; }\n\n'
-           'void DvbLiveView::insertPatPmt()\n'
-           '{\n'
-           '\tconst QByteArray pat = internal->patGenerator.generatePackets();\n'
-           '\tconst QByteArray pmt = internal->pmtGenerator.generatePackets();\n'
-           '\tinternal->capture.tables(pat, pmt);\n'
-           '\tinternal->buffer.append(pat);\n'
-           '\tinternal->buffer.append(pmt);\n'
-           '}')
-    change(live, 'void DvbLiveViewInternal::processData(const char data[188])\n{\n\tbuffer.append(data, 188);',
-           'void DvbLiveViewInternal::processData(const char data[188])\n{\n\tcapture.packet(data);\n\tbuffer.append(data, 188);')
-    change(live, 'void DvbLiveView::stopDevice()\n{', 'void DvbLiveView::stopDevice()\n{\n\tendCapture(); // finalize the old service before retune or device release')
-    change(live, 'DvbLiveView::~DvbLiveView()\n{\n}', 'DvbLiveView::~DvbLiveView()\n{\n\tendCapture();\n}')
-    change("src/dvb/dvbliveview.h", '\tDvbDevice *getDevice() const;',
-           '\tDvbDevice *getDevice() const;\n'
-           '\tbool beginCapture(const QString &path);\n'
-           '\tvoid endCapture();\n'
-           '\tQString captureError() const;\n'
-           '\tbool waitingForDevice() const;')
-    change("src/dvb/dvbliveview.h", 'signals:\n',
-           'signals:\n\tvoid captureFinished(const QString &path, const QString &error);\n')
-
-    # 6) Never leak a DVB frontend fd into exec'd helper processes.
-    dev = "src/dvb/dvbdevice_linux.cpp"
-    legacy_open = 'dvb_fe_open2(adapter, index, verbose, 0, dvbv5_log)'
-    if files[dev].count(legacy_open) != 2:
-        raise ValueError("Unexpected DVB frontend open sites")
-    files[dev] = files[dev].replace(legacy_open,
-        'dvb_fe_open_flags(adapter, index, verbose, 0, dvbv5_log, O_RDWR | O_CLOEXEC)')
-
-    # 7) Truthful loading meter on the TV page; hidden in fullscreen video.
-    change(main, 'statusBar()->addPermanentWidget(tihuluReceiverSwitchProgress,1);',
-           'statusBar()->addPermanentWidget(tihuluReceiverSwitchProgress,1);\n'
-           '\tauto *tvMeterTimer = new QTimer(this);\n'
-           '\tconnect(tvMeterTimer, &QTimer::timeout, this, [this,tihuluReceiverSwitchProgress]() {\n'
-           '\t\tif (currentTabIndex != DvbTabId) return;\n'
-           '\t\tauto *bar = tihuluReceiverSwitchProgress;\n'
-           '\t\tconst auto mode = mediaWidget->getDisplayMode();\n'
-           '\t\tif (mode == MediaWidget::FullScreenMode || mode == MediaWidget::FullScreenReturnToMinimalMode) {\n'
-           '\t\t\tbar->hide(); return;\n'
-           '\t\t}\n'
-           '\t\tauto *live = dvbTab->getManager()->getLiveView();\n'
-           '\t\tconst bool waiting = live->waitingForDevice();\n'
-           '\t\tif (!live->getDevice() && !waiting) { bar->hide(); return; }\n'
-           '\t\tconst int pct = mediaWidget->bufferPercent();\n'
-           '\t\tconst auto state = mediaWidget->streamState();\n'
-           '\t\tif (!waiting && state == MediaWidget::StreamPlaying && (pct < 0 || pct >= 100)) {\n'
-           '\t\t\tbar->hide(); return;\n'
-           '\t\t}\n'
-           '\t\tconst bool measured = !waiting && pct >= 0 && state != MediaWidget::StreamPaused && state != MediaWidget::StreamFailed;\n'
-           '\t\tbar->setRange(0, measured || state == MediaWidget::StreamFailed || state == MediaWidget::StreamPaused ? 100 : 0);\n'
-           '\t\tbar->setValue(measured ? pct : 0);\n'
-           '\t\tbar->setFormat(waiting ? i18n("TV \u00b7 waiting for receiver") : state == MediaWidget::StreamFailed ?\n'
-           '\t\t\ti18n("TV \u00b7 stream unavailable") : state == MediaWidget::StreamPaused ? i18n("TV \u00b7 paused") :\n'
-           '\t\t\tmeasured ? i18n("TV \u00b7 VLC buffer %p%") : i18n("TV \u00b7 loading\u2026"));\n'
-           '\t\tbar->show();\n'
-           '\t});\n'
-           '\ttvMeterTimer->start(250);')
-    change(main, '\tif (toTelevision) {',
-           '\tif (progress && tabIndex != DvbTabId) { progress->hide(); progress->setRange(0,100); }\n\tif (toTelevision) {')
-
-    return files
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "tihulu_acceptance_fixes", Path(__file__).with_name("acceptance_fixes.py"))
+    extra = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(extra)
+    return extra.transform(files)
 
 def apply(root: Path):
     root = root.resolve(strict=True)
@@ -2279,14 +2104,17 @@ def apply(root: Path):
         raise RuntimeError("Refusing to overwrite unrelated internet television header")
     web_dest.write_text(web_template.read_text(encoding="utf-8"), encoding="utf-8")
     print("Installed native internet television catalogue:", web_dest)
-    capture = Path(__file__).with_name("livecapture.h")
-    if not capture.is_file():
-        raise RuntimeError("Live capture helper header missing")
-    capture_dest = root / "src/dvb/livecapture.h"
-    if capture_dest.exists() and capture_dest.read_text(encoding="utf-8") != capture.read_text(encoding="utf-8"):
-        raise RuntimeError("Refusing to overwrite unrelated live capture helper")
-    capture_dest.write_text(capture.read_text(encoding="utf-8"), encoding="utf-8")
-    print("Installed live TS capture helper:", capture_dest)
+    for template, destination in (
+        ("native_theme.h", "src/tihulu_theme.h"),
+        ("native_caption_options.h", "src/tihulu_caption_options.h"),
+        ("native_playback_profile.h", "src/tihulu_playback_profile.h"),
+        ("livecapture.h", "src/dvb/livecapture.h"),
+    ):
+        text = Path(__file__).with_name(template).read_text(encoding="utf-8")
+        target = root / destination
+        if target.exists() and target.read_text(encoding="utf-8") != text:
+            raise RuntimeError("Refusing to overwrite unrelated header: " + destination)
+        target.write_text(text, encoding="utf-8")
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

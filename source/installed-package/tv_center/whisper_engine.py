@@ -22,7 +22,8 @@ class WhisperRuntimeError(RuntimeError):
 
 class WhisperRuntime:
     def __init__(self, root=None):
-        self.root = Path(root or ROOT).expanduser()
+        from .local_assets import existing_asset
+        self.root = Path(root).expanduser() if root is not None else existing_asset(ROOT)
 
     @property
     def binary(self):
@@ -42,6 +43,8 @@ class WhisperRuntime:
                 and os.access(self.cuda_binary, os.X_OK))
 
     def _guard(self):
+        from .local_assets import require_asset_write
+        require_asset_write()
         if self.root.is_symlink():
             raise WhisperRuntimeError("Symlink runtime path refused")
         if not self.root.resolve().is_relative_to(Path.home().resolve()):

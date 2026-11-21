@@ -20,7 +20,8 @@ class RuntimeErrorAI(RuntimeError):
 
 class AIRuntime:
     def __init__(self, root=None):
-        self.root = Path(root or ROOT).expanduser()
+        from .local_assets import existing_asset
+        self.root = Path(root).expanduser() if root is not None else existing_asset(ROOT)
         self.marker = self.root / MARKER
 
     def status(self):
@@ -30,6 +31,8 @@ class AIRuntime:
                 "python": str(py), "path": str(self.root)}
 
     def _guard(self):
+        from .local_assets import require_asset_write
+        require_asset_write()
         if self.root.is_symlink():
             raise RuntimeErrorAI("Refusing symlinked AI runtime directory")
         if not self.root.resolve().is_relative_to(Path.home().resolve()):

@@ -338,6 +338,25 @@ def lookup_musixmatch_licensed_plain(*, artist: str, title: str,
                     "status": "unavailable"}
 
 
+def _lyric_language(record: dict) -> str:
+    """Return the catalog's own ISO language code, or "".
+
+    The catalog language is provider metadata. It is not ASR
+    detection, and it is never guessed into an IN language.
+    """
+    if not isinstance(record, dict):
+        return ""
+    value = record.get("lang") or record.get("language") or ""
+    if not isinstance(value, str):
+        return ""
+    value = value.strip().lower()
+    if value.startswith("de_"):
+        return "de"
+    if len(value) == 2 and value.isalpha():
+        return value
+    return ""
+
+
 def lookup_synced_lyrics(*, title: str, artist: str,
                          album: str = "", duration: float | None = None,
                          online: bool = False,
@@ -436,6 +455,7 @@ def lookup_synced_lyrics(*, title: str, artist: str,
                     "status":"plain","provider":"LRCLIB",
                     "record_id":record.get("id"),
                     "track":title,"artist":artist,
+                    "language":_lyric_language(record),
                     "plain_lines":cleaned,
                     "alignment":"awaiting_real_audio_ASR",
                     "online_lookup":True}
@@ -461,12 +481,14 @@ def lookup_synced_lyrics(*, title: str, artist: str,
             return [], {"status":"plain","provider":"LRCLIB",
                         "record_id":record.get("id"),
                         "track":title,"artist":artist,
+                        "language":_lyric_language(record),
                         "plain_lines":lines,
                         "alignment":"awaiting_real_audio_ASR",
                         "online_lookup":True}
     return cues, {"status":"synced" if cues else "invalid",
                   "provider":"LRCLIB","record_id":record.get("id"),
                   "track":title,"artist":artist,
+                  "language":_lyric_language(record),
                   "online_lookup":True}
 
 

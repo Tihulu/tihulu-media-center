@@ -724,10 +724,8 @@ public:
             "This is a bounded PLAYER STARTUP timer, NOT actual libVLC "
             "buffer occupancy. It stops with a clear error if playback "
             "never reaches PLAYING. No automatic SDR/audio restart."));
-        quickBufferProgress_->setAccessibleName(tr("Radio playback and buffer status"));
-        radioStateText_=new QLabel(tr("Radio OFF"),this);
-        outer->insertWidget(0,radioStateText_);
-        outer->insertWidget(1,quickBufferProgress_);
+        quickBufferProgress_->setVisible(false);
+        dabLayout->addWidget(quickBufferProgress_);
 
 		// Public internet radio requires no SDR, welle-cli or DVB frontend.
 		// Search happens only when clicked, and uses HTTPS Radio Browser API.
@@ -1832,7 +1830,7 @@ public:
         lyricMatchThreshold_->setRange(0,100);
         lyricMatchThreshold_->setSuffix(tr(" %"));
         lyricMatchThreshold_->setValue(qBound(0,matchPrefs.value(
-            QLatin1String("lyricMatchThresholdPercent"),60).toInt(),100));
+            QLatin1String("lyricMatchThresholdPercent"),74).toInt(),100));
         lyricMatchThreshold_->setToolTip(tr(
             "Minimum lexical overlap of heard Whisper tokens and known "
             "lyric words (0–100%). NOT calibrated accuracy or sync. "
@@ -1855,7 +1853,7 @@ public:
             "long words. Neither method invents audio evidence, and Qwen3 "
             "ForcedAligner only aligns word timestamps AFTER a text match."));
         const QString savedMatchMode=matchPrefs.value(
-            QLatin1String("lyricMatchMode"),QLatin1String("fuzzy")).toString();
+            QLatin1String("lyricMatchMode"),QLatin1String("lexical")).toString();
         const int matchIndex=lyricMatchMode_->findData(savedMatchMode);
         lyricMatchMode_->setCurrentIndex(matchIndex>=0?matchIndex:0);
         mainModelRow->addWidget(new QLabel(tr("Lyrics Match AI:"),page));
@@ -1971,14 +1969,14 @@ public:
             "Audio matched: use actually heard Whisper lyrics + installed "
             "Qwen word timing where supported. Lyrics Found: static preview. "
             "Lyrics Found + lip-sync: acoustic evidence required to move. "
-            "Timed LRC flow: estimated LINE flow based only on REAL "
+            "Timed LRC flow: opt-in estimated LINE flow based only on REAL "
             "source timestamps (never guessed 6-second lines or word sweeps); "
             "DLS song clock can be late, manual offset may be needed. "
             "No timed LRC means no estimated flow. Whisper presenter speech "
             "and translations remain independent below."));
         const QString savedPolicy=lyricDisplaySettings.value(
             QLatin1String("karaokeMatchPolicy"),
-            QLatin1String("estimated")).toString();
+            QLatin1String("verified")).toString();
         const int policyIndex=karaokePolicy_->findData(savedPolicy);
         karaokePolicy_->setCurrentIndex(policyIndex<0?0:policyIndex);
         mainMatchRow->addWidget(new QLabel(tr("Karaoke trigger:"),page));
@@ -2959,13 +2957,19 @@ private:
 	QString base() const {
 		return QLatin1String("http://127.0.0.1:") + QString::number(port_);
 	}
+	QString receiverRoot() const {
+		const QString local=QDir::homePath()+QStringLiteral("/.local/opt/tihulu-welle");
+		const QString shared=QString::fromLocal8Bit(qgetenv("TIHULU_ASSET_HOME"));
+		if(QFileInfo(local+QStringLiteral("/bin/welle-cli")).isExecutable() || shared.isEmpty())return local;
+		return QDir(shared).filePath(QStringLiteral(".local/opt/tihulu-welle"));
+	}
 	QString binaryPath() const {
-		return QDir::homePath() + QLatin1String("/.local/opt/tihulu-welle/bin/welle-cli");
+		return receiverRoot()+QStringLiteral("/bin/welle-cli");
 	}
 	bool prepared() const {
-		return QFile::exists(binaryPath()) &&
-			QFile::exists(QDir::homePath() +
-			  QLatin1String("/.local/opt/tihulu-welle/.tihulu-loopback-welle-revision"));
+		return QFileInfo(binaryPath()).isExecutable() &&
+			QFile::exists(receiverRoot()+
+			  QStringLiteral("/.tihulu-loopback-welle-revision"));
 	}
 	bool active() const { return backend_.state() == QProcess::Running; }
 
@@ -3086,7 +3090,7 @@ private:
             {QStringLiteral("karaoke_enabled"),
              karaokeEnabled_ && karaokeEnabled_->isChecked()},
             {QStringLiteral("lyric_match_threshold"),
-             lyricMatchThreshold_?lyricMatchThreshold_->value()/100.:0.60},
+             lyricMatchThreshold_?lyricMatchThreshold_->value()/100.:0.74},
             {QStringLiteral("lyric_match_mode"),
              lyricMatchMode_?lyricMatchMode_->currentData().toString():
                               QLatin1String("lexical")},
@@ -3354,7 +3358,7 @@ private:
 		// mute and audio-device selection work, unlike the former aplay fork.
 		retuneAnalogDemod();
 		audioStartedMs_=QDateTime::currentMSecsSinceEpoch();
-		playRadioSource(QUrl(QLatin1String("http://127.0.0.1:")+
+		player_->play(QUrl(QLatin1String("http://127.0.0.1:")+
 			QString::number(analogServer_.serverPort())+QLatin1String("/analog.wav")));
 	}
 	void probeInternetRadio() {
@@ -3403,7 +3407,7 @@ private:
             entry->text(1):url.host();
         showSelectedSource(knownName,tr("Internet radio · opening"),
             tr("Online stream · not an FM/MW/LW frequency"));
-		playRadioSource(url);
+		player_->play(url);
 		audioStartedMs_=QDateTime::currentMSecsSinceEpoch();
 		radioCanvasStation_->setText(tr("♪ Internet radio\\n%1\\nAudio uses the built-in player.")
 			.arg(url.host()));
@@ -4273,6 +4277,40 @@ private:
 			QTimer::singleShot(1500,this,next);
 		});
 	}
+	void openDabAudio(const QUrl &url,quint64 ticket,int attempt=0) {
+		if(ticket!=stationRequestId_ || !active()) return;
+		QNetworkRequest request(url);
+		request.setTransferTimeout(2200);
+		QNetworkReply *reply=network_.get(request);
+		auto completed=std::make_shared<bool>(false);
+		auto finish=[this,reply,completed,url,ticket,attempt](bool audioReady) {
+			if(*completed) return;
+			*completed=true;
+			reply->abort();
+			reply->deleteLater();
+			if(ticket!=stationRequestId_ || !active()) return;
+			if(audioReady) {
+				player_->play(url);
+				audioStartedMs_=QDateTime::currentMSecsSinceEpoch();
+				return;
+			}
+			if(attempt<7) {
+				playStatus_->setText(tr("DAB service found · waiting for decoded audio (%1/8)…").arg(attempt+1));
+				stationOpenProgress_->setFormat(tr("Waiting for DAB audio %1/8").arg(attempt+1));
+				QTimer::singleShot(900,this,[this,url,ticket,attempt](){openDabAudio(url,ticket,attempt+1);});
+			} else {
+				playStatus_->setText(tr("DAB service has no playable audio yet (HTTP/decoder). Check receiver RF/AAC status, then select the station again."));
+				stationOpenProgress_->setValue(0);
+				stationOpenProgress_->setFormat(tr("Radio OFF · stream not ready"));
+			}
+		};
+		connect(reply,&QNetworkReply::readyRead,this,[reply,finish](){
+			if(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()==200 && reply->bytesAvailable()>0)
+				finish(true);
+		});
+		connect(reply,&QNetworkReply::finished,this,[finish](){finish(false);});
+		QTimer::singleShot(2400,reply,[finish](){finish(false);});
+	}
 	void verifyStation(const QString &key,const QString &name,
 	                   const QString &sid,quint64 requestId,int attempt=0) {
 		if(requestId!=stationRequestId_ || scanning_ || !active()) return;
@@ -4383,7 +4421,7 @@ private:
                                   activePlaybackCacheMs_);
                 playback.setValue(QLatin1String("radioBufferDesiredMs"),
                                   selectedBufferMs());
-                playRadioSource(QUrl(base()+stream));
+                openDabAudio(QUrl(base()+stream),requestId);
 				audioStartedMs_=QDateTime::currentMSecsSinceEpoch();
 				radioCanvasStation_->setText(tr("♪ %1\nDAB+ %2 · verifying audio playback…")
 					.arg(name,block));
@@ -4749,7 +4787,7 @@ private:
         player_->stop();
         dabPlaybackObserved_=false;
         dabIdleSinceMs_=0;
-        playRadioSource(audio);
+        player_->play(audio);
         audioStartedMs_=QDateTime::currentMSecsSinceEpoch();
         lastAudioRetuneMs_=audioStartedMs_;
         playStatus_->setText(tr(
@@ -4843,46 +4881,75 @@ private:
 		layout->addWidget(textView);
 		dlg.exec();
 	}
-    QUrl radioUrl_;
-    QLabel *radioStateText_=nullptr;
-    void playRadioSource(const QUrl &url) { radioUrl_=url; player_->play(url); }
     void refreshRadioBufferProgress() {
         if(!quickBufferProgress_ || !audioCacheProgress_ || !quickBuffer_) return;
         const bool enabled=quickBuffer_->isChecked();
+        quickBufferProgress_->setVisible(enabled);
         audioCacheProgress_->setVisible(enabled);
-        const QUrl source=player_->property("tihulu_recordable_url").toUrl();
-        const bool selected=audioStartedMs_>0 && source.isValid() && source==radioUrl_;
-        const bool receiver=active() || analogServer_.isListening();
-        const int cache=player_->bufferPercent(); // -1: no VLC measurement
-        const auto state=player_->streamState();
-        int value=0, maximum=100;
+        if(!enabled) return;
+        const int requested=activePlaybackCacheMs_;
+        const int staged=requestedPlaybackBufferMs();
+        const qint64 elapsed=audioStartedMs_>0?
+            qMax(qint64(0),QDateTime::currentMSecsSinceEpoch()-audioStartedMs_):0;
+        const bool receiving=active();
+        const bool stationSelected=!playingKey_.isEmpty() && audioStartedMs_>0;
+        const bool playing=stationSelected && receiving &&
+            player_->getPlaybackStatus()==MediaWidget::Playing;
+        // This timeout is NOT a measured buffer duration. Once the
+        // requested time + an 8s decoder grace period has elapsed, stop
+        // pretending the still-silent player is continuously filling.
+        // A 12s minimum allows short/zero-cache startup some tolerance.
+        const qint64 startupTimeoutMs=qMax(qint64(12000),
+                                            qint64(requested)+8000);
+        int percent=0;
         QString message;
-        if(!selected) {
-            message=receiver?tr("Radio ON · receiver ready, no audio stream"):
-                             tr("Radio OFF");
-        } else if(state==MediaWidget::StreamFailed) {
-            message=tr("Radio · stream unavailable / error");
-        } else if(state==MediaWidget::StreamStopped) {
-            message=tr("Radio · playback stopped");
-        } else if(state==MediaWidget::StreamPaused) {
-            message=tr("Radio · paused");
-        } else if(state==MediaWidget::StreamPlaying && (cache<0 || cache>=100)) {
-            value=cache<0?0:cache;
-            message=tr("Radio ON · playing");
+        if(!receiving && stationSelected) {
+            message=tr("DAB receiver stopped / crashed · no audio buffer "
+                       "measurement. Check welle-cli status and restart "
+                       "receiver manually.");
+        } else if(!stationSelected) {
+            message=tr("Extra buffer ON · %1 ms requested for next DAB "
+                       "playback; no stream currently opening").arg(staged);
+        } else if(playing) {
+            // 100% means only that libVLC has STARTED playback, never that
+            // the requested cache size was measured or fully populated.
+            percent=100;
+            message=tr("Audio player STARTED · requested cache %1 ms · "
+                       "actual fill and audible output NOT measured").arg(requested);
+        } else if(elapsed>=startupTimeoutMs) {
+            // Distinct terminal state: never remain at 90/95% for minutes.
+            // Keep SDR, ASR and recordings untouched until explicit Retry.
+            percent=0;
+            message=tr("DAB AUDIO STARTUP FAILED / TIMEOUT · player did not "
+                       "report PLAYING within %1 ms (requested %2 ms cache). "
+                       "NOT buffering. Check welle / MP3 endpoint / audio "
+                       "output; choose Retry DAB sound. No auto restart.")
+                       .arg(startupTimeoutMs).arg(requested);
+        } else if(requested>0) {
+            // Bounded display: even when the player is stuck, never show
+            // elapsed > requested as if a real libVLC queue kept growing.
+            const qint64 bounded=qMin(elapsed,qint64(requested));
+            percent=qMin(90,int(bounded*90/requested));
+            if(elapsed<=requested)
+                message=tr("Waiting for DAB player · %1 / %2 ms estimated "
+                           "startup window (%3%); buffer fill unmeasured")
+                           .arg(bounded).arg(requested).arg(percent);
+            else
+                message=tr("Requested %1 ms cache startup window elapsed · "
+                           "decoder still not PLAYING (grace until %2 ms). "
+                           "No actual buffer measurement.")
+                           .arg(requested).arg(startupTimeoutMs);
         } else {
-            value=qMax(0,cache);
-            maximum=cache<0?0:100;
-            message=cache<0?tr("Radio ON · opening stream…"):
-                            tr("Radio ON · VLC buffering %1%").arg(cache);
+            message=tr("Opening DAB player · no extra cache requested. "
+                       "Audio startup still unverified.");
         }
+        if(staged!=requested && stationSelected)
+            message+=tr(" · next station request: %1 ms").arg(staged);
         for(QProgressBar *bar:{quickBufferProgress_,audioCacheProgress_}) {
-            bar->setRange(0,maximum);
-            bar->setValue(value);
+            bar->setRange(0,100);
+            bar->setValue(percent);
             bar->setFormat(message);
-            bar->setToolTip(message);
         }
-        radioStateText_->setText(message); // busy bars may not paint their text
-
     }
 	int selectedBufferMs() const {
         return qBound(0,bufferMs_->value()*(bufferUnitsSeconds_?1000:1),60000);
@@ -4916,7 +4983,7 @@ private:
 			// libVLC network cache applies to media OPEN, not existing
 			// stream. Explicitly reopen when the owner chooses a new
 			// buffer; this can briefly interrupt sound.
-			playRadioSource(QUrl(base()+QLatin1String("/mp3/")+sid));
+			player_->play(QUrl(base()+QLatin1String("/mp3/")+sid));
             activePlaybackCacheMs_=desired;
             lastAudioRetuneMs_=QDateTime::currentMSecsSinceEpoch();
             audioStartedMs_=lastAudioRetuneMs_;
@@ -5022,7 +5089,7 @@ private:
         options<<QLatin1String("--sentence-hops")<<QString::number(sentenceHops);
         options<<QLatin1String("--lyric-match-threshold")
                <<QString::number(lyricMatchThreshold_?
-                                  lyricMatchThreshold_->value()/100.:0.60,'f',2);
+                                  lyricMatchThreshold_->value()/100.:0.74,'f',2);
         options<<QLatin1String("--lyric-match-mode")
                <<(lyricMatchMode_?lyricMatchMode_->currentData().toString():
                                    QLatin1String("lexical"));
@@ -6186,7 +6253,7 @@ private:
 			if(matched.value(QLatin1String("kind")).toString()==
 				QLatin1String("observed_ASR_chunk_match") &&
 				matched.value(QLatin1String("confidence")).toDouble()>=
-                (lyricMatchThreshold_?lyricMatchThreshold_->value()/100.:0.60)) {
+                (lyricMatchThreshold_?lyricMatchThreshold_->value()/100.:0.74)) {
 				const QString line=matched.value(QLatin1String("text")).toString();
 				const double confidence=matched.value(QLatin1String("confidence")).toDouble();
 				if(!line.isEmpty() && line.size()<=240 &&
@@ -6310,7 +6377,7 @@ private:
                (matched.value(QLatin1String("kind")).toString()!=
                 QLatin1String("observed_ASR_chunk_match") ||
                 matched.value(QLatin1String("confidence")).toDouble()<
-                (lyricMatchThreshold_?lyricMatchThreshold_->value()/100.:0.60))) {
+                (lyricMatchThreshold_?lyricMatchThreshold_->value()/100.:0.74))) {
                 lastMatchedLyricUntilMs_=0;
                 verifiedLyricQueue_.clear();
                 plainLyricQueue_.clear();

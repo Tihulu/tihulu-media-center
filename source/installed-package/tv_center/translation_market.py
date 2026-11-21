@@ -63,7 +63,8 @@ class TranslationModelMarket:
             selected = AISettings().values.get("model_dir", "")
             root = (Path(selected) / "translator-models" if selected else
                     Path.home()/".local/share/tihulu-tv-center/translator-models")
-        self.root=Path(root).expanduser()
+        from .local_assets import existing_asset
+        self.root=existing_asset(root)
         self.model=self.root/"nllb-600m"
         self.marker=self.model/".tihulu-nllb-ready"
 
@@ -77,6 +78,8 @@ class TranslationModelMarket:
                 "runtime":"local Transformers PyTorch (CPU or detected CUDA)"}
 
     def install(self):
+        from .local_assets import require_asset_write
+        require_asset_write()
         if os.geteuid()==0:
             raise RuntimeError("Do not install translation models as root")
         from .runtime import AIRuntime
@@ -123,6 +126,8 @@ class TranslationModelMarket:
                 str(check.get("device"))+"). Select NLLB and Save settings.")
 
     def _download(self):
+        from .local_assets import require_asset_write
+        require_asset_write()
         from huggingface_hub import snapshot_download
         self.model.mkdir(parents=True,exist_ok=True)
         snapshot_download(repo_id=MODEL_ID,revision=MODEL_REVISION,
@@ -207,6 +212,8 @@ class TranslationModelMarket:
             return {"ready":False,"reason":str(error)[:300]}
 
     def remove(self):
+        from .local_assets import require_asset_write
+        require_asset_write()
         if self.model.is_symlink() or not self.marker.is_file():
             raise RuntimeError("Refusing to remove unverified translator model")
         if self.model.resolve().parent != self.root.resolve() or self.root.resolve() == Path("/"):

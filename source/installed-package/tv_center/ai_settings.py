@@ -19,6 +19,9 @@ class AISettings:
     def __init__(self, path=None):
         self.path = Path(path or Path.home()/".config/tihulu-tv-center/ai-settings.json")
         self.values = dict(DEFAULTS)
+        if path is None:
+            from .local_assets import model_preferences
+            self.values.update(model_preferences())
         if self.path.is_file():
             if self.path.stat().st_size > 16384:
                 raise ValueError("AI settings file exceeds size limit")
@@ -74,6 +77,8 @@ class AISettings:
     def configure_environment(self):
         """Bridge existing TEXT CENTER runtime without loading model unless enabled."""
         from .whisper_engine import WhisperRuntime
+        from .local_assets import configure_argos_path
+        configure_argos_path()
         os.environ["TIHULU_TRANSLATOR_MODEL"] = self.values["translation_model"]
         # Keep model loading and HailoRT device access deferred until speech
         # starts. Environment only carries approved local asset paths.

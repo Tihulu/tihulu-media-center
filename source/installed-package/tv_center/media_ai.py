@@ -29,7 +29,7 @@ CHUNK_BYTES = CHUNK_SECONDS * CHUNK_SAMPLES * 2
 AUDIO_EXT = frozenset(
     (".wav", ".mp3", ".flac", ".aac", ".m4a", ".ogg", ".opus",
      ".wma", ".alac", ".aiff", ".mp4", ".mkv", ".avi", ".mov",
-     ".webm", ".ts", ".m2t", ".m2ts", ".mpeg", ".mpg", ".m4v"))
+     ".webm", ".ts", ".m2ts", ".mpeg", ".mpg", ".m4v"))
 
 
 def validate_local_media(filename: str) -> Path:
@@ -57,28 +57,10 @@ def media_metadata(media: Path) -> dict:
             "duration":float((result.get("format") or {}).get("duration") or 0)}
 
 
-def _choose_model(ai: AISettings, record_model=None, whisper_file=None):
+def _choose_model(ai: AISettings):
     from textcenter.compute import detect_devices,choose_backend
-    backend=ai.values["backend"]
-    if record_model not in (None, "configured", "cpu-file", "managed-cuda"):
-        raise ValueError("Unknown recording speech model")
-    if record_model == "cpu-file":
-        model=Path(whisper_file or "")
-        if model.suffix.lower() != ".bin" or not model.is_file():
-            raise ValueError("Choose an installed local Whisper GGML .bin file")
-        profile=detect_devices(model_path=str(model.resolve()))
-        backend="cpu"
-    else:
-        if whisper_file:
-            raise ValueError("A Whisper file requires the cpu-file selection")
-        if record_model == "configured" and backend == "remote":
-            raise ValueError("Recording export requires a local speech model")
-        profile=detect_devices()
-        if record_model == "managed-cuda":
-            backend="gpu"
-            if profile["speech"].get("gpu_engine") != "faster_whisper_managed":
-                raise RuntimeError("Selected local Faster-Whisper CUDA model unavailable")
-    selected=choose_backend(profile,backend)
+    profile=detect_devices()
+    selected=choose_backend(profile,ai.values["backend"])
     if not selected["ready"]:
         raise RuntimeError(
             "No usable offline speech model; install model in AI Market")
@@ -188,7 +170,7 @@ def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
 
 def transcribe_local_media(filename: str, *, source: str="auto",
                            targets=(), music:bool=False,
-                           max_seconds:int=21600, record_model=None, whisper_file=None, progress=None):
+                           max_seconds:int=21600):
     media=validate_local_media(filename)
     source=("auto" if source=="auto" else language_code(source))
     targets=tuple(dict.fromkeys(language_code(t,nllb=True) for t in targets))
@@ -198,16 +180,7 @@ def transcribe_local_media(filename: str, *, source: str="auto",
     ai.configure_environment()
     if not ai.values["asr_enabled"]:
         raise RuntimeError("Enable offline Whisper in AI Model Market first")
-    if record_model and targets and ai.values.get("translation_model")=="deepl":
-        raise ValueError("Choose an offline translator or leave translation languages empty")
-    profile,backend=_choose_model(ai,record_model,whisper_file)
-    duration=0
-    if progress:
-        try:
-            duration=media_metadata(media)["duration"]
-        except (ValueError,RuntimeError,OSError,subprocess.TimeoutExpired):
-            pass  # unknown duration -> indeterminate, never an invented percentage
-        progress("read",0 if duration>0 else -1)
+    profile,backend=_choose_model(ai)
     proc=subprocess.Popen([
         "ffmpeg","-nostdin","-hide_banner","-loglevel","error",
         "-i",str(media),"-map","0:a:0","-vn","-ac","1",
@@ -221,21 +194,16 @@ def transcribe_local_media(filename: str, *, source: str="auto",
             if not pcm:
                 break
             if len(pcm)<6400:
-                continue
+                break
             cues.extend(_chunk_cues(pcm,position=pcm_seconds,lang=source,
                                     profile=profile,backend=backend,music=music))
             pcm_seconds+=len(pcm)/(2*CHUNK_SAMPLES)
-            if progress:
-                progress("read",min(99,int(100*pcm_seconds/duration)) if duration>0 else -1)
             if len(cues)>12000:
                 raise RuntimeError("Subtitle cue limit reached")
         # Never silently label the first six hours as a COMPLETE file
         # transcript. Fail clearly if the media exceeds the safety cap.
         if pcm_seconds>=max_seconds and proc.stdout.read(1):
             raise RuntimeError("File exceeds the six-hour offline transcription limit")
-        if proc.wait(timeout=10)!=0:
-            raise RuntimeError("Audio decoder could not finish; incomplete subtitles were not saved")
-        if progress: progress("read",100)
     finally:
         if proc.poll() is None:
             proc.terminate()
@@ -321,7 +289,7 @@ def _lyrics_for_file(media:Path, meta:dict, *,
     raise RuntimeError("No matching lyrics: "+provenance.get("status","unknown"))
 
 
-def _translate_cues(cues:list[LyricCue],targets,source,progress=None):
+def _translate_cues(cues:list[LyricCue],targets,source):
     warnings=[]
     translated={}
     for i,cue in enumerate(cues,1):
@@ -343,7 +311,6 @@ def _translate_cues(cues:list[LyricCue],targets,source,progress=None):
                 lines.append("["+dest.upper()+"] "+output.strip())
             if issue:
                 warnings.append({"cue":i,"target":dest,"warning":issue[:150]})
-        if progress: progress("translate",int(100*i/len(cues)))
         if lines:
             translated[i]="\n".join(lines)
     return translated,warnings
@@ -351,8 +318,7 @@ def _translate_cues(cues:list[LyricCue],targets,source,progress=None):
 
 def create_subtitles(filename, *, source="auto", targets=(),music=False,
                      lyrics=False,fetch_lyrics=False,artist="",track="",
-                     output=None,overwrite=False,translations_only=False,
-                     record_model=None,whisper_file=None,progress=None):
+                     output=None,overwrite=False,translations_only=False):
     media=validate_local_media(filename)
     source=("auto" if source=="auto" else language_code(source))
     target_codes=tuple(dict.fromkeys(language_code(t,nllb=True)
@@ -370,11 +336,9 @@ def create_subtitles(filename, *, source="auto", targets=(),music=False,
         if fetch_lyrics:
             raise ValueError("--fetch-lyrics requires --lyrics")
         cues,target_codes,backend=transcribe_local_media(
-            str(media),source=source,targets=target_codes,music=music,
-            record_model=record_model,whisper_file=whisper_file,progress=progress)
+            str(media),source=source,targets=target_codes,music=music)
         origin={"source":"local Whisper", "backend":backend}
-    translations,warnings=_translate_cues(cues,target_codes,source,progress)
-    if progress: progress("save",-1)
+    translations,warnings=_translate_cues(cues,target_codes,source)
     output_path=Path(output).expanduser() if output else media.with_suffix(".srt")
     write_srt(cues,output_path,overwrite=overwrite,translations=translations,
               include_original=not translations_only)
@@ -409,9 +373,6 @@ def main(args=None):
     parser.add_argument("--overwrite",action="store_true")
     parser.add_argument("--translations-only",action="store_true",
                         help="Use translated output if available; retain original on failure")
-    parser.add_argument("--record-model",choices=("configured","cpu-file","managed-cuda"))
-    parser.add_argument("--whisper-file",help="Local CPU model for this export only")
-    parser.add_argument("--progress",action="store_true",help="Emit machine-readable stage progress")
     options=parser.parse_args(args)
     try:
         result=create_subtitles(
@@ -421,10 +382,7 @@ def main(args=None):
             fetch_lyrics=options.fetch_lyrics,artist=options.artist,
             track=options.track,output=options.output,
             overwrite=options.overwrite,
-            translations_only=options.translations_only,
-            record_model=options.record_model,whisper_file=options.whisper_file,
-            progress=(lambda phase,pct: print("TIHULU_PROGRESS",phase,pct,flush=True))
-            if options.progress else None)
+            translations_only=options.translations_only)
     except (ValueError,OSError,RuntimeError,FileExistsError,
             subprocess.TimeoutExpired) as exc:
         print(json.dumps({"status":"error","reason":str(exc)[:300]},

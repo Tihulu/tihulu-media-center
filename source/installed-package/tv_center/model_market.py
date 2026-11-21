@@ -36,9 +36,9 @@ class ModelError(RuntimeError):
 
 class ModelLibrary:
     def __init__(self, root=None):
-        self.root = Path(root or Path.home()/".local/share/tihulu-tv-center/models").expanduser()
-        # Explicit alternate folder can be selected for external SSDs.
-        self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        from .local_assets import existing_asset
+        self.root = existing_asset(root or Path.home()/".local/share/tihulu-tv-center/models")
+        # Inventory must not create directories or copy existing model weights.
         self.root = self.root.resolve()
         self.catalog = dict(CATALOG)
         self.manifest = self.root / ".tihulu-verified-market.json"
@@ -61,6 +61,9 @@ class ModelLibrary:
                 pass
 
     def refresh_online(self, query=""):
+        from .local_assets import require_asset_write
+        require_asset_write()
+        self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
         from .online_models import search_official_models
         results = search_official_models(query)
         if not results:
@@ -99,6 +102,9 @@ class ModelLibrary:
         return str(dest)
 
     def _copy_verified(self, source, key):
+        from .local_assets import require_asset_write
+        require_asset_write()
+        self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
         desc = self.catalog[key]
         digest = hashlib.sha256()
         with tempfile.NamedTemporaryFile(dir=self.root, prefix=".tihulu-model-",
@@ -123,6 +129,9 @@ class ModelLibrary:
         os.replace(staged, self._path(key))
 
     def download(self, key, progress=None):
+        from .local_assets import require_asset_write
+        require_asset_write()
+        self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
         desc = self.catalog.get(key)
         if desc is None:
             raise ModelError("Unknown model catalog entry")
@@ -165,6 +174,9 @@ class ModelLibrary:
                 tmp.unlink(missing_ok=True)
 
     def remove(self, key):
+        from .local_assets import require_asset_write
+        require_asset_write()
+        self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
         file = self._path(key)
         if file.is_symlink():
             raise ModelError("Refusing to follow model symlink")

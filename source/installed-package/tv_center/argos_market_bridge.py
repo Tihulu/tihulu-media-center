@@ -17,6 +17,13 @@ ACTIONS=("catalog","installed","install","remove")
 
 
 def run(action,source="de",target="tr",*,installed_timeout=None):
+    from .local_assets import require_asset_write, configure_argos_path
+    configure_argos_path()
+    if action in ("install", "remove", "catalog"):
+        # The official catalog action writes a local index. A shared asset home
+        # must stay read-only in owner acceptance; installed inventory is shown
+        # directly instead.
+        require_asset_write()
     if action not in ACTIONS:
         raise ValueError("Invalid Argos Market command")
     source, target = language_code(source), language_code(target)
@@ -54,6 +61,10 @@ def run(action,source="de",target="tr",*,installed_timeout=None):
 
 
 def worker(action,source,target):
+    from .local_assets import require_asset_write, configure_argos_path
+    configure_argos_path()
+    if action in ("install", "remove"):
+        require_asset_write()
     from argostranslate import package
     if action=="catalog":
         package.update_package_index()

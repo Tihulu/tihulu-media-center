@@ -11,13 +11,14 @@ def main():
     if len(sys.argv) >= 2 and sys.argv[1] == "ai-check":
         from .ai_diagnostics import main as diagnose_ai
         return diagnose_ai()
-    if len(sys.argv) >= 2 and sys.argv[1] == "ai-radio-languages":
+    if len(sys.argv) >= 2 and sys.argv[1] in ("ai-radio-languages", "ai-file-languages"):
         # TV and radio share this same read-only installed-model catalog.
         # Discover output targets without downloading models or accessing RF.
         from .installed_languages import catalog
         from textcenter.compute import LANGUAGES
         from .installed_languages import NAMES
-        info=catalog(scan_argos=True)
+        offline = sys.argv[1] == "ai-file-languages"
+        info=catalog(scan_argos=True, **({"deepl_configured": False} if offline else {}))
         selected=AISettings().values
         info["selected_translator"]=selected.get("translation_model","argos")
         info["selected_speech_backend"]=selected.get("backend","auto")
@@ -31,7 +32,7 @@ def main():
         from .cuda_faster_whisper import FasterWhisperCUDA
         model_path=str(selected.get("model_path") or "")
         speech_inventory=[
-            row["name"] for row in ModelLibrary().installed()
+            row["name"] for row in ModelLibrary(selected.get("model_dir") or None).installed()
             if row["installed"]]
         cuda_available=FasterWhisperCUDA().installed()
         if cuda_available:
@@ -47,6 +48,8 @@ def main():
             "CUDA Faster-Whisper" if cuda_available else
             "No speech model explicitly selected")
         info["speech_models_installed"]=speech_inventory[:25]
+        info["speech_model_path"]=model_path if active_on_disk else ""
+        info["cuda_model_present"]=cuda_available
         info["speech_languages"]=[
             {"code":code,"label":NAMES.get(code,code.upper()),
              "source":"Whisper multilingual speech support, not a separate language pack",

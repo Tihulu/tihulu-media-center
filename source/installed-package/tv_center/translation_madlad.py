@@ -24,7 +24,8 @@ class MadladMarket:
             folder=AISettings().values.get("model_dir","")
             root=(Path(folder)/"translator-models" if folder else
                   Path.home()/".local/share/tihulu-tv-center/translator-models")
-        self.root=Path(root).expanduser()
+        from .local_assets import existing_asset
+        self.root=existing_asset(root)
         self.model=self.root/"madlad400-3b-mt"
         self.marker=self.model/".tihulu-madlad-ready"
 
@@ -36,6 +37,8 @@ class MadladMarket:
                 "license":LICENSE,"disk_note":MODEL_REQUIREMENTS}
 
     def install(self):
+        from .local_assets import require_asset_write
+        require_asset_write()
         if os.geteuid()==0:
             raise RuntimeError("Do not download AI model as root")
         if self.root.is_symlink() or self.model.is_symlink() or (
@@ -74,6 +77,8 @@ class MadladMarket:
         return "MADLAD real DE→EN GPU translation verified. Select and Save."
 
     def _download(self):
+        from .local_assets import require_asset_write
+        require_asset_write()
         from huggingface_hub import snapshot_download
         self.model.mkdir(parents=True,exist_ok=True)
         snapshot_download(repo_id=MODEL_ID,revision="main",
@@ -114,6 +119,8 @@ class MadladMarket:
             return {"ready":False,"reason":str(exc)[:300]}
 
     def remove(self):
+        from .local_assets import require_asset_write
+        require_asset_write()
         if self.model.is_symlink() or not self.marker.is_file():
             raise RuntimeError("Refusing to delete unverified model")
         if self.model.resolve().parent!=self.root.resolve():
