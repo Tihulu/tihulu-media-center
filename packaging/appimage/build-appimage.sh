@@ -154,7 +154,12 @@ if command -v appimagetool >/dev/null 2>&1; then
   appimagetool "$APPDIR" "$OUT_ABS"
   echo "Created AppImage: $OUT_ABS"
 else
-  OUT_TAR="${OUT_ABS%.AppImage}.AppDir.tar"
+  case "$OUT_ABS" in
+    *.AppImage) OUT_TAR="${OUT_ABS%.AppImage}.AppDir.tar" ;;
+    *.AppDir.tar) OUT_TAR="$OUT_ABS" ;;
+    *) OUT_TAR="$OUT_ABS.AppDir.tar" ;;
+  esac
+  rm -f "$OUT_TAR"
   tar -C "$WORK" -czf "$OUT_TAR" AppDir
   echo "appimagetool not found; created portable AppDir archive: $OUT_TAR"
   echo "Install appimagetool and rerun with --output to produce a single-file AppImage."
