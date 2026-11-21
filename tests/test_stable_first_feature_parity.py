@@ -17,7 +17,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "source" / "installed-package"
-SNAPSHOT = "ccdb39027b51e9fab1535466ad8cd2154ea566c5"
+SNAPSHOT = "7b8ccf8b3027eaa2fbac96c021eeb779bb75b51d"
 
 TV = SRC / "kaffeine_next" / "captions_overlay.py"
 RADIO = SRC / "kaffeine_next" / "native_radio_tab.h"
