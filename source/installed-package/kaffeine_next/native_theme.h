@@ -43,11 +43,11 @@ inline void install(QMenu *settingsMenu) {
     };
     QSettings prefs(QStringLiteral("TIHULU"),QStringLiteral("Appearance"));
     const QString selected=prefs.value(QStringLiteral("theme"),QStringLiteral("system")).toString();
-    auto *menu=settingsMenu->addMenu(QObject::tr("Appearance / Görünüm"));
+    auto *menu=settingsMenu->addMenu(QObject::tr("Appearance"));
     auto *group=new QActionGroup(menu);
     for(const QString &key:{QStringLiteral("system"),QStringLiteral("light"),QStringLiteral("dark")}) {
-        auto *action=menu->addAction(key==QStringLiteral("dark")?QObject::tr("Dark / Koyu"):
-            key==QStringLiteral("light")?QObject::tr("Light / Açık"):QObject::tr("System / Sistem"));
+        auto *action=menu->addAction(key==QStringLiteral("dark")?QObject::tr("Dark"):
+            key==QStringLiteral("light")?QObject::tr("Light"):QObject::tr("System"));
         action->setCheckable(true); action->setChecked(key==selected); group->addAction(action);
         QObject::connect(action,&QAction::triggered,menu,[apply,key](){
             QSettings saved(QStringLiteral("TIHULU"),QStringLiteral("Appearance"));

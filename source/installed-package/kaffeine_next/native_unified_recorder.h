@@ -8,6 +8,8 @@
 #define TIHULU_UNIFIED_RECORDER_H
 
 #include "mediawidget.h"
+#include "tihulu_ai_process.h"
+#include "tihulu_caption_options.h"
 #include "dvb/dvbtab.h"
 #include "dvb/dvbmanager.h"
 #include "dvb/dvbliveview.h"
@@ -31,6 +33,10 @@
 #include <QStatusBar>
 #include <QListWidgetItem>
 #include <QProcess>
+#include <QProgressBar>
+#include <QDialogButtonBox>
+#include <QUuid>
+#include <QRegularExpression>
 #include <QPushButton>
 #include <QSettings>
 #include <QStandardPaths>
@@ -51,7 +57,7 @@ public:
                                    QWidget *parent=nullptr)
         : QWidget(parent),player_(player),dvb_(dvb),
           openPlayback_(openPlayback),
-          capture_(this),ai_(this),mux_(this) {
+          capture_(this),mux_(this),probe_(this),ai_(this) {
         auto *line=new QHBoxLayout(this);
         line->setContentsMargins(1,0,1,0);
         line->setSpacing(4);
@@ -71,7 +77,51 @@ public:
         library_->setMaximumWidth(100);
         line->addWidget(record_);
         line->addWidget(library_);
+        progress_=new QProgressBar(this);
+        progress_->setMaximumWidth(240);
+        progress_->setAccessibleName(tr("Recording / subtitle job"));
+        progress_->hide();
+        line->addWidget(progress_);
         bar->addWidget(this);
+        connect(player_,&MediaWidget::stopRequested,this,[this](){
+            aiCancelled_=true;ai_.stopJob();stopRecording();
+        });
+        if(dvb_)connect(dvb_,&DvbTab::quickRecordRequested,this,[this](){
+            if(recording_)stopRecording();else startRecording();
+        });
+        if(dvb_ && dvb_->getManager()) {
+            connect(dvb_->getManager()->getLiveView(),&DvbLiveView::captureFinished,
+                this,[this](const QString &path,const QString &error){
+                    if(!recording_ || captureKind_!=QLatin1String("dvb"))return;
+                    endRecordingUi();
+                    if(!error.isEmpty()) { report(error); return; }
+                    inspectRecording(path);
+                });
+        }
+        connect(&probe_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+            this,[this](int code,QProcess::ExitStatus status){
+                progress_->hide();
+                const auto packets=probe_.readAllStandardOutput();
+                if(status!=QProcess::NormalExit || code!=0 || (!packets.contains("audio") && !packets.contains("video"))) {
+                    report(tr("No playable recording confirmed. Any partial file was left in place: %1").arg(recordedPath_)); return;
+                }
+                addToLibrary(recordedPath_);
+                report(tr("Recording saved: %1").arg(recordedPath_));
+                if(subtitlesAfter_)chooseCaptions(recordedPath_);
+            });
+        connect(&ai_,&QProcess::readyReadStandardOutput,this,[this](){
+            while(ai_.canReadLine()) {
+                const auto line=ai_.readLine();
+                if(!line.startsWith("TIHULU_PROGRESS ")) {aiResult_+=line;continue;}
+                const auto fields=line.trimmed().split(' ');
+                if(fields.size()!=3 || fields[0]!="TIHULU_PROGRESS")continue;
+                bool ok=false; const int pct=fields[2].toInt(&ok);
+                if(!ok || pct < -1 || pct>100)continue;
+                const QString phase=fields[1]=="translate"?tr("Translating"):
+                    fields[1]=="save"?tr("Writing SRT"):tr("Transcribing");
+                jobProgress(phase,pct);
+            }
+        });
         elapsed_.setInterval(1000);
         connect(&elapsed_,&QTimer::timeout,this,[this](){
             if(!recording_)return;
@@ -82,12 +132,15 @@ public:
                 stopRecording();
                 return;
             }
+            if(captureKind_==QLatin1String("dvb") && !dvb_->getManager()->getLiveView()->captureError().isEmpty()) {
+                stopRecording(); return;
+            }
             const qint64 seconds=qMax(qint64(0),
                 (QDateTime::currentMSecsSinceEpoch()-startedMs_)/1000);
             const qint64 bytes=QFileInfo(recordedPath_).size();
             record_->setToolTip(captureKind_==QLatin1String("dvb")?
-                tr("Native DVB recording elapsed %1:%2 · Kaffeine owns saved file.")
-                  .arg(seconds/60).arg(seconds%60,2,10,QLatin1Char('0')):
+                tr("TV recording %1:%2 · %3 bytes written")
+                  .arg(seconds/60).arg(seconds%60,2,10,QLatin1Char('0')).arg(qMax(qint64(0),bytes)):
                 tr("REC elapsed %1:%2 · saved %3 MiB. "
                 "Live recording has no known completion percentage.")
                   .arg(seconds/60).arg(seconds%60,2,10,QLatin1Char('0'))
@@ -98,35 +151,23 @@ public:
         });
         connect(library_,&QToolButton::clicked,this,[this](){openLibrary();});
         connect(&capture_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
-            this,[this](int exitCode,QProcess::ExitStatus){
-                const bool wanted=recording_;
-                recording_=false;
-                finalizing_=false;
-                elapsed_.stop();
-                record_->setEnabled(true);
-                refreshButton();
+            this,[this](int exitCode,QProcess::ExitStatus status){
                 if(captureKind_!=QLatin1String("ffmpeg"))return;
-                if(exitCode!=0 && !intentionalStop_) {
-                    report(tr("FFmpeg exited (%1): %2").arg(exitCode)
-                         .arg(QString::fromUtf8(capture_.readAllStandardError()).right(200)));
+                endRecordingUi();
+                if(status!=QProcess::NormalExit || exitCode!=0) {
+                    report(tr("Recording was interrupted. Any partial file was kept: %1").arg(recordedPath_)); return;
                 }
-                const QFileInfo saved(recordedPath_);
-                if(!saved.isFile() || saved.size()<8192) {
-                    report(tr("No usable recording file was produced. "
-                        "Check the stream and FFmpeg logs."));
-                    return;
-                }
-                addToLibrary(saved.absoluteFilePath());
-                report(tr("Recorded %1 · %2 bytes. Open from Recordings.")
-                    .arg(saved.fileName()).arg(saved.size()));
-                if(subtitlesAfter_ && wanted) {
-                    // Unexpected stream failure must not manufacture a complete AI export.
-                    if(exitCode==0 || intentionalStop_)generateCaptions(saved.absoluteFilePath(),
-                                                     targets_,singing_);
-                }
+                inspectRecording(recordedPath_);
             });
         connect(&ai_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
             this,[this](int code,QProcess::ExitStatus){
+                progress_->hide();
+                if(aiCancelled_) {report(tr("AI stopped; recording preserved."));return;}
+                aiResult_+=ai_.readAllStandardOutput();
+                const auto result=QJsonDocument::fromJson(aiResult_).object();
+                subtitleWarning_=QString();
+                const auto warnings=result.value("translation_warnings").toArray();
+                if(!warnings.isEmpty())subtitleWarning_=tr("Translation warning: %1").arg(warnings.first().toObject().value("warning").toString());
                 const QFileInfo input(aiPath_);
                 const QString srt=input.absolutePath()+QLatin1Char('/')+
                     input.completeBaseName()+QLatin1String(".srt");
@@ -143,6 +184,7 @@ public:
                         "not overwriting your recording."));
                     return;
                 }
+                jobProgress(tr("Embedding subtitles"));
                 muxPath_=subtitled;
                 mux_.start(QLatin1String("ffmpeg"),{
                     QLatin1String("-nostdin"),QLatin1String("-hide_banner"),
@@ -154,14 +196,14 @@ public:
                     QLatin1String("-map"),QLatin1String("1:0"),
                     QLatin1String("-c"),QLatin1String("copy"),
                     QLatin1String("-c:s"),QLatin1String("srt"),muxPath_});
-                if(!mux_.waitForStarted(750))
-                    report(tr("SRT saved but MKV mux could not start (FFmpeg missing)."));
+                if(!mux_.waitForStarted(750)) { progress_->hide(); report(tr("SRT saved but MKV mux could not start.")); }
             });
         connect(&mux_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
             this,[this](int code,QProcess::ExitStatus){
-                if(code==0 && QFileInfo::exists(muxPath_)) {
+                progress_->hide();
+                if(code==0 && QFileInfo(muxPath_).size()>0) {
                     addToLibrary(muxPath_);
-                    report(tr("Subtitled MKV ready: %1").arg(QFileInfo(muxPath_).fileName()));
+                    report(tr("Subtitled MKV ready: %1 · %2").arg(QFileInfo(muxPath_).fileName(),subtitleWarning_));
                 } else {
                     report(tr("Original and SRT preserved; MKV export failed: %1")
                         .arg(QString::fromUtf8(mux_.readAllStandardError()).right(210)));
@@ -177,8 +219,9 @@ public:
                 if(!capture_.waitForFinished(600))capture_.kill();
             }
         }
-        if(ai_.state()!=QProcess::NotRunning)ai_.kill();
-        if(mux_.state()!=QProcess::NotRunning)mux_.kill();
+        aiCancelled_=true;ai_.stopJob();
+        if(probe_.state()!=QProcess::NotRunning) {probe_.kill();probe_.waitForFinished(600);}
+        if(mux_.state()!=QProcess::NotRunning) {mux_.kill();mux_.waitForFinished(600);}
     }
 
 private:
@@ -219,7 +262,7 @@ private:
                          "border-radius:4px;padding:4px 7px;font-weight:bold;}"));
     }
     void startRecording() {
-        if(capture_.state()!=QProcess::NotRunning ||
+        if(recording_ || probe_.state()!=QProcess::NotRunning || capture_.state()!=QProcess::NotRunning ||
            ai_.state()!=QProcess::NotRunning ||
            mux_.state()!=QProcess::NotRunning) {
             report(tr("Finish active recording/AI export before starting another."));
@@ -241,22 +284,16 @@ private:
         options.setWindowTitle(tr("Record current playback"));
         auto *form=new QVBoxLayout(&options);
         auto *intro=new QLabel(liveTv?
-            tr("DVB-T2: use native Kaffeine recording to avoid opening a second tuner. "
-               "After stopping, import its output file from the Kaffeine recording folder."):
+            tr("Save the current TV service to the chosen folder using the stream already playing. "
+               "Stopping or changing channel finalizes this clip. Scheduled TV recordings stay independent."):
             tr("Record the current media source from now into a new MKV. "
                "Player overlays are not burned into video; optional SRT is generated "
                "afterward and embedded as a selectable subtitle track."),&options);
         intro->setWordWrap(true);
         form->addWidget(intro);
-        auto *aiChoice=new QCheckBox(tr("After recording, use local AI to generate subtitles + MKV"),&options);
-        aiChoice->setChecked(true); // explicit opt-in by confirming Record dialog
-        auto *musicChoice=new QCheckBox(tr("Transcribe singing/music vocals too"),&options);
-        auto *targets=new QLineEdit(QLatin1String("en,de,tr"),&options);
-        targets->setPlaceholderText(tr("Translation targets, comma separated (max 3)"));
+        auto *aiChoice=new QCheckBox(tr("Offer subtitle language and local model options after saving"),&options);
+        aiChoice->setChecked(true); // showing a dialog does not start a model
         form->addWidget(aiChoice);
-        form->addWidget(musicChoice);
-        form->addWidget(new QLabel(tr("Translation languages (en,de,tr or empty):"),&options));
-        form->addWidget(targets);
         auto *folder=new QLineEdit(recordingsFolder(),&options);
         auto *folderRow=new QHBoxLayout();
         folderRow->addWidget(folder);
@@ -284,26 +321,18 @@ private:
         QSettings config(QLatin1String("TIHULU"),QLatin1String("UnifiedRecordings"));
         config.setValue(QLatin1String("folder"),savedFolder);
         subtitlesAfter_=aiChoice->isChecked();
-        singing_=musicChoice->isChecked();
-        targets_=targets->text().trimmed();
         if(liveTv) {
-            if(dvb_->getManager()->getRecordingModel() &&
-                dvb_->getManager()->getRecordingModel()->hasActiveRecordings()){
-                report(tr("Native DVB already has an active recording. "
-                    "Use Kaffeine Television recordings to avoid toggling an "
-                    "unrelated recording or interrupting it."));
-                return;
+            recordedPath_=QDir(savedFolder).absoluteFilePath(QLatin1String("TIHULU-TV-")+
+                QDateTime::currentDateTime().toString(QLatin1String("yyyyMMdd-HHmmss-"))+
+                QUuid::createUuid().toString(QUuid::WithoutBraces)+QLatin1String(".m2t"));
+            if(!dvb_->getManager()->getLiveView()->beginCapture(recordedPath_)) {
+                report(tr("TV source no longer available or recording destination is in use.")); return;
             }
             captureKind_=QLatin1String("dvb");
-            dvb_->toggleInstantRecord();
             recording_=true;
             startedMs_=QDateTime::currentMSecsSinceEpoch();
-            recordedPath_.clear();
-            recordingUrl_=QUrl();
-            elapsed_.start();
-            refreshButton();
-            report(tr("Native DVB instant-record requested; confirm Kaffeine "
-                "recording indicator. Stop here to finalize."));
+            elapsed_.start(); refreshButton();
+            report(tr("TV recording armed · waiting for stream data: %1").arg(recordedPath_));
             return;
         }
         if(QStandardPaths::findExecutable(QLatin1String("ffmpeg")).isEmpty()){
@@ -334,7 +363,7 @@ private:
             <<QLatin1String("-b:a")<<QLatin1String("160k")
             <<QLatin1String("-f")<<QLatin1String("matroska")
             <<recordedPath_;
-        intentionalStop_=false;
+        ++captureGeneration_;
         finalizing_=false;
         captureKind_=QLatin1String("ffmpeg");
         capture_.start(QLatin1String("ffmpeg"),args);
@@ -351,25 +380,19 @@ private:
     void stopRecording() {
         if(!recording_)return;
         if(captureKind_==QLatin1String("dvb")) {
-            dvb_->toggleInstantRecord();
-            recording_=false;
-            elapsed_.stop();
-            refreshButton();
-            report(tr("Native DVB record stop requested. Select the resulting "
-                "Kaffeine TV recording from Recordings → Import; it is not "
-                "automatically identified or modified."));
+            dvb_->getManager()->getLiveView()->endCapture();
             return;
         }
         if(finalizing_)return;
         finalizing_=true;
         record_->setEnabled(false);
-        intentionalStop_=true;
+        const quint64 generation=captureGeneration_;
         capture_.write("q\n"); // ffmpeg finalizes Matroska header/trailer.
-        QTimer::singleShot(4000,this,[this](){
-            if(capture_.state()!=QProcess::NotRunning){
+        QTimer::singleShot(4000,this,[this,generation](){
+            if(generation==captureGeneration_ && capture_.state()!=QProcess::NotRunning){
                 capture_.terminate();
-                QTimer::singleShot(850,this,[this](){
-                    if(capture_.state()!=QProcess::NotRunning)capture_.kill();
+                QTimer::singleShot(850,this,[this,generation](){
+                    if(generation==captureGeneration_ && capture_.state()!=QProcess::NotRunning)capture_.kill();
                 });
             }
         });
@@ -385,18 +408,58 @@ private:
         cfg.setValue(QLatin1String("paths"),items);
         cfg.sync();
     }
-    void generateCaptions(const QString &path,const QString &languages,bool music) {
-        if(ai_.state()!=QProcess::NotRunning || !QFileInfo::exists(path))return;
+    void endRecordingUi() {
+        recording_=false; finalizing_=false; elapsed_.stop();
+        record_->setEnabled(true); refreshButton();
+    }
+    void jobProgress(const QString &phase,int percent=-1) {
+        progress_->setRange(0,percent<0?0:100);
+        progress_->setValue(qMax(0,percent));
+        progress_->setFormat(phase+(percent<0?QString():tr(" · %p%")));
+        progress_->setToolTip(phase); progress_->show();
+    }
+    void inspectRecording(const QString &path) {
+        if(!QFileInfo(path).isFile() || QFileInfo(path).size()==0) {
+            report(tr("Nothing was saved: the recording contains no data.")); return;
+        }
+        recordedPath_=path;
+        jobProgress(tr("Checking saved recording"));
+        // Require a real audio/video packet; container headers alone are not a recording.
+        probe_.start(QLatin1String("ffprobe"),{QLatin1String("-v"),QLatin1String("error"),
+            QLatin1String("-read_intervals"),QLatin1String("%+#120"),QLatin1String("-show_entries"),
+            QLatin1String("packet=codec_type"),QLatin1String("-of"),QLatin1String("csv=p=0"),path});
+        if(!probe_.waitForStarted(800)) { progress_->hide(); report(tr("Recording kept; FFprobe unavailable for verification.")); }
+        const auto generation=++probeGeneration_;
+        QTimer::singleShot(15000,this,[this,generation](){
+            if(generation==probeGeneration_ && probe_.state()!=QProcess::NotRunning)probe_.kill();
+        });
+    }
+    void chooseCaptions(const QString &path) {
+        // Media has already been finalized. Cancel or a missing model must never undo the save.
+        if(!QFileInfo(path).isFile() || ai_.state()!=QProcess::NotRunning || mux_.state()!=QProcess::NotRunning)return;
+        QDialog dialog(this); dialog.setWindowTitle(tr("Subtitles for saved media"));
+        QFormLayout form(&dialog);
+        form.addRow(tr("Saved file"),new QLabel(QFileInfo(path).fileName(),&dialog));
+        TihuluCaptionOptions choices(&dialog);
+        QCheckBox music(tr("Include singing / music vocals"));
+        form.addRow(&choices);form.addRow(&music);
+        QDialogButtonBox buttons(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);
+        buttons.button(QDialogButtonBox::Ok)->setText(tr("Generate subtitles"));
+        buttons.button(QDialogButtonBox::Cancel)->setText(tr("Keep media only"));
+        QStringList args;
+        connect(&buttons,&QDialogButtonBox::accepted,&dialog,[&](){
+            args=QStringList{"media-captions","--input",path};
+            if(!choices.appendArguments(args))return;
+            if(music.isChecked())args<<QLatin1String("--music");
+            dialog.accept();
+        });
+        connect(&buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);form.addRow(&buttons);
+        if(dialog.exec()!=QDialog::Accepted)return;
+        aiCancelled_=false;aiResult_.clear();
         aiPath_=path;
-        QStringList args{QLatin1String("media-captions"),QLatin1String("--input"),path,
-                         QLatin1String("--source"),QLatin1String("auto"),
-                         QLatin1String("--targets"),languages};
-        if(music)args<<QLatin1String("--music");
+        jobProgress(tr("Preparing local subtitles"));
         ai_.start(QLatin1String("tihulu-tv-center"),args);
-        if(!ai_.waitForStarted(850))
-            report(tr("Recording saved; cannot start installed AI companion."));
-        else
-            report(tr("Recording saved. Offline AI is creating real-timestamp SRT…"));
+        if(!ai_.waitForStarted(850)) { progress_->hide(); report(tr("Recording kept; offline subtitle worker unavailable.")); }
     }
     void openLibrary() {
         QDialog dialog(this);
@@ -451,7 +514,7 @@ private:
         connect(import,&QPushButton::clicked,&dialog,[&,this](){
             const QString path=QFileDialog::getOpenFileName(&dialog,
                 tr("Import a finished recording"),QDir::homePath(),
-                tr("Media (*.mkv *.mp4 *.ts *.m2ts *.mp3 *.flac *.wav *.m4a *.aac *.webm *.ogg)"));
+                tr("Media (*.mkv *.mp4 *.ts *.m2t *.m2ts *.mp3 *.flac *.wav *.m4a *.aac *.webm *.ogg)"));
             if(path.isEmpty())return;
             addToLibrary(path);populate();
         });
@@ -459,8 +522,8 @@ private:
             const QString path=selected();
             if(path.isEmpty() || ai_.state()!=QProcess::NotRunning ||
                mux_.state()!=QProcess::NotRunning)return;
-            generateCaptions(path,QLatin1String("en,de,tr"),false);
             dialog.accept();
+            chooseCaptions(path);
         });
         connect(folder,&QPushButton::clicked,&dialog,[](){
             QDesktopServices::openUrl(QUrl::fromLocalFile(recordingsFolder()));
@@ -472,12 +535,18 @@ private:
     DvbTab *dvb_=nullptr;
     std::function<void()> openPlayback_;
     QToolButton *record_=nullptr,*library_=nullptr;
-    QProcess capture_,ai_,mux_;
+    QProcess capture_,mux_,probe_;
+    TihuluAiProcess ai_;
+    QProgressBar *progress_=nullptr;
+    quint64 captureGeneration_=0,probeGeneration_=0;
+    bool aiCancelled_=false;
+    QByteArray aiResult_;
+    QString subtitleWarning_;
     QTimer elapsed_;
     QUrl recordingUrl_;
     qint64 startedMs_=0;
-    bool recording_=false,finalizing_=false,intentionalStop_=false,
-         subtitlesAfter_=false,singing_=false;
-    QString captureKind_,recordedPath_,aiPath_,muxPath_,targets_,statusMessage_;
+    bool recording_=false,finalizing_=false,
+         subtitlesAfter_=false;
+    QString captureKind_,recordedPath_,aiPath_,muxPath_,statusMessage_;
 };
 #endif // TIHULU_UNIFIED_RECORDER_H

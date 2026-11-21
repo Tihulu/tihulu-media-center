@@ -9,6 +9,7 @@ during captions, and never runs on startup without owner action.
 from __future__ import annotations
 from pathlib import Path
 import os
+import json
 import queue
 from collections import deque
 import re
@@ -839,6 +840,9 @@ class CaptionTap:
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    show_only = "--show-only" in argv
+    if show_only:
+        argv.remove("--show-only")
     if len(argv) != 2 or argv[0] != "--socket":
         raise SystemExit("Usage: tihulu-tv-center kaffeine-captions --socket $XDG_RUNTIME_DIR/tihulu-dvb-PID.sock")
     endpoint = validate_socket(argv[1])
@@ -850,6 +854,8 @@ def main(argv=None):
         # Reopening the TIHULU AI menu focuses the existing controller.
         # Do not create a competing DVB/Whisper reader.
         return 0
+    if show_only:
+        return 1
     from .caption_timing import (CaptionConfig, CueQueue, KaffeineOSD,
                                  AutoSyncEstimator, AutoSyncController,
                                  effective_cue_config, confirmed_cue_config,
@@ -869,6 +875,8 @@ def main(argv=None):
     # Hiding the only QWidget must NOT quit the Qt event loop: audio capture,
     # auto-sync and video-overlay publishing continue independently of UI.
     app.setQuitOnLastWindowClosed(False)
+    import signal
+    signal.signal(signal.SIGTERM, lambda *_: app.quit())
     window_state = QSettings("TIHULU", "CaptionWindowGeometry")
 
     class CaptionSettingsWindow(QWidget):
@@ -3028,10 +3036,10 @@ def main(argv=None):
                     # language or silently override an explicit manual choice.
                     # from_controls() uses fresh DVB descriptors per tune.
                     apply_settings()
-                    if chosen is new_audio:
+                    if chosen is new_audio_track:
                         audio_track_status.setText(
                             "Broadcast audio " + (lang.upper() if lang else "unknown") +
-                            " · PID " + str(new_audio["pid"]) +
+                            " · PID " + str(new_audio_track["pid"]) +
                             " automatically selected. Whisper uses this "
                             "signalled language instead of guessing "
                             "from six seconds of live television audio.")

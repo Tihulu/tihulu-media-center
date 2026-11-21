@@ -19,7 +19,7 @@ PATHS = ("src/mainwindow.cpp", "src/mainwindow.h", "src/CMakeLists.txt",
          "src/backend-vlc/vlcmediawidget.h",
          "src/mediawidget.cpp", "src/mediawidget.h", "src/osdwidget.cpp",
          "src/osdwidget.h", "src/main.cpp", "src/dvb/dvbepg.cpp",
-         "src/sqlinterface.h")
+         "src/sqlinterface.h", "src/dvb/dvbliveview.h", "src/dvb/dvbdevice_linux.cpp")
 
 def fix_sql_free_key(source: str) -> str:
     """Fix Kaffeine 2.0.19's invalid QMap iterator in scan/channel import.
@@ -2107,6 +2107,8 @@ def apply(root: Path):
     for template, destination in (
         ("native_theme.h", "src/tihulu_theme.h"),
         ("native_caption_options.h", "src/tihulu_caption_options.h"),
+        ("native_ai_process.h", "src/tihulu_ai_process.h"),
+        ("native_file_captions.h", "src/tihulu_file_captions.h"),
         ("native_playback_profile.h", "src/tihulu_playback_profile.h"),
         ("livecapture.h", "src/dvb/livecapture.h"),
     ):

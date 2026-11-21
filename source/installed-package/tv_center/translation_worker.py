@@ -25,6 +25,8 @@ def main():
         from .translation_market import run_nllb
         translated = run_nllb(text, source, target)
     elif engine == "argos":
+        from .local_assets import prepare_argos_runtime_view
+        prepare_argos_runtime_view()
         from textcenter.transcripts import translate_offline
         translated = translate_offline(text, source, target, backend="cpu")
     else:
@@ -69,6 +71,8 @@ def serve_madlad():
 
 def serve_argos():
     """Reuse the same isolated Argos Python process for live TV captions."""
+    from .local_assets import prepare_argos_runtime_view
+    prepare_argos_runtime_view()
     from textcenter.transcripts import translate_offline
     for line in sys.stdin:
         if not line.strip():

@@ -441,6 +441,8 @@ def _translate_argos_local(text: str, source: str, target: str) -> str:
     if AIRuntime().status()["installed"]:
         from .translation_service import translate_argos
         return translate_argos(text, source, target)
+    from .local_assets import prepare_argos_runtime_view
+    prepare_argos_runtime_view()
     from textcenter.transcripts import translate_offline
     return translate_offline(text, source, target, backend="cpu")
 

@@ -96,6 +96,10 @@ class NLLBService:
                 # take over while the original transcript continues.
                 time_budget = (10 if isinstance(self, ArgosService) else
                                30 if cold and isinstance(self, MadladService) else 12)
+                # Whole-file work has no live deadline. A cold local translator
+                # can need considerably longer than a live eight-second clip.
+                if _live_translation_budget.get() is None:
+                    time_budget = 180 if cold else 90
                 time_budget=_remaining_live_budget(time_budget)
                 ready,_,_=select.select(
                     [self.process.stdout],[],[],time_budget)

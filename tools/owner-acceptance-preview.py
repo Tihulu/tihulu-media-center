@@ -72,11 +72,6 @@ def main():
            "--ro-bind", "/", "/", "--proc", "/proc", "--dev-bind", "/dev", "/dev",
            "--tmpfs", "/tmp", "--bind", str(state), str(state),
            "--chdir", str(state)]
-    # Argos extracts stanzas while translating. Reuse the existing installed
-    # packages, but keep their own directory writable exactly like the real app.
-    argos_packages = options.asset_home.resolve() / ".local/share/argos-translate/packages"
-    if argos_packages.is_dir():
-        cmd += ["--bind", str(argos_packages), str(argos_packages)]
     if Path("/tmp/.X11-unix").is_dir():
         cmd += ["--ro-bind", "/tmp/.X11-unix", "/tmp/.X11-unix"]
     # Xauthority may live in /tmp on some desktops; preserve only that file.

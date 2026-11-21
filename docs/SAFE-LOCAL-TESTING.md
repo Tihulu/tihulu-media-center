@@ -20,21 +20,21 @@ Expected:
 ## 2. Start isolated test profile
 
 ```bash
-"/home/horseman/tihulu apps open code/media stable first/acceptance-owner-round2/start-fixed"
+"/home/horseman/tihulu apps open code/media stable first/acceptance-owner-round3/start-fixed"
 ```
 
 This uses:
 
 - The candidate build
 - A private HOME under the test directory
-- Your existing model/runtime files as read-only assets
+- Your existing model/runtime files as read-only assets; Argos translation weights stay read-only and only a private tokenizer cache is written inside the preview HOME
 - Your display/session for a real owner test
 - It does not write to `~/.local/opt/tihulu-kaffeine`
 
 With a video file:
 
 ```bash
-"/home/horseman/tihulu apps open code/media stable first/acceptance-owner-round2/start-fixed" "/home/horseman/Desktop/example.mp4"
+"/home/horseman/tihulu apps open code/media stable first/acceptance-owner-round3/start-fixed" "/home/horseman/Desktop/example.mp4"
 ```
 
 ## 3. After test

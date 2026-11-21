@@ -46,4 +46,102 @@ def transform(files):
     files[epg] = files[epg].replace("braRating[", "braRating()[").replace("ARRAY_SIZE(braRating)", "ARRAY_SIZE(braRating())")
     replace("src/main.cpp", "\tKAboutData::setApplicationData(aboutData);",
             "\taboutData.setOrganizationDomain(\"tihulu.local\");\n\tKAboutData::setApplicationData(aboutData);")
+    # 5) Live TV recording without a second tuner: tee the already-filtered
+    # service TS into a user-chosen file. Silence creates nothing, an existing
+    # file is never overwritten, I/O failure keeps the partial file.
+    replace("src/dvb/dvbliveview_p.h", '#include <QFile>',
+           '#include <QFile>\n#include "livecapture.h"')
+    replace("src/dvb/dvbliveview_p.h", '\tQFile timeShiftFile;',
+           '\tLiveCapture capture;\n\tQFile timeShiftFile;')
+    live = "src/dvb/dvbliveview.cpp"
+    replace(live, 'void DvbLiveView::insertPatPmt()\n{\n\tinternal->buffer.append(internal->patGenerator.generatePackets());\n\tinternal->buffer.append(internal->pmtGenerator.generatePackets());\n}',
+           'bool DvbLiveView::beginCapture(const QString &path)\n'
+           '{\n'
+           '\treturn device && channel.isValid() && internal->capture.begin(path);\n'
+           '}\n\n'
+           'void DvbLiveView::endCapture()\n'
+           '{\n'
+           '\tif (!internal->capture.active()) return;\n'
+           '\tQString reason;\n'
+           '\tconst QString path = internal->capture.finish(reason);\n'
+           '\temit captureFinished(path, reason);\n'
+           '}\n\n'
+           'QString DvbLiveView::captureError() const { return internal->capture.failure(); }\n'
+           'bool DvbLiveView::waitingForDevice() const { return channel.isValid() && !device && internal->tihuluDeviceRetryCount > 0; }\n\n'
+           'void DvbLiveView::insertPatPmt()\n'
+           '{\n'
+           '\tconst QByteArray pat = internal->patGenerator.generatePackets();\n'
+           '\tconst QByteArray pmt = internal->pmtGenerator.generatePackets();\n'
+           '\tinternal->capture.tables(pat, pmt);\n'
+           '\tinternal->buffer.append(pat);\n'
+           '\tinternal->buffer.append(pmt);\n'
+           '}')
+    replace(live, 'void DvbLiveViewInternal::processData(const char data[188])\n{\n\tbuffer.append(data, 188);',
+           'void DvbLiveViewInternal::processData(const char data[188])\n{\n\tcapture.packet(data);\n\tbuffer.append(data, 188);')
+    replace(live, 'void DvbLiveView::stopDevice()\n{', 'void DvbLiveView::stopDevice()\n{\n\tendCapture(); // finalize the old service before retune or device release')
+    replace(live, 'DvbLiveView::~DvbLiveView()\n{\n}', 'DvbLiveView::~DvbLiveView()\n{\n\tendCapture();\n}')
+    replace("src/dvb/dvbliveview.h", '\tDvbDevice *getDevice() const;',
+           '\tDvbDevice *getDevice() const;\n'
+           '\tbool beginCapture(const QString &path);\n'
+           '\tvoid endCapture();\n'
+           '\tQString captureError() const;\n'
+           '\tbool waitingForDevice() const;')
+    replace("src/dvb/dvbliveview.h", 'signals:\n',
+           'signals:\n\tvoid captureFinished(const QString &path, const QString &error);\n')
+
+    # 6) Never leak a DVB frontend fd into exec'd helper processes.
+    dev = "src/dvb/dvbdevice_linux.cpp"
+    legacy_open = 'dvb_fe_open2(adapter, index, verbose, 0, dvbv5_log)'
+    if files[dev].count(legacy_open) != 2:
+        raise ValueError("Unexpected DVB frontend open sites")
+    files[dev] = files[dev].replace(legacy_open,
+        'dvb_fe_open_flags(adapter, index, verbose, 0, dvbv5_log, O_RDWR | O_CLOEXEC)')
+
+
+
+    # The TV toolbar and shared REC button use the same selected-stream writer.
+    replace("src/dvb/dvbtab.h", "public slots:\n", "signals:\n\tvoid quickRecordRequested();\n\npublic slots:\n")
+    replace("src/dvb/dvbtab.cpp", "\tinstantRecordAction->setCheckable(true);", "\tinstantRecordAction->setCheckable(false);")
+    replace("src/dvb/dvbtab.cpp", "\tconnect(instantRecordAction, SIGNAL(triggered(bool)), this, SLOT(instantRecord(bool)));",
+            "\tconnect(instantRecordAction,&QAction::triggered,this,[this](){emit quickRecordRequested();});")
+
+    # Central media events cover File/Open, playlist, drag-drop and recordings.
+    media = "src/mediawidget.cpp"
+    replace("src/mediawidget.h", "signals:\n", "signals:\n"
+            "\tvoid stopRequested();\n"
+            "\tvoid sourceOpened(const QUrl &url);\n"
+            "\tvoid fileOpenRequested(const QUrl &url, bool *handled);\n"
+            "\tvoid subtitleOpened(const QUrl &url, bool *handled);\n")
+    replace(media, "void MediaWidget::stop()\n{", "void MediaWidget::stop()\n{\n\temit stopRequested();")
+    replace(media, "void MediaWidget::playbackFinished()\n{", "void MediaWidget::playbackFinished()\n{\n\temit stopRequested();")
+    replace(media, "\tactionStop->setEnabled(playing);", "\tactionStop->setEnabled(true); // Stop also cancels an offline AI job.")
+    replace(media, "void MediaWidget::play(const QUrl &url, const QUrl &subtitleUrl)\n{",
+            "void MediaWidget::play(const QUrl &url, const QUrl &subtitleUrl)\n{\n"
+            "\tbool handled=false; emit fileOpenRequested(url,&handled); if(handled)return;")
+    replace(media, "\tsource->setMediaWidget(this);", "\temit sourceOpened(source->getType()==MediaSource::Url ? source->getUrl() : QUrl());\n\tsource->setMediaWidget(this);")
+    replace(media, "\tbackend->setExternalSubtitle(url);", "\tbool handled=false; emit subtitleOpened(url,&handled);\n\tif(!handled)backend->setExternalSubtitle(url);")
+    # Remove the old File/Open-only gate: the player now routes every source.
+    begin=files[main].index("\t// Keep local video/audio player *inside* this Playback tab.")
+    end=files[main].index("\n\tactionOpenRecent->addUrl(copy);",begin)+1
+    files[main]=files[main][:begin]+files[main][end:]
+    # The old gate contains an earlier indented addUrl; validate its removal.
+    if "playerTab->prepareLocalFileOpen(copy)" in files[main]:
+        raise ValueError("Old file-only gate survived")
+
+    replace(main, '#include "tihulu_theme.h"', '#include "tihulu_theme.h"\n#include "tihulu_ai_process.h"')
+    replace(main, '\tconnect(captionAction, &QAction::triggered, this, [this]() {',
+            '\tauto *tvCaptionJob = new TihuluAiProcess(this);\n'
+            '\tconnect(mediaWidget,&MediaWidget::stopRequested,this,[tvCaptionJob](){tvCaptionJob->stopJob();});\n'
+            '\tconnect(mediaWidget,&MediaWidget::sourceOpened,this,[tvCaptionJob](const QUrl &url){if(url.isValid())tvCaptionJob->stopJob();});\n'
+            '\tconnect(captionAction, &QAction::triggered, this, [this,tvCaptionJob]() {')
+    replace(main, '\t\tif (!QProcess::startDetached(QLatin1String("tihulu-tv-center"),\n'
+            '\t\t\tQStringList() << QLatin1String("kaffeine-captions")\n'
+            '\t\t\t\t<< QLatin1String("--socket") << name))',
+            '\t\tif(tvCaptionJob->state()!=QProcess::NotRunning) {\n'
+            '\t\t\t// A short focus request uses the existing controller socket.\n'
+            '\t\t\tQProcess::startDetached(QLatin1String("tihulu-tv-center"), {QLatin1String("kaffeine-captions"),QLatin1String("--socket"),name,QLatin1String("--show-only")});\n'
+            '\t\t\treturn;\n\t\t}\n'
+            '\t\ttvCaptionJob->start(QLatin1String("tihulu-tv-center"), {QLatin1String("kaffeine-captions"),QLatin1String("--socket"),name});\n'
+            '\t\tif (!tvCaptionJob->waitForStarted(800))')
+
     return files

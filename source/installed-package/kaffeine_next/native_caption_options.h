@@ -89,6 +89,13 @@ public:
     bool appendArguments(QStringList &args) {
         const QString model=model_->currentData().toString();
         if(!ready_) {status_->setText(tr("Wait for the local catalog or press Refresh."));return false;}
+        for(int i=0;i<targets_->count();++i) {
+            const auto *item=targets_->item(i);
+            if(item->checkState()==Qt::Checked && !item->data(Qt::UserRole+1).toBool()) {
+                status_->setText(tr("%1 has no installed offline translator. Uncheck it or install a matching language pack in AI Market.").arg(item->data(Qt::UserRole).toString().toUpper()));
+                return false;
+            }
+        }
         if(model==QStringLiteral("cpu-file")) {
             if(!QFileInfo(localModel_).isFile()) {status_->setText(tr("Choose an existing GGML model file."));return false;}
             args<<QStringLiteral("--whisper-file")<<localModel_;
@@ -123,17 +130,26 @@ private:
         }
         source_->setCurrentIndex(qMax(0,source_->findData(wantedSource_)));
         targets_->clear();
+        QStringList available;
         for(const auto &value:info_.value(QStringLiteral("languages")).toArray()) {
             const auto row=value.toObject();const QString code=row.value(QStringLiteral("code")).toString();
             QStringList engines;for(const auto &e:row.value(QStringLiteral("engines")).toArray())engines<<e.toString();
             auto *item=new QListWidgetItem(row.value(QStringLiteral("label")).toString()+QStringLiteral(" · ")+code,targets_);
-            item->setData(Qt::UserRole,code);item->setToolTip(engines.join(QStringLiteral(", ")));
+            available<<code;
+            item->setData(Qt::UserRole,code);item->setData(Qt::UserRole+1,true);
+            item->setToolTip(engines.join(QStringLiteral(", ")));
             item->setFlags(item->flags()|Qt::ItemIsUserCheckable);
             item->setCheckState(wantedTargets_.contains(code)?Qt::Checked:Qt::Unchecked);
         }
+        for(const auto &code:wantedTargets_) {
+            if(available.contains(code))continue;
+            auto *item=new QListWidgetItem(tr("%1 · no installed offline translator").arg(code.toUpper()),targets_);
+            item->setData(Qt::UserRole,code);item->setData(Qt::UserRole+1,false);
+            item->setFlags(item->flags()|Qt::ItemIsUserCheckable);item->setCheckState(Qt::Checked);
+        }
         const auto errors=info_.value(QStringLiteral("errors")).toArray();
         status_->setText(tr("%1 installed OUT candidates · %2. IN languages use one multilingual Whisper model; translation pairs are checked at runtime.%3")
-            .arg(targets_->count()).arg(info_.value(QStringLiteral("speech_model_selected")).toString())
+            .arg(available.size()).arg(info_.value(QStringLiteral("speech_model_selected")).toString())
             .arg(errors.isEmpty()?QString():tr(" Some local inventories were unavailable; refresh to retry.")));
     }
     QComboBox *source_=nullptr,*model_=nullptr;

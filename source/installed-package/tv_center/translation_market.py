@@ -349,12 +349,22 @@ def run_nllb(text,source,target):
     src_code, _ = nllb_token_id(tokenizer, source)
     _, target_token = nllb_token_id(tokenizer, target)
     tokenizer.src_lang=src_code
-    data=tokenizer(text[:1600],return_tensors="pt",truncation=True,
-                   max_length=256).to(device)
-    with torch.inference_mode():
-        output=model.generate(**data,
-            forced_bos_token_id=target_token,
-            max_new_tokens=180,num_beams=3)
+    # An earlier generation may have fallen back after GPU memory pressure.
+    device = str(next(model.parameters()).device)
+    data=tokenizer(text[:1600],return_tensors="pt",truncation=True,max_length=256)
+    def generate(on_device):
+        with torch.inference_mode():
+            return model.generate(**data.to(on_device),
+                forced_bos_token_id=target_token,max_new_tokens=180,num_beams=3)
+    try:
+        output=generate(device)
+    except RuntimeError as exc:
+        if not device.startswith("cuda") or "out of memory" not in str(exc).lower():
+            raise
+        model.to("cpu")
+        data=data.to("cpu")
+        torch.cuda.empty_cache()
+        output=generate("cpu")
     return tokenizer.batch_decode(output,skip_special_tokens=True)[0].strip()
 
 

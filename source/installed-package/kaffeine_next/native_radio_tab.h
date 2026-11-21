@@ -10,6 +10,7 @@
 
 #include "tabbase.h"
 #include "mediawidget.h"
+#include "tihulu_ai_process.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -359,7 +360,7 @@ class TihuluRadioTab final : public TabBase
 {
 public:
 	explicit TihuluRadioTab(MediaWidget *player, QWidget *parent = nullptr)
-		: TabBase(), player_(player), backend_(this), captionProcess_(this),
+		: TabBase(), player_(player), captionProcess_(this), backend_(this),
 		  recorder_(this), lyricsProcess_(this), network_(this), tick_(this)
 	{
 		setParent(parent);
@@ -2318,6 +2319,10 @@ public:
 
 		connect(start_, &QPushButton::clicked, this, [this](){ startReceiver(); });
         connect(stop_, &QPushButton::clicked, this, [this](){ stopRadioListening(); });
+        connect(player_,&MediaWidget::stopRequested,this,[this](){stopCaptioning();stopLyrics();});
+        connect(player_,&MediaWidget::sourceOpened,this,[this](const QUrl &url){
+            if(url.isLocalFile()) {stopCaptioning();stopLyrics();}
+        });
         connect(radioOutputVolume_,&QSlider::valueChanged,player_,&MediaWidget::setVolume);
         connect(radioMuteButton_,&QPushButton::clicked,player_,&MediaWidget::toggleMuted);
         connect(radioReconnectAudio_,&QPushButton::clicked,this,[this](){retryDabAudioPlayback();});
@@ -5008,7 +5013,7 @@ private:
 		}
 	}
     void scheduleCaptionRecovery() {
-        if(!quickAi_ || !quickAi_->isChecked() || shuttingDown_ ||
+        if(player_->getPlaybackStatus()!=MediaWidget::Playing || !quickAi_ || !quickAi_->isChecked() || shuttingDown_ ||
            tvHandoffInProgress_ || scanning_) return;
         const qint64 now=QDateTime::currentMSecsSinceEpoch();
         // Backoff 2, 4, 8, 16, up to 60 seconds, never a busy loop.
@@ -6492,11 +6497,7 @@ private:
         captionDisplayedStartedMs_=0;
 		cueQueue_.clear();
 		metadataCaptions_=false;
-		if (captionProcess_.state()!=QProcess::NotRunning) {
-			captionProcess_.terminate();
-			if (!captionProcess_.waitForFinished(700))
-				captionProcess_.kill();
-		}
+        captionProcess_.stopJob();
         if(captionProgress_) captionProgress_->setVisible(false);
 		if (!captionPath_.isEmpty()) QFile::remove(captionPath_);
 		captionPath_.clear();
@@ -7444,7 +7445,8 @@ private:
 	QList<TimedRadioCue> cueQueue_;
 	QLineEdit *extraTargets_=nullptr,*lyricsArtist_=nullptr,*lyricsTitle_=nullptr;
 	QLabel *syncStatus_=nullptr;
-	QProcess backend_,captionProcess_,recorder_,lyricsProcess_,
+	TihuluAiProcess captionProcess_;
+	QProcess backend_,recorder_,lyricsProcess_,
         lyricsRefreshProcess_,recordAi_,recordMux_,languagePackWorker_;
 	QListWidget *installedTargets_=nullptr;
 	QPushButton *refreshTargets_=nullptr;
