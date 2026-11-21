@@ -9,6 +9,7 @@ during captions, and never runs on startup without owner action.
 from __future__ import annotations
 from pathlib import Path
 import os
+import json
 import queue
 from collections import deque
 import re
@@ -3028,10 +3029,10 @@ def main(argv=None):
                     # language or silently override an explicit manual choice.
                     # from_controls() uses fresh DVB descriptors per tune.
                     apply_settings()
-                    if chosen is new_audio:
+                    if chosen is new_audio_track:
                         audio_track_status.setText(
                             "Broadcast audio " + (lang.upper() if lang else "unknown") +
-                            " · PID " + str(new_audio["pid"]) +
+                            " · PID " + str(new_audio_track["pid"]) +
                             " automatically selected. Whisper uses this "
                             "signalled language instead of guessing "
                             "from six seconds of live television audio.")
