@@ -9,4 +9,9 @@ inline QByteArray tihuluPlaybackProfile() {
     QSettings prefs(QStringLiteral("TIHULU"),QStringLiteral("Playback"));
     return prefs.value(QStringLiteral("profile"),QStringLiteral("software")).toByteArray();
 }
+inline bool tihuluSeparateVideoSurface() {
+    QSettings prefs(QStringLiteral("TIHULU"),QStringLiteral("Playback"));
+    return prefs.value(QStringLiteral("videoSurface"),QStringLiteral("embedded"))
+        .toString()==QLatin1String("separate");
+}
 #endif

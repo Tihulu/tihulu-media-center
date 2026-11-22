@@ -129,6 +129,40 @@ def transform(files):
         raise ValueError("Old file-only gate survived")
 
     replace(main, '#include "tihulu_theme.h"', '#include "tihulu_theme.h"\n#include "tihulu_ai_process.h"')
+    # Explicit repair action for a stray VLC window after a reparent.
+    replace(media, "\tvideoMenu->addMenu(autoResizeMenu);",
+            "\tvideoMenu->addMenu(autoResizeMenu);\n"
+            "\tQAction *reembedAction = videoMenu->addAction(i18n(\"Re-embed video surface\"));\n"
+            "\tconnect(reembedAction, &QAction::triggered, this, [this]() {\n"
+            "\t\tif (auto *vlc = qobject_cast<VlcMediaWidget *>(backend))\n"
+            "\t\t\tif (vlc->tihuluReassertSurface())\n"
+            "\t\t\t\tosdWidget->showText(i18nc(\"osd message\", \"Video surface re-embedded\"), 2000);\n"
+            "\t});")
+
+    # Video surface: embedded (default) or a separate VLC window, plus a
+    # self-healing re-assert of the embedded surface when the video output
+    # restarts after a reparent (previously produced a stray VLC window).
+    vlc = "src/backend-vlc/vlcmediawidget.cpp"
+    replace(vlc, "libvlc_media_player_set_xwindow(vlcMediaPlayer, quint32(winId()));",
+            "if(!tihuluSeparateVideoSurface())libvlc_media_player_set_xwindow(vlcMediaPlayer, quint32(winId()));")
+    replace(vlc, "libvlc_media_player_set_media(vlcMediaPlayer, vlcMedia);",
+            "libvlc_media_player_set_media(vlcMediaPlayer, vlcMedia);\n"
+            "\tif(!tihuluSeparateVideoSurface())libvlc_media_player_set_xwindow(vlcMediaPlayer, quint32(winId()));")
+    replace("src/backend-vlc/vlcmediawidget.h", "bool registerEvents();",
+            "bool registerEvents();\n"
+            "\tbool tihuluReassertSurface();\n")
+    # Self-healing: rebind the embedded surface when the video output restarts.
+    replace(vlc, "void VlcMediaWidget::playDirection(int direction)",
+            "bool VlcMediaWidget::tihuluReassertSurface()\n"
+            "{\n"
+            "\tif(tihuluSeparateVideoSurface() || vlcMediaPlayer==nullptr)return false;\n"
+            "\tif(libvlc_media_player_get_state(vlcMediaPlayer)!=libvlc_Playing)return false;\n"
+            "\tif(libvlc_media_player_has_vout(vlcMediaPlayer)>0)return false;\n"
+            "\tlibvlc_media_player_set_xwindow(vlcMediaPlayer, quint32(winId()));\n"
+            "\tsetAttribute(Qt::WA_NativeWindow);\n"
+            "\treturn true;\n"
+            "}\n\n"
+            "void VlcMediaWidget::playDirection(int direction)")
     # A local file with a sidecar <name>.srt plays with it attached, so a
     # finished recording or an exported file never starts without subtitles.
     replace("src/mediawidget.cpp", "\tbool handled=false; emit fileOpenRequested(url,&handled); if(handled)return;",

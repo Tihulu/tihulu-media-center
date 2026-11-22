@@ -55,6 +55,20 @@ inline void install(QMenu *settingsMenu) {
         });
     }
     apply(selected);
+    auto *surfaces=settingsMenu->addMenu(QObject::tr("Video surface"));
+    auto *surfaceGroup=new QActionGroup(surfaces);
+    QSettings surfacePrefs(QStringLiteral("TIHULU"),QStringLiteral("Playback"));
+    const QString surface=surfacePrefs.value(QStringLiteral("videoSurface"),QStringLiteral("embedded")).toString();
+    for(const QString &key:{QStringLiteral("embedded"),QStringLiteral("separate")}) {
+        auto *action=surfaces->addAction(key==QStringLiteral("embedded")?
+            QObject::tr("Embedded in window · default"):
+            QObject::tr("Separate window · VLC creates its own"));
+        surfaceGroup->addAction(action);action->setCheckable(true);action->setChecked(key==surface);
+        QObject::connect(action,&QAction::triggered,surfaces,[key](){
+            QSettings saved(QStringLiteral("TIHULU"),QStringLiteral("Playback"));
+            saved.setValue(QStringLiteral("videoSurface"),key);saved.sync();
+        });
+    }
     auto *playback=settingsMenu->addMenu(QObject::tr("Video decoding (restart required)"));
     auto *profiles=new QActionGroup(playback);
     QSettings videoPrefs(QStringLiteral("TIHULU"),QStringLiteral("Playback"));
