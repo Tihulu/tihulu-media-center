@@ -69,6 +69,10 @@ public:
         lyrics_=new QCheckBox(tr("Use a matching local .lrc for whole-file captions"),options_);
         onlineLyrics_=new QCheckBox(tr("Find lyrics online by title / artist (optional)"),options_);
         onlineLyrics_->setToolTip(tr("Only when Transcribe file is pressed with local LRC mode enabled. Sends title/artist metadata to LRCLIB."));
+        embedVideo_=new QCheckBox(tr("Video: embed the SRT into the video (.mkv copy, selectable track)"),options_);
+        embedVideo_->setChecked(true);embedVideo_->setToolTip(tr("Default for video files. The covering caption band stays optional; the "
+            "generated .mkv keeps your original file untouched and carries both tracks."));
+        form->addRow(tr("Delivery"),embedVideo_);
         preprocess_=new QCheckBox(tr("Transcribe before opening a file"),options_);
         QSettings config("TIHULU","MediaPlayer");preprocess_->setChecked(config.value("transcribeBeforeOpen",false).toBool());
         wait_=new QCheckBox(tr("Wait for whole-file subtitles before playback"),options_);wait_->setChecked(true);
@@ -120,6 +124,7 @@ public:
             }
             captions_->loadSrt(srt_);
             if(resumeAfter_) {resuming_=true;player_->play(QUrl::fromLocalFile(path_));resuming_=false;}
+            if(embedVideo_ && embedVideo_->isChecked() && isVideo_)embedSubtitledVideo();
             const auto result=QJsonDocument::fromJson(result_).object();
             const int warnings=result.value("translation_warning_count").toInt();
             const auto details=result.value("translation_warnings").toArray();
@@ -146,7 +151,13 @@ public:
         });
         connect(&liveClock_,&QTimer::timeout,this,[this](){tickLive();});
         connect(&exportProcess_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),this,[this](int code,QProcess::ExitStatus status){
-            message_->setText(code==0 && status==QProcess::NormalExit?tr("Subtitled MKV saved: %1").arg(exportPath_):tr("Export failed; source and SRT preserved."));
+            if(code==0 && status==QProcess::NormalExit) {
+                message_->setText(tr("Subtitled file ready: %1").arg(exportPath_));
+                internalStop_=true;player_->stop();internalStop_=false;
+                resuming_=true;player_->play(QUrl::fromLocalFile(exportPath_));resuming_=false;
+            } else {
+                message_->setText(tr("Export failed; source and SRT preserved."));
+            }
         });
         run_->setEnabled(false);liveButton_->setEnabled(false);
     }
@@ -267,6 +278,20 @@ private:
         const QString dest=QFileDialog::getSaveFileName(this,tr("Save subtitles"),QFileInfo(path_).completeBaseName()+".srt",tr("SubRip (*.srt)"));
         if(!dest.isEmpty())message_->setText(QFile::copy(srt_,dest)?tr("SRT saved: %1").arg(dest):tr("Cannot save SRT; choose a new writable filename."));
     }
+    // Default delivery for video: a new .mkv copy carrying the SRT as a
+    // selectable subtitle track. The original file is never modified.
+    void embedSubtitledVideo() {
+        if(path_.isEmpty() || !QFileInfo(srt_).isFile() || exportProcess_.state()!=QProcess::NotRunning)return;
+        const QString dest=QFileInfo(path_).absolutePath()+QLatin1Char('/')+
+            QFileInfo(path_).completeBaseName()+QStringLiteral("-subtitled.mkv");
+        if(QFileInfo::exists(dest)) {message_->setText(tr("Embedded subtitles already exist: %1").arg(dest));return;}
+        exportPath_=dest;
+        exportProcess_.start(QStringLiteral("ffmpeg"),{QStringLiteral("-nostdin"),QStringLiteral("-hide_banner"),
+            QStringLiteral("-loglevel"),QStringLiteral("error"),QStringLiteral("-n"),QStringLiteral("-i"),path_,QStringLiteral("-i"),srt_,
+            QStringLiteral("-map"),QStringLiteral("0:v?"),QStringLiteral("-map"),QStringLiteral("0:a?"),QStringLiteral("-map"),QStringLiteral("1:0"),
+            QStringLiteral("-c"),QStringLiteral("copy"),QStringLiteral("-c:s"),QStringLiteral("srt"),dest});
+        if(exportProcess_.waitForStarted(800))message_->setText(tr("Embedding subtitles into %1 …").arg(dest));
+    }
     void exportWithCaptions() {
         if(path_.isEmpty() || !QFileInfo(srt_).isFile() || exportProcess_.state()!=QProcess::NotRunning)return;
         QString dest=QFileDialog::getSaveFileName(this,tr("Export media and subtitles"),QFileInfo(path_).completeBaseName()+"-subtitled.mkv",tr("Matroska (*.mkv)"));
@@ -279,6 +304,7 @@ private:
     TihuluFileCaptions *captions_;TihuluCaptionOptions *choices_;QDialog *options_;
     QLabel *file_,*message_;QPushButton *run_,*liveButton_,*cancel_;QProgressBar *progress_;
     QComboBox *serviceMode_=nullptr;QSpinBox *liveWindow_=nullptr;QPushButton *turnOff_=nullptr;
+    QCheckBox *embedVideo_=nullptr;
     QCheckBox *original_,*music_,*lyrics_,*onlineLyrics_,*preprocess_,*wait_;
     bool isVideo_=true,tvMode_=true;
     QTimer liveClock_;QString path_,srt_,exportPath_;QByteArray result_;
