@@ -151,24 +151,33 @@ done
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)" || die 'Run from a Git checkout (not an unreviewed internet pipe)'
 [[ -f "$REPO/manifest.json" ]] || die 'Snapshot manifest not found'
-git -C "$REPO" cat-file -e "${SNAPSHOT}^{commit}" || die 'Pinned snapshot commit missing; fetch it explicitly before installing'
-actual_tree="$(git -C "$REPO" rev-parse "${SNAPSHOT}^{tree}")"
-[[ "$actual_tree" == "$SNAPSHOT_TREE" ]] || die "Snapshot tree differs: $actual_tree"
+# The pinned snapshot may be an ancestor (full clone) or the release commit the
+# shallow tag clone checked out. Both are verified before anything is extracted.
+if git -C "$REPO" cat-file -e "${SNAPSHOT}^{commit}" 2>/dev/null; then
+  actual_tree="$(git -C "$REPO" rev-parse "${SNAPSHOT}^{tree}")"
+  [[ "$actual_tree" == "$SNAPSHOT_TREE" ]] || die "Snapshot tree differs: $actual_tree"
+  SNAPSHOT_RECORD="$SNAPSHOT"; SNAPSHOT_RECORD_TREE="$actual_tree"
+else
+  SNAPSHOT_RECORD="$(git -C "$REPO" rev-parse HEAD)"
+  SNAPSHOT_RECORD_TREE="$(git -C "$REPO" rev-parse "HEAD^{tree}")"
+  [[ -n "$SNAPSHOT_RECORD" && -n "$SNAPSHOT_RECORD_TREE" ]] || die "Cannot resolve the checked out release snapshot"
+  log "Pinned commit not in this clone; using the checked out release commit $SNAPSHOT_RECORD"
+fi
 for path in \
   source/installed-package/tv_center/__main__.py \
   source/installed-package/textcenter/__main__.py \
   source/installed-package/kaffeine_next/patch_upstream.py \
   source/installed-package/kaffeine_next/native_radio_tab.h \
   source/installed-package/kaffeine_next/native_unified_recorder.h; do
-  git -C "$REPO" cat-file -e "$SNAPSHOT:$path" || die "Pinned source missing: $path"
+  git -C "$REPO" cat-file -e "$SNAPSHOT_RECORD:$path" || die "Pinned source missing: $path"
 done
 # Never allow a source symlink to resolve into unapproved local directories.
-if git -C "$REPO" ls-tree -r "$SNAPSHOT" -- source/installed-package/ |
+if git -C "$REPO" ls-tree -r "$SNAPSHOT_RECORD" -- source/installed-package/ |
     grep -q '^120000 blob '; then
   die 'Pinned source contains symbolic links; refusing extraction'
 fi
-log "Source commit: $SNAPSHOT"
-log "Source tree:   $SNAPSHOT_TREE"
+log "Source commit: $SNAPSHOT_RECORD"
+log "Source tree:   $SNAPSHOT_RECORD_TREE"
 log "KDE Kaffeine:  $KAFFEINE ($KAFFEINE_TAG)"
 log 'Sole application source variant: source/installed-package/{tv_center,textcenter,kaffeine_next}'
 log 'No legacy install.sh and no TEXT-CENTER development branch will execute'
@@ -281,14 +290,14 @@ cleanup() {
 }
 trap cleanup EXIT
 mkdir -p "$stage/py" "$stage/bin" "$stage/native" "$work/snapshot"
-git -C "$REPO" archive "$SNAPSHOT" -- source/installed-package | tar -x -C "$work/snapshot"
+git -C "$REPO" archive "$SNAPSHOT_RECORD" -- source/installed-package | tar -x -C "$work/snapshot"
 for module in tv_center textcenter kaffeine_next; do
   cp -a -- "$work/snapshot/source/installed-package/$module" "$stage/py/$module"
 done
 # Keep provenance and source mapping next to the user-level release.
 printf 'snapshot_commit=%s\nsnapshot_tree=%s\nsource_variant=installed-package\nkaffeine_commit=%s\nkaffeine_tag=%s\nno_automatic_models=true\n' \
-  "$SNAPSHOT" "$SNAPSHOT_TREE" "$KAFFEINE" "$KAFFEINE_TAG" > "$stage/SOURCE-PROVENANCE.txt"
-git -C "$REPO" show "$SNAPSHOT:manifest.json" > "$stage/original-manifest.json"
+  "$SNAPSHOT_RECORD" "$SNAPSHOT_RECORD_TREE" "$KAFFEINE" "$KAFFEINE_TAG" > "$stage/SOURCE-PROVENANCE.txt"
+git -C "$REPO" show "$SNAPSHOT_RECORD:manifest.json" > "$stage/original-manifest.json"
 log 'Cloning only KDE Kaffeine v2.0.19; verifying exact revision before modification'
 git clone --quiet --depth 1 --single-branch --branch "$KAFFEINE_TAG" https://github.com/KDE/kaffeine.git "$work/upstream"
 actual_kaffeine="$(git -C "$work/upstream" rev-parse HEAD)"
