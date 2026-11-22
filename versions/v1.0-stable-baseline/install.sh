@@ -20,8 +20,9 @@ TMP="$(mktemp -d "${TMPDIR:-/tmp}/tihulu-install-version.XXXXXX")"
 cleanup() { rm -rf "$TMP"; }
 trap cleanup EXIT
 
-# The installer only accepts an owner-writable checkout (0700).
-umask 077
+# The installer requires owner-writable directories and 0644 legal notices;
+# 022 is the mode set that satisfies both (no group/other write).
+umask 022
 git clone --depth 1 --branch "$REVISION" "$REPO_URL" "$TMP/repo"
 chmod 700 "$TMP/repo"
 # The installer takes exactly one mode; keep it simple when none is given.
