@@ -1981,9 +1981,14 @@ def open_ai_settings(parent, ai, after_save=None):
                     # every completed model operation. Refresh only the
                     # currently visible tab, and background expensive status.
                     self._all_status_cache=None
+                    # The Ready modes page must ALWAYS show what was just
+                    # installed or removed, even while another tab is open.
+                    self._profile_status_cache=None
+                    self.inspect_profile()
+                    self.show_profile_description()
                     current=self.model_tabs.currentIndex()
                     if current==0:
-                        self.inspect_profile()
+                        pass
                     elif current==4:
                         self.inspect_all_status()
                     elif current==1:
@@ -1996,6 +2001,9 @@ def open_ai_settings(parent, ai, after_save=None):
                     self.profile_select.setEnabled(True)
                     self.profile_inspect.setEnabled(True)
                     self.feedback.setText("Failed: " + str(data))
+                    self._profile_status_cache=None
+                    self.inspect_profile()
+                    self.show_profile_description()
 
         def download_model(self):
             key = self.selected_model()
