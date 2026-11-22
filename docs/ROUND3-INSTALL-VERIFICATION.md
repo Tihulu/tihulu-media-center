@@ -31,3 +31,13 @@ TIHULU_REPO_URL=<local mirror> bash versions/v1.1-round3/install.sh --install --
 
 - GitHub push / Draft PR (blocked by the local environment's permission policy).
 - CI AppDir/AppImage artifact verification once the branch is pushed.
+
+## v1.0-stable-baseline (rollback path)
+
+`versions/v1.0-stable-baseline/install.sh --install --no-ai` in a second
+disposable HOME: exit `0`, release `r2-<snapshot>` selected, provenance records
+the baseline snapshot and Kaffeine `v2.0.19`. Clean-environment GUI start
+(Xvfb, no AI, no sound server): started and stayed alive, `0` fatal errors.
+
+Both versions therefore install from their own tag, in isolation, without
+downloading AI models or touching the owner's installation.
