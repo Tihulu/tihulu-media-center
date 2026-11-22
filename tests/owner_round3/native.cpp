@@ -120,6 +120,18 @@ private slots:
         const int tvIndex=combo->findData("tv");QVERIFY(tvIndex>=0);combo->setCurrentIndex(tvIndex);
         QTest::qWait(200);QVERIFY(!lrc->isEnabled());
     }
+    void karaokeShowsActiveAndNextLyricLine() {
+        QTemporaryDir dir;QFile srt(dir.filePath("song.lrc"));
+        QVERIFY(srt.open(QIODevice::WriteOnly));
+        srt.write("1\n00:00:01,000 --> 00:00:04,000\nfirst line\n\n2\n00:00:04,000 --> 00:00:07,000\nsecond line\n\n");
+        srt.close();
+        MediaWidget player;TihuluFileCaptions captions(&player);player.show();
+        QVERIFY(captions.loadSrt(srt.fileName()));captions.setKaraoke(true);
+        player.state=MediaWidget::Playing;player.position=2000;
+        QTRY_COMPARE(captions.text(),QString("first line\n… second line"));
+        player.position=5000;QTRY_COMPARE(captions.text(),QString("second line"));
+        captions.setKaraoke(false);QTRY_COMPARE(captions.text(),QString("second line"));
+    }
     void serviceArgumentsReachTheCaptionWindow() {
         QTemporaryDir dir;qputenv("TIHULU_TEST_WORK",dir.path().toUtf8());
         QFile audio(dir.filePath("song2.wav"));QVERIFY(audio.open(QIODevice::WriteOnly));audio.write("fixture");audio.close();

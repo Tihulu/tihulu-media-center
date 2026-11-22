@@ -9,6 +9,7 @@
 #include <QRegularExpression>
 #include <QTimer>
 #include <QVector>
+#include <algorithm>
 #include <QJsonArray>
 #include <QJsonObject>
 
@@ -35,6 +36,8 @@ public:
     // closes only when playback is idle or a new file replaces it.
     void setSticky(bool sticky) { sticky_=sticky;updateCaption(); }
     void clearCues() { cues_.clear();updateCaption(); }
+    // Karaoke: the active line plus the next line, like the radio karaoke panel.
+    void setKaraoke(bool karaoke) { karaoke_=karaoke;updateCaption(); }
     bool loadSrt(const QString &path) {
         clearCues();QFile file(path);
         if(!file.open(QIODevice::ReadOnly) || file.size()>8*1024*1024)return false;
@@ -64,10 +67,19 @@ private:
         const qint64 now=player_->getPosition();QStringList lines;
         for(const auto &cue:cues_)if(cue.start<=now && now<cue.end)lines<<cue.text;
         QString text=lines.join(QLatin1Char('\n'));
+        if(karaoke_ && text.isEmpty()) {
+            const auto next=std::find_if(cues_.begin(),cues_.end(),
+                [&now](const Cue &cue){return cue.start>now;});
+            if(next!=cues_.end())text=tr("… %1").arg(next->text);
+        } else if(karaoke_) {
+            const auto next=std::find_if(cues_.begin(),cues_.end(),
+                [&now](const Cue &cue){return cue.start>now;});
+            if(next!=cues_.end())text+=QLatin1Char('\n')+tr("… %1").arg(next->text);
+        }
         if(text!=this->text())setText(text);
         if(text.isEmpty())text=sticky_?tr("Live captions \u00b7 listening on the current playback position"):QString();
         setText(text);setVisible(!text.isEmpty());
     }
-    MediaWidget *player_;QVector<Cue> cues_;QTimer clock_;bool sticky_=false;
+    MediaWidget *player_;QVector<Cue> cues_;QTimer clock_;bool sticky_=false,karaoke_=false;
 };
 #endif

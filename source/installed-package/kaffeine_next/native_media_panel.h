@@ -41,9 +41,13 @@ public:
         row->addWidget(file_,1);
         liveButton_=new QPushButton(tr("AI captions panel"),this);
         run_=new QPushButton(tr("Transcribe file"),this);
+        karaoke_=new QPushButton(tr("Karaoke / lyrics"),this);
+        karaoke_->setToolTip(tr("Audio only: time-coded lyrics from a matching local .lrc beside the file, "
+            "or optionally from LRCLIB by title/artist. No invented timings."));
+        karaoke_->setEnabled(false);
         auto *optionsButton=new QPushButton(tr("IN / OUT · Options"),this);
         cancel_=new QPushButton(tr("Stop AI"),this);cancel_->setEnabled(false);
-        row->addWidget(liveButton_);row->addWidget(run_);row->addWidget(optionsButton);row->addWidget(cancel_);
+        row->addWidget(liveButton_);row->addWidget(run_);row->addWidget(karaoke_);row->addWidget(optionsButton);row->addWidget(cancel_);
         root->addLayout(row);
         message_=new QLabel(tr("Local AI · choose languages and an installed model in Options."),this);
         message_->setTextFormat(Qt::PlainText);message_->setWordWrap(true);root->addWidget(message_);
@@ -92,6 +96,7 @@ public:
         connect(save,&QPushButton::clicked,this,[this](){saveSrt();});
         connect(exportMedia,&QPushButton::clicked,this,[this](){exportWithCaptions();});
         connect(run_,&QPushButton::clicked,this,[this](){generate(false);});
+        connect(karaoke_,&QPushButton::clicked,this,[this](){generateKaraoke();});
         connect(liveButton_,&QPushButton::clicked,this,[this](){startLive();});
         connect(cancel_,&QPushButton::clicked,this,[this](){stopAi();});
         connect(player_,&MediaWidget::stopRequested,this,[this](){if(!internalStop_)stopAi();});
@@ -122,6 +127,7 @@ public:
                 message_->setText(tr("Offline captions unavailable: %1").arg(QString::fromUtf8(process_.readAllStandardError()).right(300)));
                 return;
             }
+            captions_->setKaraoke(isAudioRequest_);
             captions_->loadSrt(srt_);
             if(resumeAfter_) {resuming_=true;player_->play(QUrl::fromLocalFile(path_));resuming_=false;}
             if(embedVideo_ && embedVideo_->isChecked() && isVideo_)embedSubtitledVideo();
@@ -175,6 +181,25 @@ public:
         if(QFileInfo(srt_).isFile())captions_->loadSrt(srt_);
         message_->setText(tr("Ready · Live captions follows playback; Transcribe file creates a reusable SRT."));
     }
+    // Radio-style karaoke for audio files: real time-coded lyrics only.
+    void generateKaraoke() {
+        if(path_.isEmpty() || process_.state()!=QProcess::NotRunning || tvMode_)return;
+        stopLive();cancelled_=false;result_.clear();
+        const QString cache=QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+        if(cache.isEmpty() || !QDir().mkpath(cache)) {message_->setText(tr("Cannot create a private lyric cache."));return;}
+        srt_=cache+QStringLiteral("/tihulu-lyrics-")+
+            QString::number(QCoreApplication::applicationPid())+QLatin1Char('-')+
+            QString::number(QDateTime::currentMSecsSinceEpoch())+QStringLiteral(".srt");
+        QStringList args{QStringLiteral("media-captions"),QStringLiteral("--input"),path_,
+                         QStringLiteral("--lyrics"),QStringLiteral("--music"),
+                         QStringLiteral("--output"),srt_};
+        if(onlineLyrics_ && onlineLyrics_->isChecked())args<<QStringLiteral("--fetch-lyrics");
+        process_.start(QStringLiteral("tihulu-tv-center"),args);
+        if(!process_.waitForStarted(800)) {message_->setText(tr("Lyric worker could not start."));return;}
+        run_->setEnabled(false);karaoke_->setEnabled(false);liveButton_->setEnabled(false);cancel_->setEnabled(true);
+        progress_->setRange(0,0);progress_->show();
+        message_->setText(tr("Reading time-coded lyrics for this audio file…"));
+    }
     // TV service for video files, Radio service for audio files; a manual choice wins.
     void applyServiceMode() {
         const QString mode=serviceMode_?serviceMode_->currentData().toString():QStringLiteral("auto");
@@ -187,6 +212,7 @@ public:
         music_->setChecked(prefs.value(audio?"radioMusicTranscription":"musicTranscription",false).toBool());
         original_->setChecked(audio || prefs.value("showOriginal",true).toBool());
         lyrics_->setEnabled(audio);onlineLyrics_->setEnabled(audio && lyrics_->isChecked());
+        if(karaoke_)karaoke_->setEnabled(audio);
         if(!audio)lyrics_->setChecked(false);
         message_->setText(tvMode_?
             tr("TV caption service · video settings (languages, model, appearance, SRT export)"):
@@ -228,6 +254,7 @@ private:
         stopLive();captions_->clearCues();
         const QString cache=QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
         if(cache.isEmpty() || !QDir().mkpath(cache)) {message_->setText(tr("Cannot create subtitle cache."));return;}
+        isAudioRequest_=!tvMode_;
         srt_=cache+QStringLiteral("/tihulu-file-")+QString::number(QCoreApplication::applicationPid())+QLatin1Char('-')+QString::number(QDateTime::currentMSecsSinceEpoch())+QStringLiteral(".srt");
         args<<QStringLiteral("--output")<<srt_;
         if(lyrics_->isChecked() && !beforeOpen) {args<<QStringLiteral("--lyrics");if(onlineLyrics_->isChecked())args<<QStringLiteral("--fetch-lyrics");}
@@ -302,11 +329,11 @@ private:
     }
     MediaWidget *player_;TihuluAiProcess process_,live_,exportProcess_;
     TihuluFileCaptions *captions_;TihuluCaptionOptions *choices_;QDialog *options_;
-    QLabel *file_,*message_;QPushButton *run_,*liveButton_,*cancel_;QProgressBar *progress_;
+    QLabel *file_,*message_;QPushButton *run_,*liveButton_,*cancel_,*karaoke_=nullptr;QProgressBar *progress_;
     QComboBox *serviceMode_=nullptr;QSpinBox *liveWindow_=nullptr;QPushButton *turnOff_=nullptr;
     QCheckBox *embedVideo_=nullptr;
     QCheckBox *original_,*music_,*lyrics_,*onlineLyrics_,*preprocess_,*wait_;
-    bool isVideo_=true,tvMode_=true;
+    bool isVideo_=true,tvMode_=true,isAudioRequest_=false;
     QTimer liveClock_;QString path_,srt_,exportPath_;QByteArray result_;
     bool cancelled_=false,internalStop_=false,resuming_=false,resumeAfter_=false,pending_=false;
     int revision_=0;qint64 nextMs_=0,lastMs_=0;
