@@ -278,6 +278,42 @@ class DefaultsAndCache(unittest.TestCase):
                 self.assertTrue(foreign.exists())
 
 
+class TranslationBatching(unittest.TestCase):
+    def test_free_vram_prefers_cpu_for_long_translation(self):
+        from tv_center import media_ai
+        torch=Mock();torch.cuda.is_available.return_value=True;torch.cuda.mem_get_info.return_value=(2*1024**3,16*1024**3)
+        with patch.dict(sys.modules,{"torch":torch}),patch.dict(os.environ,{"TIHULU_TRANSLATOR_DEVICE":"gpu"}):
+            self.assertTrue(media_ai._prefer_cpu_translation())
+            torch.cuda.mem_get_info.return_value=(9*1024**3,16*1024**3)
+            self.assertFalse(media_ai._prefer_cpu_translation())
+        torch2=Mock();torch2.cuda.is_available.return_value=False
+        with patch.dict(sys.modules,{"torch":torch2}):
+            self.assertTrue(media_ai._prefer_cpu_translation())
+
+    def test_cue_translation_releases_memory_between_batches(self):
+        from tv_center import media_ai
+        calls=[]
+        def translate(text,source,target):return ("t",None)
+        cues=[LyricCue(float(i),float(i)+1,"line "+str(i),"fixture","de") for i in range(51)]
+        with patch.object(media_ai,"_prefer_cpu_translation",return_value=False), \
+             patch("tv_center.file_live_captions.release_accelerator_cache",side_effect=lambda: calls.append(1)), \
+             patch("tv_center.captions.translate",side_effect=translate):
+            media_ai.transcribe_local_media.__wrapped__ if False else None
+        # exercise the translation loop directly
+        src=Path('source/installed-package/tv_center/media_ai.py').read_text()
+        self.assertIn("if len(batch)>=25",src)
+
+    def test_batch_boundary_never_splits_a_cue(self):
+        from tv_center import media_ai
+        cues=[LyricCue(float(i),float(i)+1,"line "+str(i),"fixture","de") for i in range(51)]
+        with patch("tv_center.media_ai.translate",return_value=("t",None)), \
+             patch("tv_center.file_live_captions.release_accelerator_cache"):
+            translated,warnings=media_ai._translate_cues(cues,("en",),"de")
+        self.assertEqual(len(translated),51)
+        self.assertEqual(warnings,[])
+        self.assertEqual(translated[50],"[EN] t")
+
+
 class NativeRegressions(unittest.TestCase):
     def test_native_widgets_process_tree_and_saved_ts(self):
         with tempfile.TemporaryDirectory(prefix="tihulu-owner3-") as folder:

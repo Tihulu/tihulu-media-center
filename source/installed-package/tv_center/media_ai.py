@@ -11,6 +11,7 @@ Examples:
 """
 from __future__ import annotations
 import argparse
+import os
 import json
 from pathlib import Path
 import re
@@ -200,6 +201,8 @@ def transcribe_local_media(filename: str, *, source: str="auto",
         raise RuntimeError("Enable offline Whisper in AI Model Market first")
     if record_model and targets and ai.values.get("translation_model")=="deepl":
         raise ValueError("Choose an offline translator or leave translation languages empty")
+    if targets and _prefer_cpu_translation():
+        os.environ["TIHULU_TRANSLATOR_DEVICE"]="cpu"
     profile,backend=_choose_model(ai,record_model,whisper_file)
     duration=0
     if progress:
@@ -322,9 +325,30 @@ def _lyrics_for_file(media:Path, meta:dict, *,
     raise RuntimeError("No matching lyrics: "+provenance.get("status","unknown"))
 
 
+def _free_accelerator_memory():
+    """Release cached accelerator blocks; keep the loaded translator resident."""
+    from .file_live_captions import release_accelerator_cache
+    release_accelerator_cache()
+
+
+def _prefer_cpu_translation() -> bool:
+    """A long whole-file translation must not evict the desktop from VRAM."""
+    try:
+        import torch
+        if not torch.cuda.is_available():
+            return True
+        free, _total = torch.cuda.mem_get_info()
+        return free < 3 * 1024 ** 3      # < 3 GiB free: CPU is the safe engine
+    except (ImportError, RuntimeError, ValueError, AttributeError):
+        return False
+
+
 def _translate_cues(cues:list[LyricCue],targets,source,progress=None):
     warnings=[]
     translated={}
+    batch=[]
+    def flush():
+        _free_accelerator_memory()
     for i,cue in enumerate(cues,1):
         if not targets:
             break
@@ -347,6 +371,12 @@ def _translate_cues(cues:list[LyricCue],targets,source,progress=None):
         if progress: progress("translate",int(100*i/len(cues)))
         if lines:
             translated[i]="\n".join(lines)
+        batch.append(i)
+        # Release accelerator blocks between batches so a long recording does
+        # not grow VRAM without bound; meaning is never split across a batch.
+        if len(batch)>=25:
+            flush();batch.clear()
+    flush()
     return translated,warnings
 
 
