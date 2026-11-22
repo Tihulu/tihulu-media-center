@@ -3,6 +3,7 @@
 #define TIHULU_FILE_CAPTIONS_H
 #include "mediawidget.h"
 #include <QBoxLayout>
+#include <QFont>
 #include <QFile>
 #include <QLabel>
 #include <QRegularExpression>
@@ -19,7 +20,12 @@ public:
     explicit TihuluFileCaptions(MediaWidget *player):QLabel(player),player_(player) {
         setObjectName(QStringLiteral("tihuluFileCaptionStrip"));
         setTextFormat(Qt::PlainText);setWordWrap(true);setAlignment(Qt::AlignCenter);
-        setStyleSheet(QStringLiteral("QLabel{background:#101820;color:#ffffff;padding:10px;font-size:22px;}"));
+        // Readable in both Light and Dark appearances; no fixed dark rectangle.
+        const QPalette skin=palette();
+        setStyleSheet(QStringLiteral("QLabel{background:%1;color:%2;padding:10px;font-size:%3px;}")
+            .arg(skin.color(QPalette::Base).name(),
+                 skin.color(QPalette::Text).name(),
+                 QString::number(qBound(14,QFont().pointSize()*2,48))));
         setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Minimum);
         player->layout()->addWidget(this);hide();
         connect(&clock_,&QTimer::timeout,this,[this](){updateCaption();});
