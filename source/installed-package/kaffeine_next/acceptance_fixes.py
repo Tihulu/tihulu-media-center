@@ -129,9 +129,40 @@ def transform(files):
         raise ValueError("Old file-only gate survived")
 
     replace(main, '#include "tihulu_theme.h"', '#include "tihulu_theme.h"\n#include "tihulu_ai_process.h"')
+    # A local file with a sidecar <name>.srt plays with it attached, so a
+    # finished recording or an exported file never starts without subtitles.
+    replace("src/mediawidget.cpp", "\tbool handled=false; emit fileOpenRequested(url,&handled); if(handled)return;",
+            "\tbool handled=false; emit fileOpenRequested(url,&handled); if(handled)return;\n"
+            "\tQUrl effectiveSubtitle=subtitleUrl;\n"
+            "\tif(effectiveSubtitle.isEmpty() && url.isLocalFile()) {\n"
+            "\t\tconst QString media=url.toLocalFile();\n"
+            "\t\tconst int dot=media.lastIndexOf(QLatin1Char('.'));\n"
+            "\t\tconst QString sidecar=(dot>0?media.left(dot):media)+QLatin1String(\".srt\");\n"
+            "\t\tif(QFileInfo::exists(sidecar))effectiveSubtitle=QUrl::fromLocalFile(sidecar);\n"
+            "\t}")
+    replace("src/mediawidget.cpp", "\tplay(new MediaSourceUrl(url, subtitleUrl));",
+            "\tplay(new MediaSourceUrl(url, effectiveSubtitle));")
+
+    replace(main, '#include "tihulu_ai_process.h"',
+            '#include "tihulu_ai_process.h"\n#include <QLocalSocket>')
     replace(main, '\tconnect(captionAction, &QAction::triggered, this, [this]() {',
             '\tauto *tvCaptionJob = new TihuluAiProcess(this);\n'
-            '\tconnect(mediaWidget,&MediaWidget::stopRequested,this,[tvCaptionJob](){tvCaptionJob->stopJob();});\n'
+            '\t// Stop in any mode also tells the caption service to stop ASR and\n'
+            '\t// release Whisper/translator work; the panel stays usable.\n'
+            '\tauto tihuluStopCaptionService=[](){\n'
+            '\t\tconst QString runtime=QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);\n'
+            '\t\tif(runtime.isEmpty())return;\n'
+            '\t\tconst QString path=runtime+QLatin1String("/tihulu-captions-control-")+\n'
+            '\t\t\tQString::number(QCoreApplication::applicationPid())+QLatin1String(".sock");\n'
+            '\t\tif(!QFileInfo::exists(path))return;\n'
+            '\t\tQLocalSocket request;\n'
+            '\t\trequest.connectToServer(path);\n'
+            '\t\tif(request.waitForConnected(250)){\n'
+            '\t\t\trequest.write("STOP");request.flush();request.waitForBytesWritten(250);\n'
+            '\t\t\trequest.disconnectFromServer();\n'
+            '\t\t}\n'
+            '\t};\n'
+            '\tconnect(mediaWidget,&MediaWidget::stopRequested,this,[tvCaptionJob,tihuluStopCaptionService](){tvCaptionJob->stopJob();tihuluStopCaptionService();});\n'
             '\tconnect(mediaWidget,&MediaWidget::sourceOpened,this,[tvCaptionJob](const QUrl &url){if(url.isValid())tvCaptionJob->stopJob();});\n'
             '\tconnect(captionAction, &QAction::triggered, this, [this,tvCaptionJob]() {')
     replace(main, '\t\tif (!QProcess::startDetached(QLatin1String("tihulu-tv-center"),\n'

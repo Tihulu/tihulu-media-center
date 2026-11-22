@@ -27,6 +27,29 @@ class CaptionServiceControl:
         self.reader = None
 
     @staticmethod
+    def request_stop(runtime, kaffeine_pid):
+        """Ask the running caption service to stop recognition and release AI.
+
+        Used when the player's own Stop is pressed, in any mode: playback ends,
+        so Whisper/translation workers must not keep VRAM busy.
+        """
+        path = Path(runtime) / f"tihulu-captions-control-{int(kaffeine_pid)}.sock"
+        if not path.exists() or path.is_symlink():
+            return False
+        meta = path.stat()
+        if meta.st_uid != os.getuid() or not stat.S_ISSOCK(meta.st_mode):
+            return False
+        request = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        try:
+            request.settimeout(0.5)
+            request.sendto(b"STOP", str(path))
+            return True
+        except (ConnectionRefusedError, FileNotFoundError):
+            return False
+        finally:
+            request.close()
+
+    @staticmethod
     def request_show(runtime, kaffeine_pid):
         path = Path(runtime) / f"tihulu-captions-control-{int(kaffeine_pid)}.sock"
         if not path.exists():
@@ -82,6 +105,15 @@ class CaptionServiceControl:
             if data == b"SHOW":
                 try:
                     self.events.put_nowait(("show_settings", None))
+                except Exception:
+                    # The UI queue is bounded; silently dropping a redundant
+                    # wake request must not kill active subtitles.
+                    pass
+            elif data == b"STOP":
+                try:
+                    self.events.put_nowait(("stop_service", None))
+                except Exception:
+                    pass
                 except Exception:
                     # The UI queue is bounded; silently dropping a redundant
                     # wake request must not kill active subtitles.

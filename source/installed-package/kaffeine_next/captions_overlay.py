@@ -2921,6 +2921,21 @@ def main(argv=None):
                     else:
                         native_channel_status.setText(
                             "Kaffeine TV stopped/retuning · old caption source cleared")
+            elif kind == "stop_service":
+                # The player was stopped in ANY mode: stop recognition and
+                # release Whisper/translator work instead of idling on VRAM.
+                set_subtitles_running(False)
+                try:
+                    tap.work_queue.clear()
+                except (AttributeError, RuntimeError, ValueError):
+                    pass
+                try:
+                    from tv_center.ai_release import release_local_ai
+                    released = ", ".join(release_local_ai()) or "no resident worker"
+                except (ImportError, OSError, RuntimeError, ValueError) as exc:
+                    released = "release failed: " + str(exc)[:120]
+                status.setText("AI stopped by player Stop · released: " + released +
+                               ". Start subtitles resumes on demand.")
             elif kind == "show_settings":
                 window.showNormal()
                 window.raise_()
@@ -3567,6 +3582,11 @@ def main(argv=None):
         window.terminating = True
         app.quit()
 
+    stop_exit_button = QPushButton("Stop & Exit")
+
+    stop_exit_button.setToolTip("Stop everything and exit: subtitles, ASR, translation, SRT writing.")
+    stop_exit_button.clicked.connect(stop_caption_service)
+    behavior.addWidget(stop_exit_button)
     hide_panel.clicked.connect(window.hide)
     back_to_tv.clicked.connect(window.showMinimized)
     exit_subtitles.clicked.connect(window.hide)

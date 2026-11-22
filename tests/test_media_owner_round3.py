@@ -115,6 +115,49 @@ class OfflineRegressions(unittest.TestCase):
             self.assertFalse((home/"escape").exists())
 
 
+class StopReleasesAi(unittest.TestCase):
+    def test_player_stop_releases_resident_workers(self):
+        from tv_center import ai_release
+        svc=Mock()
+        worker=Mock()
+        torch=Mock();torch.cuda.is_available.return_value=True
+        with patch("tv_center.translation_service._service",svc), \
+             patch("tv_center.translation_service._argos_service",svc), \
+             patch("tv_center.translation_service._madlad_service",svc), \
+             patch.dict(sys.modules,{"tv_center.cuda_faster_whisper":Mock(_worker=worker),"torch":torch}):
+            released=ai_release.release_local_ai()
+        self.assertEqual(len(released),5)   # 3 translator workers + whisper + cache
+        self.assertGreaterEqual(released.count("Mock"),3)
+        self.assertIn("faster-whisper",released)
+        self.assertIn("cuda-cache",released)
+        self.assertEqual(svc.close.call_count,3)
+        torch.cuda.empty_cache.assert_called_once()
+
+    def test_release_never_disables_settings_or_touches_models(self):
+        from tv_center import ai_release
+        svc=Mock()
+        with patch("tv_center.translation_service._service",svc), \
+             patch.dict(sys.modules,{"tv_center.cuda_faster_whisper":Mock(_worker=Mock()),"torch":None}):
+            ai_release.release_local_ai()
+        svc.close.assert_called_once()
+
+    def test_caption_control_accepts_a_stop_request(self):
+        import socket, glob
+        mod=glob.glob(str(SOURCE/"kaff*"))[0].rsplit("/",1)[-1]
+        caption_control=__import__(f"{mod}.caption_control",fromlist=["CaptionServiceControl"])
+        CaptionServiceControl=caption_control.CaptionServiceControl
+        with tempfile.TemporaryDirectory() as folder:
+            runtime=Path(folder);pid=4242
+            server=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM)
+            path=runtime/f"tihulu-captions-control-{pid}.sock"
+            server.bind(str(path));server.settimeout(1)
+            self.assertTrue(CaptionServiceControl.request_stop(runtime,pid))
+            data,_=server.recvfrom(64)
+            self.assertEqual(data,b"STOP")
+            server.close();path.unlink()
+            self.assertFalse(CaptionServiceControl.request_stop(runtime,pid))
+
+
 class NativeRegressions(unittest.TestCase):
     def test_native_widgets_process_tree_and_saved_ts(self):
         with tempfile.TemporaryDirectory(prefix="tihulu-owner3-") as folder:
