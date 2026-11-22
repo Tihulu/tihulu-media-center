@@ -885,6 +885,10 @@ def main(argv=None):
             window_state.setValue("geometry", self.saveGeometry())
             if self.terminating:
                 event.accept()
+            else:
+                # Closing the window is not a stop: keep recognition running.
+                event.ignore()
+                self.hide()
                 return
             self.hide()
             event.ignore()
@@ -1724,7 +1728,12 @@ def main(argv=None):
     sync_refresh = QPushButton("Lip-sync Refresh")
     caption_refresh.setToolTip("Re-read AI settings and replace only subtitle session; Kaffeine TV remains playing")
     sync_refresh.setToolTip("Reset estimated subtitle timing samples without touching media audio or your manual offset")
-    exit_subtitles = QPushButton("Exit caption service")
+    # Closing or hiding this window NEVER stops subtitles. Only an explicit
+    # "Stop subtitles" (this window) or "Turn off subtitles & exit" (tray)
+    # releases the AI work.
+    exit_subtitles = QPushButton("Hide window \u00b7 keep captions running")
+    exit_subtitles.setToolTip("Subtitles keep running while the window is closed. "
+        "Use \"Stop subtitles\" to pause recognition, or the tray to turn it off.")
     start_subtitles.setEnabled(False)
     behavior.addWidget(start_subtitles)
     behavior.addWidget(stop_subtitles)
@@ -3546,7 +3555,7 @@ def main(argv=None):
         reopen_action = menu.addAction("Show subtitle settings")
         reopen_action.triggered.connect(
             lambda: (window.showNormal(), window.raise_(), window.activateWindow()))
-        quit_action = menu.addAction("Stop subtitles & Exit")
+        quit_action = menu.addAction("Turn off subtitles & exit")
         quit_action.triggered.connect(app.quit)
         tray.setContextMenu(menu)
         tray.activated.connect(lambda reason: (
@@ -3560,7 +3569,7 @@ def main(argv=None):
 
     hide_panel.clicked.connect(window.hide)
     back_to_tv.clicked.connect(window.showMinimized)
-    exit_subtitles.clicked.connect(stop_caption_service)
+    exit_subtitles.clicked.connect(window.hide)
 
     def cleanup():
         if tray:

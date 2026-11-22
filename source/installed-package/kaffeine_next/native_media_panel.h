@@ -162,7 +162,10 @@ protected:
         player_->play(urls.first());event->acceptProposedAction();
     }
 private:
-    void stopLive(bool clear=true) {liveClock_.stop();live_.stopJob();pending_=false;if(clear)captions_->clearCues();}
+    void stopLive(bool clear=true) {
+        liveClock_.stop();live_.stopJob();pending_=false;
+        if(clear)captions_->setSticky(false),captions_->clearCues();
+    }
     void stopAi() {
         cancelled_=true;resumeAfter_=false;++revision_;process_.stopJob();stopLive(live_.state()!=QProcess::NotRunning);
         progress_->hide();cancel_->setEnabled(false);run_->setEnabled(!path_.isEmpty());liveButton_->setEnabled(!path_.isEmpty());
@@ -196,6 +199,7 @@ private:
         if(path_.isEmpty() || process_.state()!=QProcess::NotRunning)return;
         auto args=jobArguments(true);if(args.isEmpty())return;
         stopLive();cancelled_=false;++revision_;nextMs_=player_->getPosition();lastMs_=nextMs_;
+        captions_->setSticky(true);
         live_.start(QStringLiteral("tihulu-tv-center"),args);
         if(!live_.waitForStarted(800)) {message_->setText(tr("Live caption worker could not start."));return;}
         cancel_->setEnabled(true);liveClock_.start(200);message_->setText(tr("Live captions · preparing installed local model…"));

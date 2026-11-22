@@ -6,7 +6,7 @@ receiver. A normal settings window has keyboard focus, so the new
 **Back to TV · keep captions running** button minimizes this panel to give
 channel hotkeys and the channel list back to the Kaffeine window.
 **Hide settings** leaves the caption process running; **Stop subtitles**
-pauses ASR; **Exit caption service** terminates the companion.
+pauses ASR; closing the caption window keeps captions running (only the tray '“Turn off subtitles & exit”' releases the AI work).
 
 ## Channel handoff
 

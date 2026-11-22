@@ -25,7 +25,10 @@ public:
         connect(&clock_,&QTimer::timeout,this,[this](){updateCaption();});
         clock_.start(100);
     }
-    void clearCues() { cues_.clear();setText(QString());hide(); }
+    // A live caption session keeps the strip open even between phrases: it
+    // closes only when playback is idle or a new file replaces it.
+    void setSticky(bool sticky) { sticky_=sticky;updateCaption(); }
+    void clearCues() { cues_.clear();updateCaption(); }
     bool loadSrt(const QString &path) {
         clearCues();QFile file(path);
         if(!file.open(QIODevice::ReadOnly) || file.size()>8*1024*1024)return false;
@@ -51,13 +54,14 @@ public:
     }
 private:
     void updateCaption() {
-        if(player_->getPlaybackStatus()==MediaWidget::Idle) {hide();return;}
+        if(!sticky_ && player_->getPlaybackStatus()==MediaWidget::Idle) {setText(QString());hide();return;}
         const qint64 now=player_->getPosition();QStringList lines;
         for(const auto &cue:cues_)if(cue.start<=now && now<cue.end)lines<<cue.text;
-        const QString text=lines.join(QLatin1Char('\n'));
+        QString text=lines.join(QLatin1Char('\n'));
         if(text!=this->text())setText(text);
-        setVisible(!text.isEmpty());
+        if(text.isEmpty())text=sticky_?tr("Live captions \u00b7 listening on the current playback position"):QString();
+        setText(text);setVisible(!text.isEmpty());
     }
-    MediaWidget *player_;QVector<Cue> cues_;QTimer clock_;
+    MediaWidget *player_;QVector<Cue> cues_;QTimer clock_;bool sticky_=false;
 };
 #endif

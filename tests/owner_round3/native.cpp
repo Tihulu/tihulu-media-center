@@ -81,6 +81,27 @@ private slots:
         QTest::qWait(400);QCOMPARE(player.state,MediaWidget::Idle);QVERIFY(run->isEnabled());
         QVERIFY(!QFile::exists(dir.filePath("drop.srt")));
     }
+    void audioCaptionStripStaysOpenWhileServiceIsOn() {
+        QTemporaryDir dir;QFile file(dir.filePath("stay.wav"));QVERIFY(file.open(QIODevice::WriteOnly));file.write("fixture");file.close();
+        MediaWidget player;TihuluMediaPanel panel(&player);player.show();panel.show();
+        auto *source=panel.findChild<QComboBox *>("captionInputLanguage");QTRY_VERIFY_WITH_TIMEOUT(source->count()>1,3000);
+        player.play(QUrl::fromLocalFile(file.fileName()));player.state=MediaWidget::Playing;
+        QLabel *strip=player.findChild<QLabel *>("tihuluFileCaptionStrip");QVERIFY(strip);
+        QPushButton *live=nullptr;for(auto *button:panel.findChildren<QPushButton *>())if(button->text()=="Live captions")live=button;
+        QVERIFY(live);live->click();
+        // Wait for the caption job to actually start, not only the click.
+        QPushButton *cancel=nullptr;for(auto *button:panel.findChildren<QPushButton *>())if(button->text()=="Stop AI")cancel=button;
+        QVERIFY(cancel);QTRY_VERIFY_WITH_TIMEOUT(cancel->isEnabled(),3000);
+        QTRY_COMPARE_WITH_TIMEOUT(strip->text(),QString("Live captions \u00b7 listening on the current playback position"),3000);
+        QVERIFY(!strip->isHidden());
+        // Between phrases and while paused, the strip must NOT close and reopen.
+        player.state=MediaWidget::Paused;QTest::qWait(250);
+        QVERIFY(!strip->isHidden());
+        QCOMPARE(strip->text(),QString("Live captions \u00b7 listening on the current playback position"));
+        player.state=MediaWidget::Playing;QTest::qWait(250);QVERIFY(!strip->isHidden());
+        // Only an explicit stop releases the service and closes the strip.
+        player.stop();QTest::qWait(300);QVERIFY(strip->isHidden());
+    }
     void liveSeekDiscardsOldReplyAndNeverMovesPlayer() {
         QTemporaryDir dir;QFile file(dir.filePath("seek.wav"));QVERIFY(file.open(QIODevice::WriteOnly));file.write("fixture");file.close();
         MediaWidget player;TihuluMediaPanel panel(&player);player.show();
