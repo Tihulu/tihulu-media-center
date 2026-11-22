@@ -47,7 +47,10 @@ public:
         karaoke_->setEnabled(false);
         auto *optionsButton=new QPushButton(tr("IN / OUT · Options"),this);
         cancel_=new QPushButton(tr("Stop AI"),this);cancel_->setEnabled(false);
-        row->addWidget(liveButton_);row->addWidget(run_);row->addWidget(karaoke_);row->addWidget(optionsButton);row->addWidget(cancel_);
+        mpvButton_=new QPushButton(tr("Open in mpv"),this);
+        mpvButton_->setToolTip(tr("Hands the current media (local file or stream) to the mpv player "
+            "with its subtitles. The built-in VLC engine stays default."));
+        row->addWidget(liveButton_);row->addWidget(run_);row->addWidget(karaoke_);row->addWidget(optionsButton);row->addWidget(cancel_);row->addWidget(mpvButton_);
         root->addLayout(row);
         message_=new QLabel(tr("Local AI · choose languages and an installed model in Options."),this);
         message_->setTextFormat(Qt::PlainText);message_->setWordWrap(true);root->addWidget(message_);
@@ -105,6 +108,7 @@ public:
         connect(exportMedia,&QPushButton::clicked,this,[this](){exportWithCaptions();});
         connect(run_,&QPushButton::clicked,this,[this](){generate(false);});
         connect(karaoke_,&QPushButton::clicked,this,[this](){generateKaraoke();});
+        connect(mpvButton_,&QPushButton::clicked,this,[this](){openInMpv();});
         connect(liveButton_,&QPushButton::clicked,this,[this](){startLive();});
         connect(cancel_,&QPushButton::clicked,this,[this](){stopAi();});
         connect(player_,&MediaWidget::stopRequested,this,[this](){if(!internalStop_)stopAi();});
@@ -188,6 +192,30 @@ public:
         srt_=info.absolutePath()+QLatin1Char('/')+info.completeBaseName()+QStringLiteral(".srt");
         if(QFileInfo(srt_).isFile())captions_->loadSrt(srt_);
         message_->setText(tr("Ready · Live captions follows playback; Transcribe file creates a reusable SRT."));
+    }
+    // Any current source can be handed to the external mpv player on demand.
+    void openInMpv() {
+        if(QStandardPaths::findExecutable(QStringLiteral("mpv")).isEmpty()) {
+            message_->setText(tr("mpv is not installed; the built-in VLC engine stays in use."));
+            return;
+        }
+        QStringList args{QStringLiteral("--keep-open=no")};
+        if(!path_.isEmpty() && QFileInfo(path_).isFile()) {
+            const QString media=path_;
+            const QString srt=QFileInfo(media).absolutePath()+QLatin1Char('/')+
+                QFileInfo(media).completeBaseName()+QStringLiteral(".srt");
+            if(QFileInfo(srt).isFile())args<<QStringLiteral("--sub-file=")+srt;
+            args<<media;
+        } else {
+            const QUrl stream=player_->property("tihulu_recordable_url").toUrl();
+            if(!stream.isValid()) {message_->setText(tr("Nothing playing to hand to mpv."));return;}
+            args<<stream.toString();
+        }
+        externalPlayerProcess_.start(QStringLiteral("mpv"),args);
+        if(!externalPlayerProcess_.waitForStarted(600))
+            message_->setText(tr("mpv could not start."));
+        else
+            message_->setText(tr("Opened in mpv · VLC playback stays untouched."));
     }
     // Radio-style karaoke for audio files: real time-coded lyrics only.
     void generateKaraoke() {
@@ -354,7 +382,7 @@ private:
     }
     MediaWidget *player_;TihuluAiProcess process_,live_,exportProcess_;
     TihuluFileCaptions *captions_;TihuluCaptionOptions *choices_;QDialog *options_;
-    QLabel *file_,*message_;QPushButton *run_,*liveButton_,*cancel_,*karaoke_=nullptr;QProgressBar *progress_;
+    QLabel *file_,*message_;QPushButton *run_,*liveButton_,*cancel_,*karaoke_=nullptr,*mpvButton_=nullptr;QProgressBar *progress_;
     QComboBox *serviceMode_=nullptr;QSpinBox *liveWindow_=nullptr;QPushButton *turnOff_=nullptr;
     QCheckBox *embedVideo_=nullptr,*externalPlayer_=nullptr;
     QProcess externalPlayerProcess_;
