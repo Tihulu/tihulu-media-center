@@ -1131,11 +1131,15 @@ public:
         radioCanvasCaption_->setTextFormat(Qt::PlainText);
         radioCanvasCaption_->setWordWrap(true);
         radioCanvasCaption_->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
-        radioCanvasCaption_->setStyleSheet(QLatin1String(
-            "QLabel{background:rgba(0,0,0,205);color:white;"
-            "border-radius:5px;padding:8px;font-size:16px;}"));
+        const QPalette captionSkin=palette();
+        radioCanvasCaption_->setStyleSheet(QStringLiteral(
+            "QLabel{background:%1;color:%2;border-radius:5px;padding:8px;font-size:16px;}")
+            .arg(captionSkin.color(QPalette::Base).name(),
+                 captionSkin.color(QPalette::Text).name()));
         radioCanvasCaption_->setVisible(false);
-        radioCanvasCaption_->setMaximumHeight(210);
+        // A fixed-height caption band keeps the radio canvas from resizing
+        // (and the side bar from jumping) as captions come and go.
+        radioCanvasCaption_->setFixedHeight(140);
         radioCanvasCaption_->setToolTip(tr(
             "Original heard audio + selected translation outputs. "
             "Captions are aligned to captured PCM timestamps, not "
@@ -1144,9 +1148,11 @@ public:
         radioLyricMatchStatus_->setTextFormat(Qt::PlainText);
         radioLyricMatchStatus_->setWordWrap(true);
         radioLyricMatchStatus_->setAlignment(Qt::AlignCenter);
-        radioLyricMatchStatus_->setStyleSheet(QLatin1String(
-            "QLabel{background:rgba(0,0,0,205);color:#cdebf5;"
-            "border-radius:5px;padding:4px;font-size:13px;}"));
+        radioLyricMatchStatus_->setStyleSheet(QStringLiteral(
+            "QLabel{background:%1;color:%2;border-radius:5px;padding:4px;font-size:13px;}")
+            .arg(captionSkin.color(QPalette::Base).name(),
+                 captionSkin.color(QPalette::Text).name()));
+        radioLyricMatchStatus_->setFixedHeight(34);
         radioLyricMatchStatus_->setVisible(false);
         radioLyricMatchStatus_->setToolTip(tr(
             "Lyrics FOUND means matching song metadata. Audio MATCHED "
