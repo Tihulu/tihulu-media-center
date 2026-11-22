@@ -2183,8 +2183,8 @@ public:
         addRegional(tr("Global · Genius"),QLatin1String("genius.com"));
         addRegional(tr("DE · SoundChapter"),QLatin1String("soundchapter.com"));
         addRegional(tr("DE · Liedertexte"),QLatin1String("liedertexte.com"));
-        addRegional(tr("TR · Müzik Sözleri"),QLatin1String("muziksozleri.com.tr"));
-        addRegional(tr("TR · Söz Müzik"),QLatin1String("sarki.sozmuzik.net"));
+        addRegional(tr("TR · Lyrics (muziksozleri.com.tr)"),QLatin1String("muziksozleri.com.tr"));
+        addRegional(tr("TR · Lyrics (sarki.sozmuzik.net)"),QLatin1String("sarki.sozmuzik.net"));
         v->addLayout(regionalLyrics);
         auto *regionalInfo=new QLabel(tr(
             "Regional sites open as browser searches only (copyright/licence). "

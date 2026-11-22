@@ -154,7 +154,7 @@ def main():
             source_layout.addWidget(import_btn)
             self.country = QComboBox()
             self.country.addItem("Germany (DE)", "DE")
-            self.country.addItem("Türkiye (TR)", "TR")
+            self.country.addItem("Türkiye / Turkey (TR)", "TR")
             self.country.currentIndexChanged.connect(self.refresh_channels)
             source_layout.addWidget(self.country)
             self.delivery = QComboBox()
