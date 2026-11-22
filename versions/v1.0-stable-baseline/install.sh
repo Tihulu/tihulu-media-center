@@ -21,4 +21,6 @@ cleanup() { rm -rf "$TMP"; }
 trap cleanup EXIT
 
 git clone --depth 1 --branch "$REVISION" "$REPO_URL" "$TMP/repo"
-exec bash "$TMP/repo/installer/media-stable-first.sh" --install --no-ai "$@"
+# The installer takes exactly one mode; keep it simple when none is given.
+if [ "$#" -eq 0 ]; then set -- --install --no-ai; fi
+exec bash "$TMP/repo/installer/media-stable-first.sh" "$@"
