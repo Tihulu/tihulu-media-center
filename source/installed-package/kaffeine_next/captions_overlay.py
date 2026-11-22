@@ -981,6 +981,12 @@ def main(argv=None):
         QScrollArea, QFrame, QGridLayout, QFileDialog, QTabWidget,
         QProgressBar)
     app = QApplication.instance() or QApplication(["TIHULU Kaffeine Live Captions"])
+    # Old generated SRT sidecars are removed on session start; user files never are.
+    try:
+        from tv_center.file_live_captions import prune_private_caches
+        prune_private_caches()
+    except (ImportError, OSError, ValueError):
+        pass
     # Hiding the only QWidget must NOT quit the Qt event loop: audio capture,
     # auto-sync and video-overlay publishing continue independently of UI.
     app.setQuitOnLastWindowClosed(False)

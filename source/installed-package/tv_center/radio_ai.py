@@ -130,7 +130,18 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
     ai=AISettings()
     ai.configure_environment()
     if not ai.values["asr_enabled"]:
-        raise RuntimeError("Enable the installed offline Whisper model in AI Market")
+        # The owner explicitly started radio captions, so an already installed
+        # local model is used in-memory: nothing downloaded, no settings write.
+        from .installed_speech import installed_speech_model
+        found=installed_speech_model()
+        if not found:
+            raise RuntimeError("Enable the installed offline Whisper model in AI Market")
+        if found!="__cuda_managed__":
+            ai.values["model_path"]=found
+        else:
+            ai.values["backend"]="gpu"
+        ai.values["asr_enabled"]=True
+        ai.configure_environment()
     profile,backend=_choose_model(ai)
     # Do not let a remote URL or attacker-specified radio host pass through:
     # always connect the LOCAL welle endpoint started by native Kaffeine.

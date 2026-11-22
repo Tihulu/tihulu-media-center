@@ -107,6 +107,7 @@ def prune_private_caches(max_age_days=14, max_files=200):
     considered; a user's own .srt beside their media is never touched.
     """
     import time
+    from pathlib import Path
     from .local_assets import existing_asset
     from PyQt5.QtCore import QStandardPaths
     app = QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation)

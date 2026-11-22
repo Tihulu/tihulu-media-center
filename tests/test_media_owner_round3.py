@@ -229,6 +229,55 @@ class FileCaptionService(unittest.TestCase):
             self.assertIsNone(tap.file_last_end)
 
 
+class DefaultsAndCache(unittest.TestCase):
+    def test_installed_model_is_found_without_enabling_ai(self):
+        from tv_center.installed_speech import installed_speech_model
+        with tempfile.TemporaryDirectory() as folder:
+            model=Path(folder)/".local/share/TIHULU/tihulu-media-center/models/ggml-small.bin"
+            model.parent.mkdir(parents=True)
+            model.write_bytes(b"x"*(2*1024*1024))
+            with patch.dict(os.environ,{"HOME":folder,"TIHULU_ASSET_HOME":""}):
+                self.assertEqual(installed_speech_model(),str(model))
+
+    def test_no_installed_model_reports_empty(self):
+        from tv_center.installed_speech import installed_speech_model
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.dict(os.environ,{"HOME":folder,"TIHULU_ASSET_HOME":""}):
+                self.assertEqual(installed_speech_model(),"")
+
+    def test_radio_start_uses_installed_model_in_memory_only(self):
+        from tv_center import radio_ai
+        class Stop(RuntimeError): pass
+        with tempfile.TemporaryDirectory() as folder:
+            model=(Path(folder)/".local/share/TIHULU/tihulu-media-center/models/voja.bin")
+            model.parent.mkdir(parents=True);model.write_bytes(b"x"*(2*1024*1024))
+            with patch.dict(os.environ,{"HOME":folder,"TIHULU_ASSET_HOME":""}), \
+                 patch("tv_center.radio_ai.AISettings") as ai, \
+                 patch.object(radio_ai,"_choose_model",side_effect=Stop()):
+                ai.return_value.values={"asr_enabled":False,"model_path":"","backend":"auto"}
+                with self.assertRaises(Stop):
+                    radio_ai.decode_radio_live(port=44000,sid="0xd49e",source="de",
+                        targets=("en",),output=str(Path(os.environ["XDG_RUNTIME_DIR"])/"tihulu-radio-captions-test.json"))
+                self.assertTrue(ai.return_value.values["asr_enabled"])
+                self.assertEqual(ai.return_value.values["model_path"],str(model))
+
+    def test_private_cache_prune_never_touches_user_files(self):
+        from tv_center.file_live_captions import prune_private_caches
+        with tempfile.TemporaryDirectory() as folder:
+            home=Path(folder)
+            cache=home/".cache"
+            cache.mkdir()
+            with patch.dict(os.environ,{"HOME":str(home),"XDG_CACHE_HOME":str(cache),"TIHULU_ASSET_HOME":""}), \
+                 patch("PyQt5.QtCore.QStandardPaths.writableLocation",return_value=str(cache)):
+                own=cache/"tihulu-file-1-1.srt";own.write_text("stale")
+                foreign=home/"my-subtitles.srt";foreign.write_text("user")
+                old=time.time()-40*86400
+                os.utime(own,(old,old))
+                prune_private_caches(max_age_days=14)
+                self.assertFalse(own.exists())
+                self.assertTrue(foreign.exists())
+
+
 class NativeRegressions(unittest.TestCase):
     def test_native_widgets_process_tree_and_saved_ts(self):
         with tempfile.TemporaryDirectory(prefix="tihulu-owner3-") as folder:
