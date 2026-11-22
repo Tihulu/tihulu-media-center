@@ -550,7 +550,7 @@ private:
         connect(import,&QPushButton::clicked,&dialog,[&,this](){
             const QString path=QFileDialog::getOpenFileName(&dialog,
                 tr("Import a finished recording"),QDir::homePath(),
-                tr("Media (*.mkv *.mp4 *.ts *.m2t *.m2ts *.mp3 *.flac *.wav *.m4a *.aac *.webm *.ogg)"));
+                tr("Media (*.mkv *.mp4 *.ts *.m2t *.m2ts *.mka *.mp3 *.flac *.wav *.m4a *.aac *.webm *.ogg)"));
             if(path.isEmpty())return;
             addToLibrary(path);populate();
         });
