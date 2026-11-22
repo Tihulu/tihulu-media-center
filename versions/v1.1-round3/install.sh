@@ -20,7 +20,10 @@ TMP="$(mktemp -d "${TMPDIR:-/tmp}/tihulu-install-version.XXXXXX")"
 cleanup() { rm -rf "$TMP"; }
 trap cleanup EXIT
 
+# The installer only accepts an owner-writable checkout (0700).
+umask 077
 git clone --depth 1 --branch "$REVISION" "$REPO_URL" "$TMP/repo"
+chmod 700 "$TMP/repo"
 # The installer takes exactly one mode; keep it simple when none is given.
 if [ "$#" -eq 0 ]; then set -- --install --no-ai; fi
 exec bash "$TMP/repo/installer/media-stable-first.sh" "$@"
