@@ -132,6 +132,9 @@ def transform(files):
     if "playerTab->prepareLocalFileOpen(copy)" in files[main]:
         raise ValueError("Old file-only gate survived")
 
+    # One shared "stop the live caption service" helper, used by player Stop
+    # and by leaving the Television tab, so no AI work stays idle.
+    replace(main, '#include "tihulu_theme.h"', 'static void tihuluStopCaptionService()\n{\n\tconst QString ctl = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation) +\n\t\tQLatin1String("/tihulu-captions-control-") +\n\t\tQString::number(QCoreApplication::applicationPid()) + QLatin1String(".sock");\n\tif(!QFileInfo::exists(ctl))return;\n\tQLocalSocket stop;\n\tstop.connectToServer(ctl);\n\tif(stop.waitForConnected(200)) {\n\t\tstop.write("STOP");\n\t\tstop.flush();\n\t\tstop.waitForBytesWritten(200);\n\t\tstop.disconnectFromServer();\n\t}\n}\n\nvoid MainWindow::activateTab(int tabIndex)')
     replace(main, '#include "tihulu_theme.h"', '#include "tihulu_theme.h"\n#include "tihulu_ai_process.h"')
     # Explicit repair action for a stray VLC window after a reparent.
     replace(media, "\tvideoMenu->addMenu(autoResizeMenu);",
@@ -183,24 +186,13 @@ def transform(files):
 
     replace(main, '#include "tihulu_ai_process.h"',
             '#include "tihulu_ai_process.h"\n#include <QLocalSocket>')
+    replace(main, '\tcurrentTabIndex = tabIndex;', '\t// Leaving television (radio has its own release path) stops the live caption\n\t// service so no Whisper/translator work stays idle on the GPU.\n\tif(currentTabIndex == DvbTabId && tabIndex != DvbTabId && !toRadio)\n\t\ttihuluStopCaptionService();\n\tcurrentTabIndex = tabIndex;')
+
     replace(main, '\tconnect(captionAction, &QAction::triggered, this, [this]() {',
             '\tauto *tvCaptionJob = new TihuluAiProcess(this);\n'
             '\t// Stop in any mode also tells the caption service to stop ASR and\n'
             '\t// release Whisper/translator work; the panel stays usable.\n'
-            '\tauto tihuluStopCaptionService=[](){\n'
-            '\t\tconst QString runtime=QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);\n'
-            '\t\tif(runtime.isEmpty())return;\n'
-            '\t\tconst QString path=runtime+QLatin1String("/tihulu-captions-control-")+\n'
-            '\t\t\tQString::number(QCoreApplication::applicationPid())+QLatin1String(".sock");\n'
-            '\t\tif(!QFileInfo::exists(path))return;\n'
-            '\t\tQLocalSocket request;\n'
-            '\t\trequest.connectToServer(path);\n'
-            '\t\tif(request.waitForConnected(250)){\n'
-            '\t\t\trequest.write("STOP");request.flush();request.waitForBytesWritten(250);\n'
-            '\t\t\trequest.disconnectFromServer();\n'
-            '\t\t}\n'
-            '\t};\n'
-            '\tconnect(mediaWidget,&MediaWidget::stopRequested,this,[tvCaptionJob,tihuluStopCaptionService](){tvCaptionJob->stopJob();tihuluStopCaptionService();});\n'
+            '\tconnect(mediaWidget,&MediaWidget::stopRequested,this,[tvCaptionJob](){tvCaptionJob->stopJob();tihuluStopCaptionService();});\n'
             '\tconnect(mediaWidget,&MediaWidget::sourceOpened,this,[tvCaptionJob](const QUrl &url){if(url.isValid())tvCaptionJob->stopJob();});\n'
             '\tconnect(captionAction, &QAction::triggered, this, [this,tvCaptionJob]() {')
     replace(main, '\t\tif (!QProcess::startDetached(QLatin1String("tihulu-tv-center"),\n'

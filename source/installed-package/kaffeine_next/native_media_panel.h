@@ -174,7 +174,9 @@ public:
                 internalStop_=true;player_->stop();internalStop_=false;
                 resuming_=true;player_->play(QUrl::fromLocalFile(exportPath_));resuming_=false;
             } else {
-                message_->setText(tr("Export failed; source and SRT preserved."));
+                const QString reason=QString::fromUtf8(exportProcess_.readAllStandardError()).right(300);
+                message_->setText(tr("Export failed; source and SRT preserved.%1")
+                    .arg(reason.isEmpty()?QString():QStringLiteral("\n")+reason));
             }
         });
         run_->setEnabled(false);liveButton_->setEnabled(false);
