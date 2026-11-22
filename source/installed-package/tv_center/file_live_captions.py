@@ -15,7 +15,7 @@ from .media_ai import (validate_local_media, _choose_model, _chunk_cues,
 
 
 def caption_window(media, position, *, source, targets, profile, backend,
-                   music=False, translations_only=False):
+                   music=False, translations_only=False, window=8):
     if not math.isfinite(position) or not 0 <= position <= 21600:
         raise ValueError("Playback position outside the six-hour caption limit")
     decoded = subprocess.run([
@@ -43,6 +43,23 @@ def caption_window(media, position, *, source, targets, profile, backend,
     return {"cues": rows, "end": round((position + duration) * 1000),
             "eof": duration < .1,
             "warning": warnings[0]["warning"] if warnings else ""}
+
+
+def release_accelerator_cache():
+    """Drop cached CUDA blocks after a finished batch without touching playback.
+
+    Only an explicit cache release; the loaded model itself stays resident for
+    the next request so we never pay the multi-second load time twice.
+    """
+    try:
+        import torch
+    except ImportError:
+        return
+    try:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except (RuntimeError, ValueError):
+        pass
 
 
 def serve(options, input_stream=None, output_stream=None):
@@ -74,8 +91,39 @@ def serve(options, input_stream=None, output_stream=None):
             result = caption_window(media, float(request["position"]),
                 source=source, targets=targets, profile=profile,
                 backend=backend, music=options.music,
-                translations_only=options.translations_only)
+                translations_only=options.translations_only,
+                window=options.window or 8)
         except (ValueError, KeyError, TypeError, OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
             result = {"error": str(exc)[:240]}
         result["revision"] = revision
         print(json.dumps(result, ensure_ascii=False), file=out, flush=True)
+        release_accelerator_cache()
+
+
+def prune_private_caches(max_age_days=14, max_files=200):
+    """Remove our own stale generated SRT/JSON sidecars, never user files.
+
+    Only files this application created inside the private subtitle cache are
+    considered; a user's own .srt beside their media is never touched.
+    """
+    import time
+    from .local_assets import existing_asset
+    from PyQt5.QtCore import QStandardPaths
+    app = QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation)
+    roots = [Path(app)] if app else []
+    extra = Path.home() / ".local/share/TIHULU/tihulu-media-center"
+    if extra.is_dir():
+        roots.append(existing_asset(extra))
+    cutoff = time.time() - max_age_days * 86400
+    for root in roots:
+        if not root.is_dir():
+            continue
+        ours = sorted((f for f in root.iterdir()
+                       if f.is_file() and f.name.startswith("tihulu-file-")
+                       and f.stat().st_mtime < cutoff),
+                      key=lambda f: f.stat().st_mtime)
+        for f in ours:
+            try:
+                f.unlink()
+            except OSError:
+                pass

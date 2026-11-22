@@ -121,7 +121,8 @@ class NativeRegressions(unittest.TestCase):
             work=Path(folder);home=work/"home";home.mkdir();runtime=work/"run";runtime.mkdir(mode=0o700)
             env={**os.environ,"HOME":str(home),"XDG_CONFIG_HOME":str(home/"config"),
                  "XDG_CACHE_HOME":str(home/"cache"),"XDG_DATA_HOME":str(home/"data"),
-                 "XDG_RUNTIME_DIR":str(runtime),"QT_QPA_PLATFORM":"offscreen", "PATH":str(work)+":/usr/bin:/bin"}
+                 "XDG_RUNTIME_DIR":str(runtime),"QT_QPA_PLATFORM":"offscreen", "PATH":str(work)+":/usr/bin:/bin",
+                 "TIHULU_TEST_WORK":str(work)}
             for key in ("TIHULU_ASSET_HOME","PYTHONPATH","LD_LIBRARY_PATH","QT_PLUGIN_PATH","QT_QPA_PLATFORM_PLUGIN_PATH","CONDA_PREFIX"):
                 env.pop(key,None)
             native=SOURCE/"kaffeine_next"
@@ -133,6 +134,14 @@ class NativeRegressions(unittest.TestCase):
             companion=work/"tihulu-tv-center"
             companion.write_text('''#!/usr/bin/python3
 import sys,json,time
+if sys.argv[1]=='media-captions' and len(sys.argv)>2:
+ import os
+ folder=os.environ.get('TIHULU_TEST_WORK')
+ try:
+  if folder: open(os.path.join(folder,'argv.txt'),'w').write(' '.join(sys.argv))
+ except OSError:
+  pass
+ if '--live' not in sys.argv: time.sleep(30)
 if sys.argv[1]=='ai-file-languages':
  print(json.dumps({'speech_languages':[{'code':'en','label':'English'}], 'languages':[{'code':'tr','label':'Turkish','engines':['fixture']}], 'speech_model_present':True,'speech_model_selected':'synthetic'}))
 elif '--live' in sys.argv:

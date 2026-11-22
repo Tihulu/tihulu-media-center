@@ -379,6 +379,9 @@ def create_subtitles(filename, *, source="auto", targets=(),music=False,
             record_model=record_model,whisper_file=whisper_file,progress=progress)
         origin={"source":"local Whisper", "backend":backend}
     translations,warnings=_translate_cues(cues,target_codes,source,progress)
+    # A long recording translation must not grow CUDA memory without bound.
+    from .file_live_captions import release_accelerator_cache
+    release_accelerator_cache()
     if progress: progress("save",-1)
     output_path=Path(output).expanduser() if output else media.with_suffix(".srt")
     write_srt(cues,output_path,overwrite=overwrite,translations=translations,
@@ -416,6 +419,10 @@ def main(args=None):
                         help="Use translated output if available; retain original on failure")
     parser.add_argument("--record-model",choices=("configured","cpu-file","managed-cuda"),default="configured")
     parser.add_argument("--live",action="store_true",help="Read bounded playback-position requests from stdin")
+    parser.add_argument("--window",type=int,default=8,choices=range(2,21),metavar="{2..20}",
+                        help="Live audio window in seconds (live buffer setting)")
+    parser.add_argument("--service",choices=("tv","radio"),default="tv",
+                        help="Which caption service the request came from")
     parser.add_argument("--whisper-file",help="Local CPU model for this export only")
     parser.add_argument("--progress",action="store_true",help="Emit machine-readable stage progress")
     options=parser.parse_args(args)

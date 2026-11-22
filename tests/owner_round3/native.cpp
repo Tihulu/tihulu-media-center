@@ -102,6 +102,39 @@ private slots:
         // Only an explicit stop releases the service and closes the strip.
         player.stop();QTest::qWait(300);QVERIFY(strip->isHidden());
     }
+    void fileTypeSelectsTvOrRadioServiceAndCanBeOverridden() {
+        QTemporaryDir dir;QFile audio(dir.filePath("song.wav"));QVERIFY(audio.open(QIODevice::WriteOnly));audio.write("fixture");audio.close();
+        QFile video(dir.filePath("clip.mkv"));QVERIFY(video.open(QIODevice::WriteOnly));video.write("fixture");video.close();
+        MediaWidget player;TihuluMediaPanel panel(&player);player.show();panel.show();
+        auto *source=panel.findChild<QComboBox *>("captionInputLanguage");QTRY_VERIFY_WITH_TIMEOUT(source->count()>1,3000);
+        player.play(QUrl::fromLocalFile(video.fileName()));
+        auto *mode=panel.findChild<QComboBox *>();Q_UNUSED(mode)
+        auto *lyrics=panel.findChild<QCheckBox *>("");
+        // Video -> TV service; the radio-only karaoke controls stay disabled.
+        QCheckBox *lrc=nullptr;for(auto *box:panel.findChildren<QCheckBox *>())if(box->text().startsWith("Use a matching local"))lrc=box;
+        QVERIFY(lrc);QVERIFY(!lrc->isEnabled());
+        player.play(QUrl::fromLocalFile(audio.fileName()));
+        QTRY_VERIFY_WITH_TIMEOUT(lrc->isEnabled(),1500); // audio -> Radio service
+        // Manual override back to the TV service for the same audio file.
+        auto *combo=panel.findChildren<QComboBox *>().value(panel.findChildren<QComboBox *>().size()-1);
+        const int tvIndex=combo->findData("tv");QVERIFY(tvIndex>=0);combo->setCurrentIndex(tvIndex);
+        QTest::qWait(200);QVERIFY(!lrc->isEnabled());
+    }
+    void liveBufferAndServiceAreSentToTheWorker() {
+        QTemporaryDir dir;qputenv("TIHULU_TEST_WORK",dir.path().toUtf8());
+        QFile audio(dir.filePath("song2.wav"));QVERIFY(audio.open(QIODevice::WriteOnly));audio.write("fixture");audio.close();
+        MediaWidget player;TihuluMediaPanel panel(&player);player.show();panel.show();
+        auto *source=panel.findChild<QComboBox *>("captionInputLanguage");QTRY_VERIFY_WITH_TIMEOUT(source->count()>1,3000);
+        auto *window=panel.findChildren<QSpinBox *>().value(0);QVERIFY(window);window->setValue(12);
+        player.play(QUrl::fromLocalFile(audio.fileName()));
+        QPushButton *live=nullptr;for(auto *button:panel.findChildren<QPushButton *>())if(button->text()=="Live captions")live=button;
+        QVERIFY(live);live->click();
+        QTest::qWait(600);
+        QFile argv(dir.filePath("argv.txt"));QVERIFY(argv.exists());
+        QVERIFY(argv.open(QIODevice::ReadOnly));const auto args=QString::fromUtf8(argv.readAll());
+        QVERIFY(args.contains("--service radio"));QVERIFY(args.contains("--window 12"));
+        player.stop();QTest::qWait(300);
+    }
     void liveSeekDiscardsOldReplyAndNeverMovesPlayer() {
         QTemporaryDir dir;QFile file(dir.filePath("seek.wav"));QVERIFY(file.open(QIODevice::WriteOnly));file.write("fixture");file.close();
         MediaWidget player;TihuluMediaPanel panel(&player);player.show();
