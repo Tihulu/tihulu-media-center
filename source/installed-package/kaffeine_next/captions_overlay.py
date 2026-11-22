@@ -104,6 +104,94 @@ class CaptionTap:
                 "queue":self.work_queue.snapshot(),
                 "ts":self.transport_health.snapshot()}
 
+    # Local-file mode state; defaults so a manually configured feeder never
+    # touches an uninitialized attribute.
+    file_media=None;file_position_state=None;file_window=8
+    file_last_end=None;file_last_position=None
+
+    def start_file(self, media, position_state, window=8, feed_only=False):
+        """Run the SAME caption engine on a local file's audio.
+
+        No DVB device, no TS socket: a feeder thread reads the player position
+        from a private file and pushes real decoded audio windows into the very
+        same work queue, so every dialog, reading mode, model and translation
+        behaves exactly like live TV.
+        """
+        if not Path(media).is_file():
+            raise RuntimeError("Local media file is not readable")
+        self.file_media = str(media)
+        self.file_position_state = str(position_state)
+        self.file_window = max(2, min(20, int(window)))
+        self.file_last_end = None
+        self.file_last_position = None
+        self.thread = threading.Thread(target=self._file_feeder,
+            name="tihulu-file-caption-feeder", daemon=True)
+        self.thread.start()
+        if feed_only:
+            return   # tests and diagnostics: feeder only, no model call
+        self.worker = threading.Thread(target=self._worker,
+            name="tihulu-file-caption-worker", daemon=True)
+        self.worker.start()
+
+    def _read_file_position(self):
+        try:
+            raw = json.loads(Path(self.file_position_state).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if not isinstance(raw, dict) or raw.get("path") != self.file_media:
+            return None
+        position = raw.get("position_ms")
+        if type(position) not in (int, float) or position < 0:
+            return None
+        return position, bool(raw.get("playing"))
+
+    def _file_feeder(self):
+        import subprocess
+        while not self.stop.is_set():
+            state = self._read_file_position()
+            if state is None:
+                time.sleep(0.25)
+                continue
+            position, playing = state
+            if not playing:
+                self.file_last_end = None
+                time.sleep(0.2)
+                continue
+            start = position / 1000.0
+            if self.file_last_position is not None and start < self.file_last_position - 2.0:
+                self.file_last_end = None          # seek backwards: resynchronize
+            self.file_last_position = start
+            if self.file_last_end is not None and start + self.file_window <= self.file_last_end:
+                time.sleep(0.15)
+                continue
+            try:
+                options = dict(self.current_options())
+            except (TypeError, ValueError):
+                time.sleep(0.2)
+                continue
+            if options.get("mode") == "off" or options.get("revision", 0) < 0:
+                time.sleep(0.2)
+                continue
+            try:
+                decoded = subprocess.run([
+                    "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error",
+                    "-ss", str(max(0.0, start)), "-i", self.file_media,
+                    "-t", str(self.file_window), "-map", "0:a:0", "-vn",
+                    "-ac", "1", "-ar", "32000", "-f", "s16le", "pipe:1"],
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                    timeout=40, check=False)
+            except (OSError, subprocess.SubprocessError):
+                time.sleep(0.5)
+                continue
+            if decoded.returncode or len(decoded.stdout) < 6400:
+                time.sleep(0.4)
+                continue
+            self.file_last_end = start + self.file_window
+            from .continuous_captions import CapturedClip
+            if not self.work_queue.offer(CapturedClip(
+                    decoded.stdout, options, start, start + self.file_window)):
+                time.sleep(0.4)   # Whisper behind: never drop the queue order
+
     def start(self):
         if self.path.exists():
             raise RuntimeError("Another captions window uses this Kaffeine socket")
@@ -850,6 +938,27 @@ def main(argv=None):
     from tv_center.language_codes import language_code
     from textcenter.compute import LANGUAGES as WHISPER_LANGUAGES
     pid = int(endpoint.stem.rsplit("-", 1)[-1])
+    file_media = file_targets = file_source = None
+    file_window = 8
+    rest = []
+    index = 0
+    while index < len(argv):
+        token = argv[index]
+        if token in ("--file", "--window", "--source", "--targets") and index + 1 < len(argv):
+            value = argv[index + 1]
+            if token == "--file":
+                file_media = value
+            elif token == "--window":
+                file_window = value
+            elif token == "--source":
+                file_source = value
+            else:
+                file_targets = value
+            index += 2
+            continue
+        rest.append(token)
+        index += 1
+    argv = rest
     if CaptionServiceControl.request_show(endpoint.parent, pid):
         # Reopening the TIHULU AI menu focuses the existing controller.
         # Do not create a competing DVB/Whisper reader.
@@ -875,6 +984,8 @@ def main(argv=None):
     # Hiding the only QWidget must NOT quit the Qt event loop: audio capture,
     # auto-sync and video-overlay publishing continue independently of UI.
     app.setQuitOnLastWindowClosed(False)
+    window.setWindowTitle("TIHULU · Live captions · GPU Whisper + translation failover"
+                          + (" · local file" if file_media else ""))
     import signal
     signal.signal(signal.SIGTERM, lambda *_: app.quit())
     window_state = QSettings("TIHULU", "CaptionWindowGeometry")
@@ -1890,7 +2001,25 @@ def main(argv=None):
     tap = CaptionTap(str(endpoint), options, events, packet_sink=mobile.receive,
                      owner_tune_changed=mobile.owner_tune_changed)
     try:
-        tap.start()
+        if file_media:
+            # Local file mode: same engine, same dialogs, audio from the file.
+            position_state = str(endpoint.parent / f"tihulu-file-position-{pid}.json")
+            tap.start_file(file_media, position_state,
+                           window=int(file_window) if str(file_window).isdigit() else 8)
+            if file_source:
+                index = source.findText(file_source)
+                if index >= 0:
+                    source.setCurrentIndex(index)
+                else:
+                    source.setEditText(file_source)
+            if file_targets:
+                wanted = [code.strip() for code in file_targets.split(",") if code.strip()]
+                for language, box in language_boxes.items():
+                    box.setChecked(language in wanted)
+                extra_targets.setText(",".join(
+                    code for code in wanted if code not in language_boxes))
+        else:
+            tap.start()
     except (OSError, RuntimeError) as exc:
         control.close()
         # No receiver means nothing to preserve in the background.

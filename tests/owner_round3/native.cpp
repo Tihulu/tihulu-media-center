@@ -87,7 +87,7 @@ private slots:
         auto *source=panel.findChild<QComboBox *>("captionInputLanguage");QTRY_VERIFY_WITH_TIMEOUT(source->count()>1,3000);
         player.play(QUrl::fromLocalFile(file.fileName()));player.state=MediaWidget::Playing;
         QLabel *strip=player.findChild<QLabel *>("tihuluFileCaptionStrip");QVERIFY(strip);
-        QPushButton *live=nullptr;for(auto *button:panel.findChildren<QPushButton *>())if(button->text()=="Live captions")live=button;
+        QPushButton *live=nullptr;for(auto *button:panel.findChildren<QPushButton *>())if(button->text()=="AI captions panel")live=button;
         QVERIFY(live);live->click();
         // Wait for the caption job to actually start, not only the click.
         QPushButton *cancel=nullptr;for(auto *button:panel.findChildren<QPushButton *>())if(button->text()=="Stop AI")cancel=button;
@@ -120,32 +120,25 @@ private slots:
         const int tvIndex=combo->findData("tv");QVERIFY(tvIndex>=0);combo->setCurrentIndex(tvIndex);
         QTest::qWait(200);QVERIFY(!lrc->isEnabled());
     }
-    void liveBufferAndServiceAreSentToTheWorker() {
+    void serviceArgumentsReachTheCaptionWindow() {
         QTemporaryDir dir;qputenv("TIHULU_TEST_WORK",dir.path().toUtf8());
         QFile audio(dir.filePath("song2.wav"));QVERIFY(audio.open(QIODevice::WriteOnly));audio.write("fixture");audio.close();
         MediaWidget player;TihuluMediaPanel panel(&player);player.show();panel.show();
         auto *source=panel.findChild<QComboBox *>("captionInputLanguage");QTRY_VERIFY_WITH_TIMEOUT(source->count()>1,3000);
         auto *window=panel.findChildren<QSpinBox *>().value(0);QVERIFY(window);window->setValue(12);
         player.play(QUrl::fromLocalFile(audio.fileName()));
-        QPushButton *live=nullptr;for(auto *button:panel.findChildren<QPushButton *>())if(button->text()=="Live captions")live=button;
+        QPushButton *live=nullptr;for(auto *button:panel.findChildren<QPushButton *>())if(button->text()=="AI captions panel")live=button;
         QVERIFY(live);live->click();
-        QTest::qWait(600);
-        QFile argv(dir.filePath("argv.txt"));QVERIFY(argv.exists());
+        QFile argv(dir.filePath("argv.txt"));
+        QTRY_VERIFY_WITH_TIMEOUT(argv.exists(),3000);
         QVERIFY(argv.open(QIODevice::ReadOnly));const auto args=QString::fromUtf8(argv.readAll());
-        QVERIFY(args.contains("--service radio"));QVERIFY(args.contains("--window 12"));
-        player.stop();QTest::qWait(300);
-    }
-    void liveSeekDiscardsOldReplyAndNeverMovesPlayer() {
-        QTemporaryDir dir;QFile file(dir.filePath("seek.wav"));QVERIFY(file.open(QIODevice::WriteOnly));file.write("fixture");file.close();
-        MediaWidget player;TihuluMediaPanel panel(&player);player.show();
-        auto *source=panel.findChild<QComboBox *>("captionInputLanguage");
-        QTRY_VERIFY_WITH_TIMEOUT(source->count()>1,3000);player.play(QUrl::fromLocalFile(file.fileName()));
-        QPushButton *live=nullptr;for(auto *button:panel.findChildren<QPushButton *>())if(button->text()=="Live captions")live=button;
-        QVERIFY(live);live->click();QTest::qWait(250);player.position=20000;
-        QTest::qWait(1600);QCOMPARE(player.position,20000);
-        auto *strip=player.findChild<QLabel *>("tihuluFileCaptionStrip");QVERIFY(strip);
-        QTRY_COMPARE_WITH_TIMEOUT(strip->text(),QString("position 20"),3000);
-        player.stop();QTest::qWait(250);QCOMPARE(player.state,MediaWidget::Idle);
+        QVERIFY(args.contains("kaffeine-captions"));QVERIFY(args.contains("--file "));
+        QVERIFY(args.contains("--source "));QVERIFY(args.contains("--targets "));QVERIFY(args.contains("--window 12"));
+        // Seeking must not move the player or kill the caption service.
+        player.position=20000;QTest::qWait(300);QCOMPARE(player.position,20000);
+        QPushButton *cancel=nullptr;for(auto *button:panel.findChildren<QPushButton *>())if(button->text()=="Stop AI")cancel=button;
+        QVERIFY(cancel);QVERIFY(cancel->isEnabled());
+        player.stop();QTest::qWait(300);QCOMPARE(player.state,MediaWidget::Idle);QVERIFY(!cancel->isEnabled());
     }
 private:
     static bool running(int pid) {

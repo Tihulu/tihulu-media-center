@@ -175,4 +175,16 @@ def transform(files):
             '\t\ttvCaptionJob->start(QLatin1String("tihulu-tv-center"), {QLatin1String("kaffeine-captions"),QLatin1String("--socket"),name});\n'
             '\t\tif (!tvCaptionJob->waitForStarted(800))')
 
+    # Private playback-position file: the local-file caption service reads
+    # the real player clock instead of guessing timestamps.
+    replace("src/mediawidget.h", '\tQMenu *angleMenu;',
+            '\tQMenu *angleMenu;\n\tQTimer *tihuluFilePositionTimer=nullptr;\n\tQUrl tihuluFilePositionUrl;\n\tvoid startFilePositionPublishing(const QUrl &url);\n\tvoid writeFilePositionState();\n\tvoid stopFilePositionPublishing();')
+    replace("src/mediawidget.cpp", 'void MediaWidget::play(const QUrl &url, const QUrl &subtitleUrl)\n{',
+            'void MediaWidget::startFilePositionPublishing(const QUrl &url)\n{\n\tif(!url.isLocalFile() || !QFileInfo(url.toLocalFile()).isFile()) {\n\t\tstopFilePositionPublishing();\n\t\treturn;\n\t}\n\tif(!tihuluFilePositionTimer) {\n\t\ttihuluFilePositionTimer=new QTimer(this);\n\t\ttihuluFilePositionTimer->setInterval(400);\n\t\tconnect(tihuluFilePositionTimer,&QTimer::timeout,this,&MediaWidget::writeFilePositionState);\n\t}\n\ttihuluFilePositionUrl=url;\n\twriteFilePositionState();\n\ttihuluFilePositionTimer->start();\n}\n\nvoid MediaWidget::writeFilePositionState()\n{\n\tconst QString runtime=QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);\n\tif(runtime.isEmpty() || !tihuluFilePositionUrl.isLocalFile())return;\n\tconst QString path=tihuluFilePositionUrl.toLocalFile();\n\tconst bool playing=getPlaybackStatus()!=MediaWidget::Idle;\n\tconst QByteArray state=QByteArrayLiteral("{\\"path\\":\\"")+path.toUtf8()+\n\t\tQByteArrayLiteral("\\",\\"position_ms\\":")+QByteArray::number(getPosition())+\n\t\tQByteArrayLiteral(",\\"playing\\":")+(playing?QByteArrayLiteral("true"):QByteArrayLiteral("false"))+\n\t\tQByteArrayLiteral("}");\n\tQFile file(runtime+QLatin1String("/tihulu-file-position-")+\n\t\tQString::number(QCoreApplication::applicationPid())+QLatin1String(".json"));\n\tif(!file.open(QIODevice::WriteOnly|QIODevice::Truncate))return;\n\tfile.write(state);file.flush();file.close();\n}\n\nvoid MediaWidget::stopFilePositionPublishing()\n{\n\tif(tihuluFilePositionTimer)tihuluFilePositionTimer->stop();\n\ttihuluFilePositionUrl.clear();\n\tconst QString runtime=QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);\n\tif(runtime.isEmpty())return;\n\tQFile::remove(runtime+QLatin1String("/tihulu-file-position-")+\n\t\tQString::number(QCoreApplication::applicationPid())+QLatin1String(".json"));\n}\n\nvoid MediaWidget::play(const QUrl &url, const QUrl &subtitleUrl)\n{')
+    replace(media, '\tplay(new MediaSourceUrl(url, effectiveSubtitle));',
+            '\tplay(new MediaSourceUrl(url, effectiveSubtitle));\n\tstartFilePositionPublishing(url);')
+    replace(media, 'void MediaWidget::stop()\n{\n\temit stopRequested();',
+            'void MediaWidget::stop()\n{\n\temit stopRequested();\n\tstopFilePositionPublishing();')
+    replace(media, 'void MediaWidget::playbackFinished()\n{\n\temit stopRequested();',
+            'void MediaWidget::playbackFinished()\n{\n\temit stopRequested();\n\tstopFilePositionPublishing();')
     return files

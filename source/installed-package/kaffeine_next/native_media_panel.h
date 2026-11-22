@@ -39,7 +39,7 @@ public:
         file_=new QLabel(tr("Drop a video or audio file here"),this);
         file_->setTextFormat(Qt::PlainText);file_->setMinimumWidth(80);
         row->addWidget(file_,1);
-        liveButton_=new QPushButton(tr("Live captions"),this);
+        liveButton_=new QPushButton(tr("AI captions panel"),this);
         run_=new QPushButton(tr("Transcribe file"),this);
         auto *optionsButton=new QPushButton(tr("IN / OUT · Options"),this);
         cancel_=new QPushButton(tr("Stop AI"),this);cancel_->setEnabled(false);
@@ -227,14 +227,31 @@ private:
         run_->setEnabled(false);liveButton_->setEnabled(false);cancel_->setEnabled(true);
         progress_->setRange(0,0);progress_->show();message_->setText(tr("Preparing local subtitles…"));
     }
+    // Opens the FULL caption service (same window as live TV: appearance,
+    // reading modes, model market, SRT recording) driven by this file's audio.
     void startLive() {
         if(path_.isEmpty() || process_.state()!=QProcess::NotRunning)return;
-        auto args=jobArguments(true);if(args.isEmpty())return;
-        stopLive();cancelled_=false;++revision_;nextMs_=player_->getPosition();lastMs_=nextMs_;
+        const QString runtime=QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
+        if(runtime.isEmpty()) {message_->setText(tr("XDG_RUNTIME_DIR is missing; cannot start the caption service."));return;}
+        QStringList captionArgs;
+        if(!choices_->appendArguments(captionArgs)) {options_->show();return;}
+        stopLive();cancelled_=false;++revision_;
+        const QString name=runtime+QStringLiteral("/tihulu-dvb-")+
+            QString::number(QCoreApplication::applicationPid())+QStringLiteral(".sock");
+        QStringList args{QStringLiteral("kaffeine-captions"),QStringLiteral("--socket"),name,
+                         QStringLiteral("--file"),path_};
+        for(int i=0;i<captionArgs.size();++i) {
+            if(captionArgs.value(i)==QStringLiteral("--source") && i+1<captionArgs.size())
+                args<<QStringLiteral("--source")<<captionArgs.value(i+1);
+            else if(captionArgs.value(i)==QStringLiteral("--targets") && i+1<captionArgs.size())
+                args<<QStringLiteral("--targets")<<captionArgs.value(i+1);
+        }
+        if(liveWindow_)args<<QStringLiteral("--window")<<QString::number(liveWindow_->value());
         captions_->setSticky(true);
         live_.start(QStringLiteral("tihulu-tv-center"),args);
-        if(!live_.waitForStarted(800)) {message_->setText(tr("Live caption worker could not start."));return;}
-        cancel_->setEnabled(true);liveClock_.start(200);message_->setText(tr("Live captions · preparing installed local model…"));
+        if(!live_.waitForStarted(900)) {captions_->setSticky(false);message_->setText(tr("Caption service could not start."));return;}
+        cancel_->setEnabled(true);
+        message_->setText(tr("Caption panel opened · every TV caption tool works on this file."));
     }
     void tickLive() {
         if(player_->getPlaybackStatus()!=MediaWidget::Playing)return;

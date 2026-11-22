@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch, Mock
 import zipfile
@@ -158,6 +159,76 @@ class StopReleasesAi(unittest.TestCase):
             self.assertFalse(CaptionServiceControl.request_stop(runtime,pid))
 
 
+class FileCaptionService(unittest.TestCase):
+    """The local-file caption path reuses the live-TV engine end to end."""
+    def _tap(self):
+        import glob, importlib
+        mod=glob.glob(str(SOURCE/"kaff*"))[0].rsplit("/",1)[-1]
+        overlay=importlib.import_module(f"{mod}.captions_overlay")
+        return overlay
+
+    def test_position_state_is_validated_and_rejects_foreign_files(self):
+        overlay=self._tap()
+        with tempfile.TemporaryDirectory() as folder:
+            base=Path(folder)
+            media=base/"clip.mkv"
+            subprocess.run(["/usr/bin/ffmpeg","-nostdin","-v","error","-f","lavfi","-i",
+                "sine=frequency=440:duration=20","-c:a","aac",str(media)],timeout=60,check=True)
+            state=base/"pos.json"
+            state.write_text(json.dumps({"path":str(media),"position_ms":4200,"playing":True}))
+            tap=overlay.CaptionTap(str(Path(os.environ["XDG_RUNTIME_DIR"])/"tihulu-dvb-1.sock"),lambda:{"mode":"asr"},Mock())
+            tap.file_media=str(media);tap.file_position_state=str(state)
+            self.assertEqual(tap._read_file_position(),(4200,True))
+            state.write_text(json.dumps({"path":str(base/"other.mkv"),"position_ms":10,"playing":True}))
+            self.assertIsNone(tap._read_file_position())
+            state.write_text("not json")
+            self.assertIsNone(tap._read_file_position())
+
+    def test_file_feeder_pushes_real_audio_windows_into_the_tv_queue(self):
+        overlay=self._tap()
+        with tempfile.TemporaryDirectory() as folder:
+            base=Path(folder)
+            media=base/"clip.mkv"
+            subprocess.run(["/usr/bin/ffmpeg","-nostdin","-v","error","-f","lavfi","-i",
+                "sine=frequency=440:duration=20","-c:a","aac",str(media)],timeout=60,check=True)
+            state=base/"pos.json"
+            state.write_text(json.dumps({"path":str(media),"position_ms":0,"playing":True}))
+            options={"mode":"asr","revision":1,"live_priority":True}
+            tap=overlay.CaptionTap(str(Path(os.environ["XDG_RUNTIME_DIR"])/"tihulu-dvb-1.sock"),lambda:dict(options),Mock())
+            tap.start_file(media,state,window=6,feed_only=True)
+            try:
+                self.assertTrue(tap.thread.is_alive())   # feeder runs; worker skipped in this probe
+                for position in (0,3000,7000,12000):
+                    state.write_text(json.dumps({"path":str(media),"position_ms":position,"playing":True}))
+                    time.sleep(.25)
+                clip=tap.work_queue.get(timeout=6)
+                self.assertIsNotNone(clip)
+                self.assertGreaterEqual(len(clip.data),6400)
+                self.assertEqual(clip.options["mode"],"asr")
+                self.assertLessEqual(clip.ended-clip.started,6.5)
+            finally:
+                tap.stop.set();tap.close()
+
+    def test_seek_backwards_resynchronizes_and_pause_stops_feeding(self):
+        overlay=self._tap()
+        with tempfile.TemporaryDirectory() as folder:
+            base=Path(folder)
+            media=base/"clip.mkv"
+            subprocess.run(["/usr/bin/ffmpeg","-nostdin","-v","error","-f","lavfi","-i",
+                "sine=frequency=440:duration=20","-c:a","aac",str(media)],timeout=60,check=True)
+            state=base/"pos.json"
+            tap=overlay.CaptionTap(str(Path(os.environ["XDG_RUNTIME_DIR"])/"tihulu-dvb-1.sock"),lambda:{"mode":"asr"},Mock())
+            tap.file_media=str(media);tap.file_position_state=str(state);tap.file_window=6
+            state.write_text(json.dumps({"path":str(media),"position_ms":20000,"playing":True}))
+            time.sleep(.3)
+            state.write_text(json.dumps({"path":str(media),"position_ms":1000,"playing":True}))
+            time.sleep(.3)
+            self.assertLessEqual(tap.file_last_end or 0,8)
+            state.write_text(json.dumps({"path":str(media),"position_ms":2000,"playing":False}))
+            time.sleep(.3)
+            self.assertIsNone(tap.file_last_end)
+
+
 class NativeRegressions(unittest.TestCase):
     def test_native_widgets_process_tree_and_saved_ts(self):
         with tempfile.TemporaryDirectory(prefix="tihulu-owner3-") as folder:
@@ -177,17 +248,17 @@ class NativeRegressions(unittest.TestCase):
             companion=work/"tihulu-tv-center"
             companion.write_text('''#!/usr/bin/python3
 import sys,json,time
-if sys.argv[1]=='media-captions' and len(sys.argv)>2:
+if sys.argv[1] in ('media-captions','kaffeine-captions') and len(sys.argv)>2:
  import os
  folder=os.environ.get('TIHULU_TEST_WORK')
  try:
   if folder: open(os.path.join(folder,'argv.txt'),'w').write(' '.join(sys.argv))
  except OSError:
   pass
- if '--live' not in sys.argv: time.sleep(30)
+ if '--live' not in sys.argv and '--file' not in sys.argv: time.sleep(30)
 if sys.argv[1]=='ai-file-languages':
  print(json.dumps({'speech_languages':[{'code':'en','label':'English'}], 'languages':[{'code':'tr','label':'Turkish','engines':['fixture']}], 'speech_model_present':True,'speech_model_selected':'synthetic'}))
-elif '--live' in sys.argv:
+elif '--live' in sys.argv or '--file' in sys.argv:
  for line in sys.stdin:
   q=json.loads(line);time.sleep(.65);p=q['position'];print(json.dumps({'revision':q['revision'],'end':(p+8)*1000,'cues':[{'start':p*1000,'end':(p+8)*1000,'text':'position '+str(int(p))}]}),flush=True)
 else:
