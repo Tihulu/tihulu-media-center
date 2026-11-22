@@ -282,7 +282,7 @@ private:
         }
         QDialog options(this);
         options.setWindowTitle(tr("Record current playback"));
-        auto *form=new QVBoxLayout(&options);
+        auto *form=new QFormLayout(&options);
         auto *intro=new QLabel(liveTv?
             tr("Save the current TV service to the chosen folder using the stream already playing. "
                "Stopping or changing channel finalizes this clip. Scheduled TV recordings stay independent."):
@@ -291,6 +291,12 @@ private:
                "afterward and embedded as a selectable subtitle track."),&options);
         intro->setWordWrap(true);
         form->addWidget(intro);
+        auto *format=new QComboBox(&options);
+        format->addItem(tr("Video · MKV (default)"),QStringLiteral("mkv"));
+        format->addItem(tr("Broadcast · MPEG-TS .m2t"),QStringLiteral("m2t"));
+        format->addItem(tr("Audio only (.mka)"),QStringLiteral("audio"));
+        format->addItem(tr("Video on black canvas (radio)"),QStringLiteral("black"));
+        form->addRow(tr("Output format"),format);
         auto *aiChoice=new QCheckBox(tr("Offer subtitle language and local model options after saving"),&options);
         aiChoice->setChecked(true); // showing a dialog does not start a model
         form->addWidget(aiChoice);
@@ -299,7 +305,7 @@ private:
         folderRow->addWidget(folder);
         auto *browse=new QPushButton(tr("Choose folder"),&options);
         folderRow->addWidget(browse);
-        form->addLayout(folderRow);
+        form->addRow(tr("Recording folder"),folderRow);
         connect(browse,&QPushButton::clicked,&options,[&](){
             const QString f=QFileDialog::getExistingDirectory(&options,
                 tr("Choose recording directory"),folder->text());
@@ -310,7 +316,7 @@ private:
         auto *begin=new QPushButton(tr("● Start recording"),&options);
         actions->addWidget(cancel);
         actions->addWidget(begin);
-        form->addLayout(actions);
+        form->addRow(QString(),actions);
         connect(cancel,&QPushButton::clicked,&options,&QDialog::reject);
         connect(begin,&QPushButton::clicked,&options,&QDialog::accept);
         if(options.exec()!=QDialog::Accepted)return;
@@ -321,6 +327,7 @@ private:
         QSettings config(QLatin1String("TIHULU"),QLatin1String("UnifiedRecordings"));
         config.setValue(QLatin1String("folder"),savedFolder);
         subtitlesAfter_=aiChoice->isChecked();
+        outputFormat_=format->currentData().toString();
         if(liveTv) {
             recordedPath_=QDir(savedFolder).absoluteFilePath(QLatin1String("TIHULU-TV-")+
                 QDateTime::currentDateTime().toString(QLatin1String("yyyyMMdd-HHmmss-"))+
@@ -340,13 +347,22 @@ private:
         }
         const QString timestamp=QDateTime::currentDateTimeUtc().toString(
             QLatin1String("yyyyMMdd-HHmmsszzz"));
+        const QString extension=outputFormat_==QLatin1String("m2t")?QStringLiteral("m2t"):
+            outputFormat_==QLatin1String("audio")?QStringLiteral("mka"):
+            outputFormat_==QLatin1String("black")?QStringLiteral("mkv"):
+            QLatin1String("mkv");
         recordedPath_=savedFolder+QLatin1String("/TIHULU-")+
-            timestamp+QLatin1String(".mkv");
+            timestamp+QLatin1Char('.')+extension;
         if(QFileInfo::exists(recordedPath_)){
             report(tr("Destination already exists. Recording was not started."));return;
         }
         QStringList args{QLatin1String("-hide_banner"),QLatin1String("-loglevel"),
             QLatin1String("error"),QLatin1String("-n")};
+        // Radio on a black canvas: a real video surface with the station audio,
+        // so the same playback, SRT and subtitle tooling as TV works.
+        if(outputFormat_==QLatin1String("black"))
+            args<<QLatin1String("-f")<<QLatin1String("lavfi")
+                <<QLatin1String("-i")<<QLatin1String("color=c=black:s=320x240:r=5");
         if(url.isLocalFile()) {
             if(player_->getPosition()>0)
                 args<<QLatin1String("-ss")<<QString::number(
@@ -355,14 +371,34 @@ private:
             // finish recording its entire remaining content instantly.
             args<<QLatin1String("-re");
         }
-        args<<QLatin1String("-i")<<(url.isLocalFile()?url.toLocalFile():url.toString())
-            <<QLatin1String("-map")<<QLatin1String("0:v:0?")
-            <<QLatin1String("-map")<<QLatin1String("0:a:0?")
-            <<QLatin1String("-c:v")<<QLatin1String("copy")
-            <<QLatin1String("-c:a")<<QLatin1String("aac")
-            <<QLatin1String("-b:a")<<QLatin1String("160k")
-            <<QLatin1String("-f")<<QLatin1String("matroska")
-            <<recordedPath_;
+        args<<QLatin1String("-i")<<(url.isLocalFile()?url.toLocalFile():url.toString());
+        if(outputFormat_==QLatin1String("audio")) {
+            args<<QLatin1String("-map")<<QLatin1String("0:a:0?")
+                <<QLatin1String("-c:a")<<QLatin1String("aac")<<QLatin1String("-b:a")<<QLatin1String("160k")
+                <<QLatin1String("-f")<<QLatin1String("matroska");
+        } else if(outputFormat_==QLatin1String("m2t")) {
+            args<<QLatin1String("-map")<<QLatin1String("0:v:0?")
+                <<QLatin1String("-map")<<QLatin1String("0:a:0?")
+                <<QLatin1String("-c:v")<<QLatin1String("copy")
+                <<QLatin1String("-c:a")<<QLatin1String("aac")
+                <<QLatin1String("-f")<<QLatin1String("mpegts");
+        } else if(outputFormat_==QLatin1String("black")) {
+            args<<QLatin1String("-map")<<QLatin1String("0:v")
+                <<QLatin1String("-map")<<QLatin1String("1:a:0?")
+                <<QLatin1String("-shortest")
+                <<QLatin1String("-c:v")<<QLatin1String("libx264")<<QLatin1String("-preset")<<QLatin1String("ultrafast")
+                <<QLatin1String("-pix_fmt")<<QLatin1String("yuv420p")
+                <<QLatin1String("-c:a")<<QLatin1String("aac")<<QLatin1String("-b:a")<<QLatin1String("160k")
+                <<QLatin1String("-f")<<QLatin1String("matroska");
+        } else {
+            args<<QLatin1String("-map")<<QLatin1String("0:v:0?")
+                <<QLatin1String("-map")<<QLatin1String("0:a:0?")
+                <<QLatin1String("-c:v")<<QLatin1String("copy")
+                <<QLatin1String("-c:a")<<QLatin1String("aac")
+                <<QLatin1String("-b:a")<<QLatin1String("160k")
+                <<QLatin1String("-f")<<QLatin1String("matroska");
+        }
+        args<<recordedPath_;
         ++captureGeneration_;
         finalizing_=false;
         captureKind_=QLatin1String("ffmpeg");
@@ -547,6 +583,7 @@ private:
     qint64 startedMs_=0;
     bool recording_=false,finalizing_=false,
          subtitlesAfter_=false;
+    QString outputFormat_=QStringLiteral("mkv");
     QString captureKind_,recordedPath_,aiPath_,muxPath_,statusMessage_;
 };
 #endif // TIHULU_UNIFIED_RECORDER_H
