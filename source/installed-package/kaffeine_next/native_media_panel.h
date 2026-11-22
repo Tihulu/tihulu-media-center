@@ -73,6 +73,13 @@ public:
         lyrics_=new QCheckBox(tr("Use a matching local .lrc for whole-file captions"),options_);
         onlineLyrics_=new QCheckBox(tr("Find lyrics online by title / artist (optional)"),options_);
         onlineLyrics_->setToolTip(tr("Only when Transcribe file is pressed with local LRC mode enabled. Sends title/artist metadata to LRCLIB."));
+        externalPlayer_=new QCheckBox(tr("Play local files with mpv (external player)"),options_);
+        QSettings playerPrefs(QStringLiteral("TIHULU"),QStringLiteral("MediaPlayer"));
+        externalPlayer_->setChecked(playerPrefs.value(QStringLiteral("externalPlayerMpv"),false).toBool() &&
+                                   !QStandardPaths::findExecutable(QStringLiteral("mpv")).isEmpty());
+        externalPlayer_->setToolTip(tr("Optional: local video/audio opens in mpv together with its subtitles. "
+            "TV, radio and streams keep the built-in VLC engine."));
+        form->addRow(tr("Player"),externalPlayer_);
         embedVideo_=new QCheckBox(tr("Video: embed the SRT into the video (.mkv copy, selectable track)"),options_);
         embedVideo_->setChecked(true);embedVideo_->setToolTip(tr("Default for video files. The covering caption band stays optional; the "
             "generated .mkv keeps your original file untouched and carries both tracks."));
@@ -89,6 +96,7 @@ public:
         connect(close,&QDialogButtonBox::rejected,options_,&QDialog::hide);
         connect(optionsButton,&QPushButton::clicked,options_,&QDialog::show);
         connect(preprocess_,&QCheckBox::toggled,this,[](bool value){QSettings("TIHULU","MediaPlayer").setValue("transcribeBeforeOpen",value);});
+        connect(externalPlayer_,&QCheckBox::toggled,this,[](bool value){QSettings("TIHULU","MediaPlayer").setValue("externalPlayerMpv",value);});
         connect(serviceMode_,QOverload<int>::of(&QComboBox::currentIndexChanged),this,[this](int){applyServiceMode();});
         connect(turnOff_,&QPushButton::clicked,this,[this](){
             options_->hide();stopAi();message_->setText(tr("Subtitles turned off · local AI released."));
@@ -219,6 +227,23 @@ public:
             tr("Radio caption service · audio settings (languages, karaoke/lyrics, offset, SRT export)"));
     }
     bool prepareLocalFileOpen(const QUrl &url) {
+        // Optional mpv playback: the external player opens the file with its
+        // sidecar/generated subtitles; nothing else changes for TV/radio.
+        if(url.isLocalFile() && externalPlayer_ && externalPlayer_->isChecked() &&
+           QFileInfo(url.toLocalFile()).isFile() &&
+           !QStandardPaths::findExecutable(QStringLiteral("mpv")).isEmpty()) {
+            const QString media=url.toLocalFile();
+            const QString srt=QFileInfo(media).absolutePath()+QLatin1Char('/')+
+                QFileInfo(media).completeBaseName()+QStringLiteral(".srt");
+            QStringList args{QStringLiteral("--keep-open=no")};
+            if(QFileInfo(srt).isFile())args<<QStringLiteral("--sub-file=")+srt;
+            args<<media;
+            externalPlayerProcess_.start(QStringLiteral("mpv"),args);
+            if(externalPlayerProcess_.waitForStarted(600)) {
+                message_->setText(tr("Opened in mpv: %1").arg(QFileInfo(media).fileName()));
+                return true;
+            }
+        }
         if(!url.isLocalFile() || path_.isEmpty() || !preprocess_->isChecked())return false;
         generate(true);return true;
     }
@@ -331,7 +356,8 @@ private:
     TihuluFileCaptions *captions_;TihuluCaptionOptions *choices_;QDialog *options_;
     QLabel *file_,*message_;QPushButton *run_,*liveButton_,*cancel_,*karaoke_=nullptr;QProgressBar *progress_;
     QComboBox *serviceMode_=nullptr;QSpinBox *liveWindow_=nullptr;QPushButton *turnOff_=nullptr;
-    QCheckBox *embedVideo_=nullptr;
+    QCheckBox *embedVideo_=nullptr,*externalPlayer_=nullptr;
+    QProcess externalPlayerProcess_;
     QCheckBox *original_,*music_,*lyrics_,*onlineLyrics_,*preprocess_,*wait_;
     bool isVideo_=true,tvMode_=true,isAudioRequest_=false;
     QTimer liveClock_;QString path_,srt_,exportPath_;QByteArray result_;
