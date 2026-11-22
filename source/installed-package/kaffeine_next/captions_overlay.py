@@ -931,13 +931,6 @@ def main(argv=None):
     show_only = "--show-only" in argv
     if show_only:
         argv.remove("--show-only")
-    if len(argv) != 2 or argv[0] != "--socket":
-        raise SystemExit("Usage: tihulu-tv-center kaffeine-captions --socket $XDG_RUNTIME_DIR/tihulu-dvb-PID.sock")
-    endpoint = validate_socket(argv[1])
-    from .caption_control import CaptionServiceControl
-    from tv_center.language_codes import language_code
-    from textcenter.compute import LANGUAGES as WHISPER_LANGUAGES
-    pid = int(endpoint.stem.rsplit("-", 1)[-1])
     file_media = file_targets = file_source = None
     file_window = 8
     rest = []
@@ -959,6 +952,13 @@ def main(argv=None):
         rest.append(token)
         index += 1
     argv = rest
+    if len(argv) != 2 or argv[0] != "--socket":
+        raise SystemExit("Usage: tihulu-tv-center kaffeine-captions --socket $XDG_RUNTIME_DIR/tihulu-dvb-PID.sock")
+    endpoint = validate_socket(argv[1])
+    from .caption_control import CaptionServiceControl
+    from tv_center.language_codes import language_code
+    from textcenter.compute import LANGUAGES as WHISPER_LANGUAGES
+    pid = int(endpoint.stem.rsplit("-", 1)[-1])
     if CaptionServiceControl.request_show(endpoint.parent, pid):
         # Reopening the TIHULU AI menu focuses the existing controller.
         # Do not create a competing DVB/Whisper reader.
@@ -990,8 +990,6 @@ def main(argv=None):
     # Hiding the only QWidget must NOT quit the Qt event loop: audio capture,
     # auto-sync and video-overlay publishing continue independently of UI.
     app.setQuitOnLastWindowClosed(False)
-    window.setWindowTitle("TIHULU · Live captions · GPU Whisper + translation failover"
-                          + (" · local file" if file_media else ""))
     import signal
     signal.signal(signal.SIGTERM, lambda *_: app.quit())
     window_state = QSettings("TIHULU", "CaptionWindowGeometry")
@@ -1012,7 +1010,8 @@ def main(argv=None):
 
     window = CaptionSettingsWindow()
     window.setWindowTitle(
-        "TIHULU · Live captions · GPU Whisper + translation failover")
+        "TIHULU · Live captions · GPU Whisper + translation failover"
+        + (" · local file" if file_media else ""))
     window.setMinimumWidth(620)
     window.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
     # This is a separate controller, never a modal Kaffeine channel-switch
@@ -3070,7 +3069,10 @@ def main(argv=None):
                 except (ImportError, OSError, RuntimeError, ValueError) as exc:
                     released = "release failed: " + str(exc)[:120]
                 status.setText("AI stopped by player Stop · released: " + released +
-                               ". Start subtitles resumes on demand.")
+                               ". The service exits so nothing stays idle; reopen it to resume.")
+                # Nothing may idle on the GPU after Stop: exit the whole service.
+                window.terminating = True
+                app.quit()
             elif kind == "show_settings":
                 window.showNormal()
                 window.raise_()

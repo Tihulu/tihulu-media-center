@@ -70,6 +70,11 @@ public:
             "border-radius:4px;padding:4px 7px;font-weight:bold;}"
             "QToolButton:hover{background:#a13636;}"));
         library_=new QToolButton(this);
+        whisper_=new QToolButton(this);
+        whisper_->setText(tr("Whisper"));
+        whisper_->setToolTip(tr("Open the Live Teletext / Whisper subtitles window for the current "
+            "TV channel (same as TIHULU AI \u2192 Live Teletext / Whisper subtitles)."));
+        whisper_->setMaximumWidth(86);
         library_->setText(tr("Recordings"));
         library_->setToolTip(tr("Open previously recorded media, import native DVB "
             "recordings and generate optional captions."));
@@ -77,6 +82,7 @@ public:
         library_->setMaximumWidth(100);
         line->addWidget(record_);
         line->addWidget(library_);
+        line->addWidget(whisper_);
         progress_=new QProgressBar(this);
         progress_->setMaximumWidth(240);
         progress_->setAccessibleName(tr("Recording / subtitle job"));
@@ -150,6 +156,7 @@ public:
             if(recording_)stopRecording(); else startRecording();
         });
         connect(library_,&QToolButton::clicked,this,[this](){openLibrary();});
+        connect(whisper_,&QToolButton::clicked,this,[this](){openWhisperService();});
         connect(&capture_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
             this,[this](int exitCode,QProcess::ExitStatus status){
                 if(captureKind_!=QLatin1String("ffmpeg"))return;
@@ -413,6 +420,30 @@ private:
         refreshButton();
         report(tr("REC · saving source stream to %1").arg(recordedPath_));
     }
+    // Shortcut for the live caption service: focus an existing window, otherwise
+    // start one for the currently tuned DVB service (no second tuner, no model
+    // load until the user asks for subtitles).
+    void openWhisperService() {
+        const QString runtime=QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
+        if(runtime.isEmpty()) {
+            report(tr("XDG_RUNTIME_DIR is missing; cannot start the caption service."));
+            return;
+        }
+        const QString name=runtime+QLatin1String("/tihulu-dvb-")+
+            QString::number(QCoreApplication::applicationPid())+QLatin1String(".sock");
+        if(QFileInfo::exists(runtime+QLatin1String("/tihulu-captions-control-")+
+                             QString::number(QCoreApplication::applicationPid())+QLatin1String(".sock"))) {
+            if(QProcess::startDetached(QLatin1String("tihulu-tv-center"),
+                    {QLatin1String("kaffeine-captions"),QLatin1String("--socket"),name,QLatin1String("--show-only")}))
+                return;
+        }
+        whisperJob_.start(QLatin1String("tihulu-tv-center"),
+            {QLatin1String("kaffeine-captions"),QLatin1String("--socket"),name});
+        if(!whisperJob_.waitForStarted(900))
+            report(tr("Could not open the Whisper caption service."));
+        else
+            report(tr("Opening live captions for the current TV service\u2026"));
+    }
     void stopRecording() {
         if(!recording_)return;
         if(captureKind_==QLatin1String("dvb")) {
@@ -570,8 +601,9 @@ private:
     MediaWidget *player_=nullptr;
     DvbTab *dvb_=nullptr;
     std::function<void()> openPlayback_;
-    QToolButton *record_=nullptr,*library_=nullptr;
+    QToolButton *record_=nullptr,*library_=nullptr,*whisper_=nullptr;
     QProcess capture_,mux_,probe_;
+    TihuluAiProcess whisperJob_;
     TihuluAiProcess ai_;
     QProgressBar *progress_=nullptr;
     quint64 captureGeneration_=0,probeGeneration_=0;

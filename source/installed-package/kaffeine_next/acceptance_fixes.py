@@ -99,6 +99,10 @@ def transform(files):
 
 
 
+    # A file given on the command line must not steal the Start tab: it is
+    # queued in the recent list and playlist, and starts from the Start page.
+    replace(main, '\tif (currentTabIndex != PlaylistTabId) {\n\t\tactivateTab(PlayerTabId);\n\t}\n\n\tplaylistTab->appendToVisiblePlaylist(QList<QUrl>() << copy, true);',
+            '\tplaylistTab->appendToVisiblePlaylist(QList<QUrl>() << copy, false);')
     # The TV toolbar and shared REC button use the same selected-stream writer.
     replace("src/dvb/dvbtab.h", "public slots:\n", "signals:\n\tvoid quickRecordRequested();\n\npublic slots:\n")
     replace("src/dvb/dvbtab.cpp", "\tinstantRecordAction->setCheckable(true);", "\tinstantRecordAction->setCheckable(false);")
