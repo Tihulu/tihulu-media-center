@@ -132,60 +132,14 @@ def transform(files):
     if "playerTab->prepareLocalFileOpen(copy)" in files[main]:
         raise ValueError("Old file-only gate survived")
 
-    # One shared "stop the live caption service" helper, used by player Stop
-    # and by leaving the Television tab, so no AI work stays idle.
-    replace(main, '#include "tihulu_theme.h"', 'static void tihuluStopCaptionService()\n{\n\tconst QString ctl = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation) +\n\t\tQLatin1String("/tihulu-captions-control-") +\n\t\tQString::number(QCoreApplication::applicationPid()) + QLatin1String(".sock");\n\tif(!QFileInfo::exists(ctl))return;\n\tQLocalSocket stop;\n\tstop.connectToServer(ctl);\n\tif(stop.waitForConnected(200)) {\n\t\tstop.write("STOP");\n\t\tstop.flush();\n\t\tstop.waitForBytesWritten(200);\n\t\tstop.disconnectFromServer();\n\t}\n}\n\nvoid MainWindow::activateTab(int tabIndex)')
-    replace(main, '#include "tihulu_theme.h"', '#include "tihulu_theme.h"\n#include "tihulu_ai_process.h"')
-    # Explicit repair action for a stray VLC window after a reparent.
-    replace(media, "\tvideoMenu->addMenu(autoResizeMenu);",
-            "\tvideoMenu->addMenu(autoResizeMenu);\n"
-            "\tQAction *reembedAction = videoMenu->addAction(i18n(\"Re-embed video surface\"));\n"
-            "\tconnect(reembedAction, &QAction::triggered, this, [this]() {\n"
-            "\t\tif (auto *vlc = qobject_cast<VlcMediaWidget *>(backend))\n"
-            "\t\t\tif (vlc->tihuluReassertSurface())\n"
-            "\t\t\t\tosdWidget->showText(i18nc(\"osd message\", \"Video surface re-embedded\"), 2000);\n"
-            "\t});")
-
-    # Video surface: embedded (default) or a separate VLC window, plus a
-    # self-healing re-assert of the embedded surface when the video output
-    # restarts after a reparent (previously produced a stray VLC window).
-    vlc = "src/backend-vlc/vlcmediawidget.cpp"
-    replace(vlc, "libvlc_media_player_set_xwindow(vlcMediaPlayer, quint32(winId()));",
-            "if(!tihuluSeparateVideoSurface())libvlc_media_player_set_xwindow(vlcMediaPlayer, quint32(winId()));")
-    replace(vlc, "libvlc_media_player_set_media(vlcMediaPlayer, vlcMedia);",
-            "libvlc_media_player_set_media(vlcMediaPlayer, vlcMedia);\n"
-            "\tif(!tihuluSeparateVideoSurface())libvlc_media_player_set_xwindow(vlcMediaPlayer, quint32(winId()));")
-    replace("src/backend-vlc/vlcmediawidget.h", "bool registerEvents();",
-            "bool registerEvents();\n"
-            "\tbool tihuluReassertSurface();\n")
-    # Self-healing: rebind the embedded surface when the video output restarts.
-    replace(vlc, "void VlcMediaWidget::playDirection(int direction)",
-            "bool VlcMediaWidget::tihuluReassertSurface()\n"
-            "{\n"
-            "\tif(tihuluSeparateVideoSurface() || vlcMediaPlayer==nullptr)return false;\n"
-            "\tif(libvlc_media_player_get_state(vlcMediaPlayer)!=libvlc_Playing)return false;\n"
-            "\tif(libvlc_media_player_has_vout(vlcMediaPlayer)>0)return false;\n"
-            "\tlibvlc_media_player_set_xwindow(vlcMediaPlayer, quint32(winId()));\n"
-            "\tsetAttribute(Qt::WA_NativeWindow);\n"
-            "\treturn true;\n"
-            "}\n\n"
-            "void VlcMediaWidget::playDirection(int direction)")
-    # A local file with a sidecar <name>.srt plays with it attached, so a
-    # finished recording or an exported file never starts without subtitles.
-    replace("src/mediawidget.cpp", "\tbool handled=false; emit fileOpenRequested(url,&handled); if(handled)return;",
-            "\tbool handled=false; emit fileOpenRequested(url,&handled); if(handled)return;\n"
-            "\tQUrl effectiveSubtitle=subtitleUrl;\n"
-            "\tif(effectiveSubtitle.isEmpty() && url.isLocalFile()) {\n"
-            "\t\tconst QString media=url.toLocalFile();\n"
-            "\t\tconst int dot=media.lastIndexOf(QLatin1Char('.'));\n"
-            "\t\tconst QString sidecar=(dot>0?media.left(dot):media)+QLatin1String(\".srt\");\n"
-            "\t\tif(QFileInfo::exists(sidecar))effectiveSubtitle=QUrl::fromLocalFile(sidecar);\n"
-            "\t}")
-    replace("src/mediawidget.cpp", "\tplay(new MediaSourceUrl(url, subtitleUrl));",
-            "\tplay(new MediaSourceUrl(url, effectiveSubtitle));")
-
-    replace(main, '#include "tihulu_ai_process.h"',
-            '#include "tihulu_ai_process.h"\n#include <QLocalSocket>')
+    # One shared "stop the live caption service" helper (file scope), used
+    # by player Stop and by leaving the Television tab. It is inserted
+    # before the first TIHULU include the patch adds, so it precedes
+    # every use.
+    _caption_stop_helper = 'static void tihuluStopCaptionService()\n{\n\tconst QString ctl = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation) +\n\t\tQLatin1String("/tihulu-captions-control-") +\n\t\tQString::number(QCoreApplication::applicationPid()) + QLatin1String(".sock");\n\tif(!QFileInfo::exists(ctl))return;\n\tQLocalSocket stop;\n\tstop.connectToServer(ctl);\n\tif(stop.waitForConnected(200)) {\n\t\tstop.write("STOP");\n\t\tstop.flush();\n\t\tstop.waitForBytesWritten(200);\n\t\tstop.disconnectFromServer();\n\t}\n}\n\nvoid MainWindow::activateTab(int tabIndex)'
+    replace(main, '#include "tihulu_theme.h"',
+            '#include "tihulu_theme.h"\n#include <QLocalSocket>\n'\
+            + _caption_stop_helper.split('void MainWindow::activateTab')[0])
     replace(main, '\tcurrentTabIndex = tabIndex;', '\t// Leaving television (radio has its own release path) stops the live caption\n\t// service so no Whisper/translator work stays idle on the GPU.\n\tif(currentTabIndex == DvbTabId && tabIndex != DvbTabId && !toRadio)\n\t\ttihuluStopCaptionService();\n\tcurrentTabIndex = tabIndex;')
 
     replace(main, '\tconnect(captionAction, &QAction::triggered, this, [this]() {',
@@ -204,6 +158,20 @@ def transform(files):
             '\t\t\treturn;\n\t\t}\n'
             '\t\ttvCaptionJob->start(QLatin1String("tihulu-tv-center"), {QLatin1String("kaffeine-captions"),QLatin1String("--socket"),name});\n'
             '\t\tif (!tvCaptionJob->waitForStarted(800))')
+
+    # A local file with a sidecar <name>.srt plays with it attached, so a
+    # finished recording or an export never starts without subtitles.
+    replace(media, "void MediaWidget::play(const QUrl &url, const QUrl &subtitleUrl)\n{",
+            "void MediaWidget::play(const QUrl &url, const QUrl &subtitleUrl)\n{\n"
+            "\tQUrl effectiveSubtitle=subtitleUrl;\n"
+            "\tif(effectiveSubtitle.isEmpty() && url.isLocalFile()) {\n"
+            "\t\tconst QString media=url.toLocalFile();\n"
+            "\t\tconst int dot=media.lastIndexOf(QLatin1Char('.'));\n"
+            "\t\tconst QString sidecar=(dot>0?media.left(dot):media)+QLatin1String(\".srt\");\n"
+            "\t\tif(QFileInfo::exists(sidecar))effectiveSubtitle=QUrl::fromLocalFile(sidecar);\n"
+            "\t}")
+    replace(media, "\tplay(new MediaSourceUrl(url, subtitleUrl));",
+            "\tplay(new MediaSourceUrl(url, effectiveSubtitle));")
 
     # Private playback-position file: the local-file caption service reads
     # the real player clock instead of guessing timestamps.
