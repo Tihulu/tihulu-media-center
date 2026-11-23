@@ -114,7 +114,7 @@ class FrozenModeParity(unittest.TestCase):
 
     def test_local_media_preprocess_is_opt_in(self) -> None:
         media = source("kaffeine_next/native_media_panel.h")
-        self.assertIn("Entire local file · transcribe/translate first, then play", media)
+        self.assertIn("Transcribe before opening a file", media)
         self.assertIn('QLatin1String("transcribeBeforeOpen"),false', media)
         self.assertIn('QLatin1String("MediaPlayer")', media)
         self.assertIn('beforeOpenMode_=beforeOpen', media)
