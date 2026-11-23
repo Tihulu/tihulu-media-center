@@ -619,9 +619,37 @@ def open_ai_settings(parent, ai, after_save=None):
             warning.setWordWrap(True)
             remote_layout.addRow(warning)
             profile_layout.addWidget(remote_group)
+
+            # Optional local players (nothing is embedded in this app; the
+            # built-in VLC engine stays the default).
+            player_group = QGroupBox("Players · optional")
+            player_layout = QVBoxLayout(player_group)
+            self.player_status = QLabel("Checking installed players…")
+            self.player_status.setWordWrap(True)
+            player_layout.addWidget(self.player_status)
+            player_row = QHBoxLayout()
+            self.player_install = QPushButton("Install mpv (system)")
+            self.player_install.setToolTip(
+                "Opens a terminal with the distribution command. The password "
+                "prompt stays with you; nothing is installed by us.")
+            self.player_install.clicked.connect(self.install_player)
+            self.player_recheck = QPushButton("Re-check players")
+            self.player_recheck.clicked.connect(self.inspect_players)
+            player_row.addWidget(self.player_install, 2)
+            player_row.addWidget(self.player_recheck, 1)
+            player_layout.addLayout(player_row)
+            player_note = QLabel(
+                "mpv is optional: when it is installed, the playback panel can open "
+                "local files in mpv with subtitles, and the AI Model Market keeps "
+                "the built-in VLC engine as the default. A full mpv engine inside "
+                "the app is not planned.")
+            player_note.setWordWrap(True)
+            player_layout.addWidget(player_note)
+            profile_layout.addWidget(player_group)
             profile_layout.addStretch()
             tabs.addTab(scroll_tab(profile_page), "Ready modes · Install all")
             self.show_profile_description()
+            self.inspect_players()
             tabs.addTab(scroll_tab(speech_page), "Speech models · GPU / NPU")
             tabs.addTab(scroll_tab(language_page), "Language packs · Translation")
 
@@ -1831,6 +1859,36 @@ def open_ai_settings(parent, ai, after_save=None):
                                      pair["target"].upper()+" · INSTALLED")
                 item.setData(Qt.UserRole,pair)
                 self.installed_argos.addItem(item)
+
+        def inspect_players(self, *_):
+            try:
+                from tv_center.player_market import player_status
+                info = player_status("mpv")
+                if info["available"]:
+                    where = info["system"] or info["local"]
+                    self.player_status.setText(
+                        "mpv INSTALLED · " + (info["about"] or where) +
+                        "\n" + where + "\nThe playback panel can open local files in mpv.")
+                    self.player_install.setEnabled(False)
+                else:
+                    self.player_status.setText(
+                        "mpv not installed (optional).\nInstall with: " +
+                        info["command"]["debian"] + "  ·  or " +
+                        info["command"]["flatpak"])
+                    self.player_install.setEnabled(True)
+            except (OSError, RuntimeError, ValueError) as exc:
+                self.player_status.setText("Player check failed: " + str(exc)[:160])
+
+        def install_player(self, *_):
+            from tv_center.player_market import open_terminal_for_install
+            if open_terminal_for_install("mpv"):
+                self.feedback.setText(
+                    "Terminal opened with the mpv installation command; "
+                    "approve it there and press Re-check.")
+            else:
+                self.feedback.setText(
+                    "No terminal emulator found. Install mpv manually with: " +
+                    "sudo apt install mpv")
 
         def begin(self, label, fn):
             if self.running:

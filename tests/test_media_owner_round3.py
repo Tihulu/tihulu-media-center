@@ -314,6 +314,34 @@ class TranslationBatching(unittest.TestCase):
         self.assertEqual(translated[50],"[EN] t")
 
 
+class PlayerMarket(unittest.TestCase):
+    def test_status_detects_installed_player_without_installing_anything(self):
+        from tv_center import player_market
+        with tempfile.TemporaryDirectory() as folder:
+            fake=Path(folder)/"bin";fake.mkdir()
+            with patch.dict(os.environ,{"HOME":folder,"TIHULU_ASSET_HOME":"","PATH":str(fake)+":/usr/bin:/bin"}), \
+                 patch("shutil.which",return_value=""):
+                self.assertFalse(player_market.player_status("mpv")["available"])
+                self.assertIn("apt install mpv",player_market.player_status("mpv")["command"]["debian"])
+                # no install file, no directory created
+                self.assertFalse((Path(folder)/".local").exists())
+
+    def test_available_when_installed_locally(self):
+        from tv_center import player_market
+        with tempfile.TemporaryDirectory() as folder:
+            tool=Path(folder)/".local/share/TIHULU/tihulu-media-center/tools"
+            tool.mkdir(parents=True);(tool/"mpv").write_bytes(b"#!/bin/sh\n")
+            with patch.dict(os.environ,{"HOME":folder,"TIHULU_ASSET_HOME":"","PATH":"/nonexistent"}):
+                info=player_market.player_status("mpv")
+                self.assertTrue(info["available"])
+                self.assertEqual(info["local"],str(tool/"mpv"))
+
+    def test_no_terminal_means_no_silent_root_action(self):
+        from tv_center import player_market
+        with patch("shutil.which",return_value=""):
+            self.assertFalse(player_market.open_terminal_for_install("mpv"))
+
+
 class NativeRegressions(unittest.TestCase):
     def test_native_widgets_process_tree_and_saved_ts(self):
         with tempfile.TemporaryDirectory(prefix="tihulu-owner3-") as folder:
