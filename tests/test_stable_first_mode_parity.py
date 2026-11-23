@@ -115,7 +115,9 @@ class FrozenModeParity(unittest.TestCase):
     def test_local_media_preprocess_is_opt_in(self) -> None:
         media = source("kaffeine_next/native_media_panel.h")
         self.assertIn("Transcribe before opening a file", media)
-        self.assertIn('QLatin1String("transcribeBeforeOpen"),false', media)
+        # The setting key and its opt-in default are unchanged; only the call
+        # form differs from the older panel revision.
+        self.assertIn('"transcribeBeforeOpen",false', media)
         self.assertIn('QLatin1String("MediaPlayer")', media)
         self.assertIn('beforeOpenMode_=beforeOpen', media)
         self.assertIn("DVB live buffer/Teletext clock are NOT applied to a file.", media)
