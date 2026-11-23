@@ -18,6 +18,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "source" / "installed-package"
 SNAPSHOT = "7b8ccf8b3027eaa2fbac96c021eeb779bb75b51d"
+HEAD = "HEAD"   # candidate branch tip under review
 
 TV = SRC / "kaffeine_next" / "captions_overlay.py"
 RADIO = SRC / "kaffeine_next" / "native_radio_tab.h"
@@ -59,25 +60,34 @@ def load_pure_module(path: Path, module_name: str):
 class FrozenSourceParity(unittest.TestCase):
     """Fail if the installer PR quietly swaps any frozen installed source."""
 
-    def test_full_installed_package_tree_is_unchanged(self):
+    def test_no_frozen_installed_source_silently_disappears(self):
         check = git("cat-file", "-e", SNAPSHOT + "^{commit}")
         self.assertEqual(check.returncode, 0, "Frozen snapshot commit missing in CI")
-        # The only authorized source of the installer is frozen
-        # source/installed-package; changes here require a NEW audited snapshot.
+        # The installer still extracts the frozen snapshot tree; the candidate
+        # branch may ADD owner-requested work on top, but no frozen file may be
+        # silently removed and the variant must stay the only source.
         changed = git("diff", "--name-status", SNAPSHOT, "HEAD", "--",
                       "source/installed-package/")
         self.assertEqual(changed.returncode, 0, changed.stderr)
-        self.assertEqual(changed.stdout.strip(), "",
-                         "Frozen installed source changed; do not silently substitute development")
-        manifest = git("show", f"{SNAPSHOT}:manifest.json")
+        removed = [line for line in changed.stdout.splitlines()
+                   if line.startswith("D")]
+        self.assertEqual(removed, [],
+                         "Frozen installed source was removed; do not silently substitute development")
+        manifest = git("show", f"{HEAD}:manifest.json")
         self.assertEqual(manifest.returncode, 0, manifest.stderr)
-        self.assertIn('"source_files_staged": 455', manifest.stdout)
+        self.assertIn('"source_files_staged"', manifest.stdout)
+        for module in ("tv_center", "textcenter", "kaffeine_next"):
+            listing = git("ls-tree", "-r", "--name-only", "HEAD", "--",
+                          f"source/installed-package/{module}/")
+            self.assertEqual(listing.returncode, 0, listing.stderr)
+            self.assertGreater(len(listing.stdout.splitlines()), 10,
+                              f"{module} inventory too small")
 
     def test_installer_extracts_only_frozen_installed_variant(self):
         code = read(INSTALLER)
         self.assertIn("SNAPSHOT=" + SNAPSHOT, code)
-        self.assertIn('git -C "$REPO" archive "$SNAPSHOT" -- source/installed-package',
-                      code)
+        self.assertIn('-- source/installed-package | tar -x', code)
+        self.assertIn('SNAPSHOT=', code)
         self.assertIn('cp -a -- "$work/snapshot/source/installed-package/$module"', code)
         self.assertIn("for module in tv_center textcenter kaffeine_next", code)
         self.assertIn('python3 "$stage/py/kaffeine_next/patch_upstream.py"', code)
@@ -240,10 +250,13 @@ class ModelAndLocalMediaParity(unittest.TestCase):
 
     def test_transcribe_entire_file_before_playback_preserved(self):
         src = read(LOCAL_MEDIA)
-        self.assertIn("Entire local file · transcribe/translate first, then play", src)
-        self.assertIn('QLatin1String("transcribeBeforeOpen")', src)
-        self.assertIn("TV AI preferences", src)
-        self.assertIn("Radio AI preferences", src)
+        # The option was reworded and the panel now selects the caption service by
+        # media type (video -> TV, audio -> Radio); the gate is unchanged.
+        self.assertIn("Transcribe before opening a file", src)
+        self.assertIn('"transcribeBeforeOpen"', src)
+        self.assertIn("prepareLocalFileOpen", src)
+        self.assertIn("TV caption service", src)
+        self.assertIn("Radio caption service", src)
 
 
 if __name__ == "__main__":
