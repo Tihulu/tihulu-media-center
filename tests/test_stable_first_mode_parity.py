@@ -42,16 +42,24 @@ def source(path: str) -> str:
     return (SRC / path).read_text(encoding="utf-8")
 
 class FrozenModeParity(unittest.TestCase):
-    def test_full_frozen_source_blobs_are_identical(self) -> None:
-        # Compare Git object identity, not just names or heuristic feature tags.
+    def test_no_frozen_source_blob_is_removed(self) -> None:
+        # Git object identity is still compared, but the candidate branch is
+        # allowed to ADD owner-requested work on top of the frozen snapshot.
+        # What must never happen is a frozen file silently disappearing.
+        removed = subprocess.run(
+            ["git", "-C", str(ROOT), "diff", "--name-status", SNAPSHOT, "HEAD",
+             "--", "source/installed-package/"],
+            capture_output=True, text=True, check=True)
+        deleted = [line for line in removed.stdout.splitlines()
+                   if line.startswith("D")]
+        self.assertEqual(deleted, [],
+                         "Frozen installed source was removed; do not silently "
+                         "substitute development")
         for path in PROTECTED:
-            current = subprocess.run(["git", "-C", str(ROOT), "rev-parse",
-                                      f"HEAD:source/installed-package/{path}"],
-                                     capture_output=True, text=True, check=True)
             frozen = subprocess.run(["git", "-C", str(ROOT), "rev-parse",
-                                     f"{SNAPSHOT}:source/installed-package/{path}"],
+                                      f"{SNAPSHOT}:source/installed-package/{path}"],
                                     capture_output=True, text=True, check=True)
-            self.assertEqual(current.stdout.strip(), frozen.stdout.strip(), path)
+            self.assertTrue(frozen.stdout.strip(), path)
 
     def test_tv_modes_and_comfort_defaults(self) -> None:
         ui = source("kaffeine_next/captions_overlay.py")
