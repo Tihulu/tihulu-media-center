@@ -45,69 +45,56 @@ public:
         karaoke_->setToolTip(tr("Audio only: time-coded lyrics from a matching local .lrc beside the file, "
             "or optionally from LRCLIB by title/artist. No invented timings."));
         karaoke_->setEnabled(false);
-        auto *optionsButton=new QPushButton(tr("IN / OUT · Options"),this);
         cancel_=new QPushButton(tr("Stop AI"),this);cancel_->setEnabled(false);
         mpvButton_=new QPushButton(tr("Open in mpv"),this);
         mpvButton_->setToolTip(tr("Hands the current media (local file or stream) to the mpv player "
             "with its subtitles. The built-in VLC engine stays default."));
-        row->addWidget(liveButton_);row->addWidget(run_);row->addWidget(karaoke_);row->addWidget(optionsButton);row->addWidget(cancel_);row->addWidget(mpvButton_);
+        row->addWidget(liveButton_);row->addWidget(run_);row->addWidget(karaoke_);row->addWidget(cancel_);row->addWidget(mpvButton_);
         root->addLayout(row);
         message_=new QLabel(tr("Local AI · choose languages and an installed model in Options."),this);
         message_->setTextFormat(Qt::PlainText);message_->setWordWrap(true);root->addWidget(message_);
         progress_=new QProgressBar(this);progress_->hide();root->addWidget(progress_);
         captions_=new TihuluFileCaptions(player);
-        options_=new QDialog(this);options_->setWindowTitle(tr("Local captions · IN / OUT"));
-        auto *form=new QFormLayout(options_);
-        choices_=new TihuluCaptionOptions(options_);form->addWidget(choices_);
-        serviceMode_=new QComboBox(options_);
+        // The full caption window owns languages, model, appearance and the
+        // File tab (whole-file transcribe, karaoke, SRT, export). This panel
+        // keeps only the quick delivery/player switches.
+        choices_=new TihuluCaptionOptions(this);
+        choices_->hide();
+        serviceMode_=new QComboBox(this);
         serviceMode_->addItem(tr("Auto · video uses TV service, audio uses Radio service"),QStringLiteral("auto"));
         serviceMode_->addItem(tr("TV caption service (all settings)"),QStringLiteral("tv"));
         serviceMode_->addItem(tr("Radio caption service (all settings)"),QStringLiteral("radio"));
         serviceMode_->setToolTip(tr("File type decides the default. TV and Radio use their own saved languages, models and tools."));
-        form->addRow(tr("Caption service"),serviceMode_);
-        liveWindow_=new QSpinBox(options_);liveWindow_->setRange(2,20);liveWindow_->setSuffix(tr(" s"));
+        liveWindow_=new QSpinBox(this);liveWindow_->setRange(2,20);liveWindow_->setSuffix(tr(" s"));
         liveWindow_->setValue(8);liveWindow_->setToolTip(tr("Live audio window used by the local speech model. Larger = more context, slower first caption."));
-        form->addRow(tr("Live buffer"),liveWindow_);
-        turnOff_=new QPushButton(tr("Turn off subtitles & exit"),options_);
-        turnOff_->setToolTip(tr("Releases the local AI work now. Closing this window NEVER stops running captions."));
-        form->addWidget(turnOff_);
-        original_=new QCheckBox(tr("Show original text"),options_);original_->setChecked(true);
-        music_=new QCheckBox(tr("Include singing / music vocals"),options_);
-        lyrics_=new QCheckBox(tr("Use a matching local .lrc for whole-file captions"),options_);
-        onlineLyrics_=new QCheckBox(tr("Find lyrics online by title / artist (optional)"),options_);
-        onlineLyrics_->setToolTip(tr("Only when Transcribe file is pressed with local LRC mode enabled. Sends title/artist metadata to LRCLIB."));
-        externalPlayer_=new QCheckBox(tr("Play local files with mpv (external player)"),options_);
+        externalPlayer_=new QCheckBox(tr("Play local files with mpv"),this);
         QSettings playerPrefs(QStringLiteral("TIHULU"),QStringLiteral("MediaPlayer"));
         externalPlayer_->setChecked(playerPrefs.value(QStringLiteral("externalPlayerMpv"),false).toBool() &&
                                    !QStandardPaths::findExecutable(QStringLiteral("mpv")).isEmpty());
         externalPlayer_->setToolTip(tr("Optional: local video/audio opens in mpv together with its subtitles. "
             "TV, radio and streams keep the built-in VLC engine."));
-        form->addRow(tr("Player"),externalPlayer_);
-        embedVideo_=new QCheckBox(tr("Video: embed the SRT into the video (.mkv copy, selectable track)"),options_);
-        embedVideo_->setChecked(true);embedVideo_->setToolTip(tr("Default for video files. The covering caption band stays optional; the "
-            "generated .mkv keeps your original file untouched and carries both tracks."));
-        form->addRow(tr("Delivery"),embedVideo_);
-        preprocess_=new QCheckBox(tr("Transcribe before opening a file"),options_);
+        embedVideo_=new QCheckBox(tr("Video: embed the SRT (.mkv copy)"),this);
+        embedVideo_->setChecked(true);embedVideo_->setToolTip(tr("Default for video files. The generated .mkv keeps your original "
+            "file untouched and carries the SRT as a selectable track."));
+        preprocess_=new QCheckBox(tr("Transcribe before opening a file"),this);
         QSettings config("TIHULU","MediaPlayer");preprocess_->setChecked(config.value("transcribeBeforeOpen",false).toBool());
-        wait_=new QCheckBox(tr("Wait for whole-file subtitles before playback"),options_);wait_->setChecked(true);
-        form->addWidget(original_);form->addWidget(music_);form->addWidget(lyrics_);form->addWidget(onlineLyrics_);
-        form->addWidget(preprocess_);form->addWidget(wait_);
-        auto *save=new QPushButton(tr("Save SRT…"),options_);
-        auto *exportMedia=new QPushButton(tr("Export media + subtitles (.mkv)…"),options_);
-        form->addWidget(save);form->addWidget(exportMedia);
-        auto *close=new QDialogButtonBox(QDialogButtonBox::Close,options_);form->addWidget(close);
-        connect(close,&QDialogButtonBox::rejected,options_,&QDialog::hide);
-        connect(optionsButton,&QPushButton::clicked,options_,&QDialog::show);
+        wait_=new QCheckBox(tr("Wait for subtitles before playback"),this);wait_->setChecked(true);
+        auto *fileOptions=new QHBoxLayout();
+        fileOptions->addWidget(new QLabel(tr("Service:"),this));
+        fileOptions->addWidget(serviceMode_);
+        fileOptions->addWidget(new QLabel(tr("Buffer:"),this));
+        fileOptions->addWidget(liveWindow_);
+        fileOptions->addWidget(externalPlayer_);
+        fileOptions->addWidget(embedVideo_);
+        fileOptions->addWidget(preprocess_);
+        fileOptions->addWidget(wait_);
+        fileOptions->addStretch(1);
+        root->addLayout(fileOptions);
         connect(preprocess_,&QCheckBox::toggled,this,[](bool value){QSettings("TIHULU","MediaPlayer").setValue("transcribeBeforeOpen",value);});
         connect(externalPlayer_,&QCheckBox::toggled,this,[](bool value){QSettings("TIHULU","MediaPlayer").setValue("externalPlayerMpv",value);});
         connect(serviceMode_,QOverload<int>::of(&QComboBox::currentIndexChanged),this,[this](int){applyServiceMode();});
-        connect(turnOff_,&QPushButton::clicked,this,[this](){
-            options_->hide();stopAi();message_->setText(tr("Subtitles turned off · local AI released."));
-        });
-        connect(save,&QPushButton::clicked,this,[this](){saveSrt();});
-        connect(exportMedia,&QPushButton::clicked,this,[this](){exportWithCaptions();});
-        connect(run_,&QPushButton::clicked,this,[this](){generate(false);});
         connect(karaoke_,&QPushButton::clicked,this,[this](){generateKaraoke();});
+        connect(run_,&QPushButton::clicked,this,[this](){generate(false);});
         connect(mpvButton_,&QPushButton::clicked,this,[this](){openInMpv();});
         connect(liveButton_,&QPushButton::clicked,this,[this](){startLive();});
         connect(cancel_,&QPushButton::clicked,this,[this](){stopAi();});
@@ -247,11 +234,12 @@ public:
         QStringList targets=prefs.value(audio?"radioOutputs":"outputLanguages",QStringList()).toStringList();
         if(!prefs.value(audio?"radioTranslationOptIn":"showTranslation",!audio).toBool())targets.clear();
         choices_->setLanguages(prefs.value(audio?"radioSpeechLanguage":"spokenSource","auto").toString(),targets);
-        music_->setChecked(prefs.value(audio?"radioMusicTranscription":"musicTranscription",false).toBool());
-        original_->setChecked(audio || prefs.value("showOriginal",true).toBool());
-        lyrics_->setEnabled(audio);onlineLyrics_->setEnabled(audio && lyrics_->isChecked());
+        if(music_)music_->setChecked(prefs.value(audio?"radioMusicTranscription":"musicTranscription",false).toBool());
+        if(original_)original_->setChecked(audio || prefs.value("showOriginal",true).toBool());
+        if(lyrics_)lyrics_->setEnabled(audio);
+        if(onlineLyrics_)onlineLyrics_->setEnabled(audio && (lyrics_ && lyrics_->isChecked()));
         if(karaoke_)karaoke_->setEnabled(audio);
-        if(!audio)lyrics_->setChecked(false);
+        if(!audio && lyrics_)lyrics_->setChecked(false);
         message_->setText(tvMode_?
             tr("TV caption service · video settings (languages, model, appearance, SRT export)"):
             tr("Radio caption service · audio settings (languages, karaoke/lyrics, offset, SRT export)"));
@@ -295,9 +283,13 @@ private:
     }
     QStringList jobArguments(bool live) {
         QStringList args{QStringLiteral("media-captions"),QStringLiteral("--input"),path_};
-        if(!choices_->appendArguments(args)) {options_->show();return {};}
-        if(music_->isChecked())args<<QStringLiteral("--music");
-        if(!original_->isChecked())args<<QStringLiteral("--translations-only");
+        if(!choices_->appendArguments(args)) {
+            // Language/model catalog not ready: open the full caption window
+            // where the same settings live (it refreshes them on start).
+            openFullCaptionWindow();return {};
+        }
+        if(music_ && music_->isChecked())args<<QStringLiteral("--music");
+        if(original_ && !original_->isChecked())args<<QStringLiteral("--translations-only");
         args<<QStringLiteral("--service")<<(tvMode_?QStringLiteral("tv"):QStringLiteral("radio"));
         if(liveWindow_)args<<QStringLiteral("--window")<<QString::number(liveWindow_->value());
         if(live)args<<QStringLiteral("--live");
@@ -312,13 +304,21 @@ private:
         isAudioRequest_=!tvMode_;
         srt_=cache+QStringLiteral("/tihulu-file-")+QString::number(QCoreApplication::applicationPid())+QLatin1Char('-')+QString::number(QDateTime::currentMSecsSinceEpoch())+QStringLiteral(".srt");
         args<<QStringLiteral("--output")<<srt_;
-        if(lyrics_->isChecked() && !beforeOpen) {args<<QStringLiteral("--lyrics");if(onlineLyrics_->isChecked())args<<QStringLiteral("--fetch-lyrics");}
+        if(lyrics_ && lyrics_->isChecked() && !beforeOpen) {args<<QStringLiteral("--lyrics");if(onlineLyrics_ && onlineLyrics_->isChecked())args<<QStringLiteral("--fetch-lyrics");}
         resumeAfter_=beforeOpen || wait_->isChecked();cancelled_=false;result_.clear();
         if(resumeAfter_) {internalStop_=true;player_->stop();internalStop_=false;}
         process_.start(QStringLiteral("tihulu-tv-center"),args);
         if(!process_.waitForStarted(800)) {message_->setText(tr("Offline AI companion could not start."));return;}
         run_->setEnabled(false);liveButton_->setEnabled(false);cancel_->setEnabled(true);
         progress_->setRange(0,0);progress_->show();message_->setText(tr("Preparing local subtitles…"));
+    }
+    void openFullCaptionWindow() {
+        // Guard: the caption window itself refreshes the language catalog, so
+        // a failed probe must not re-enter this path from generate()/startLive().
+        if(openingCaptionWindow_ || live_.state()!=QProcess::NotRunning)return;
+        openingCaptionWindow_=true;
+        startLive();
+        openingCaptionWindow_=false;
     }
     // Opens the FULL caption service (same window as live TV: appearance,
     // reading modes, model market, SRT recording) driven by this file's audio.
@@ -327,7 +327,9 @@ private:
         const QString runtime=QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
         if(runtime.isEmpty()) {message_->setText(tr("XDG_RUNTIME_DIR is missing; cannot start the caption service."));return;}
         QStringList captionArgs;
-        if(!choices_->appendArguments(captionArgs)) {options_->show();return;}
+        if(!choices_->appendArguments(captionArgs)) {
+            openFullCaptionWindow();return;
+        }
         stopLive();cancelled_=false;++revision_;
         const QString name=runtime+QStringLiteral("/tihulu-dvb-")+
             QString::number(QCoreApplication::applicationPid())+QStringLiteral(".sock");
@@ -383,15 +385,16 @@ private:
         exportPath_=dest;exportProcess_.start("ffmpeg",{"-nostdin","-hide_banner","-loglevel","error","-n","-i",path_,"-i",srt_,"-map","0:v?","-map","0:a?","-map","1:0","-c","copy","-c:s","srt",dest});
     }
     MediaWidget *player_;TihuluAiProcess process_,live_,exportProcess_;
-    TihuluFileCaptions *captions_;TihuluCaptionOptions *choices_;QDialog *options_;
+    TihuluFileCaptions *captions_;TihuluCaptionOptions *choices_;
     QLabel *file_,*message_;QPushButton *run_,*liveButton_,*cancel_,*karaoke_=nullptr,*mpvButton_=nullptr;QProgressBar *progress_;
-    QComboBox *serviceMode_=nullptr;QSpinBox *liveWindow_=nullptr;QPushButton *turnOff_=nullptr;
+    QComboBox *serviceMode_=nullptr;QSpinBox *liveWindow_=nullptr;
     QCheckBox *embedVideo_=nullptr,*externalPlayer_=nullptr;
     QProcess externalPlayerProcess_;
-    QCheckBox *original_,*music_,*lyrics_,*onlineLyrics_,*preprocess_,*wait_;
+    QCheckBox *original_=nullptr,*music_=nullptr,*lyrics_=nullptr,*onlineLyrics_=nullptr,*preprocess_=nullptr,*wait_=nullptr;
     bool isVideo_=true,tvMode_=true,isAudioRequest_=false;
     QTimer liveClock_;QString path_,srt_,exportPath_;QByteArray result_;
     bool cancelled_=false,internalStop_=false,resuming_=false,resumeAfter_=false,pending_=false;
+    bool openingCaptionWindow_=false;
     int revision_=0;qint64 nextMs_=0,lastMs_=0;
 };
 #endif

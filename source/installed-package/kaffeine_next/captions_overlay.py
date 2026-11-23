@@ -926,6 +926,67 @@ class CaptionTap:
         except OSError:
             pass
 
+
+# --- whole-file jobs for the File tab (share the live caption settings) -------
+def file_source_and_targets(source_combo, language_boxes, extra_targets):
+    source = "auto"
+    try:
+        data = source_combo.currentData()
+        if isinstance(data, str) and data:
+            source = data
+    except Exception:
+        pass
+    targets = []
+    for code, box in language_boxes.items():
+        try:
+            if box.isChecked():
+                targets.append(code)
+        except Exception:
+            continue
+    try:
+        for item in extra_targets.text().split(","):
+            code = item.strip()
+            if code and code not in targets:
+                targets.append(code)
+    except Exception:
+        pass
+    return source, targets
+
+
+def file_job_transcribe(media, source, targets, music):
+    from tv_center.media_ai import create_subtitles
+    return create_subtitles(str(media), source=source, targets=targets, music=music)
+
+
+def file_job_karaoke(media, source, targets, online):
+    from tv_center.media_ai import create_subtitles
+    return create_subtitles(str(media), source=source, targets=targets, music=True,
+                            lyrics=True, fetch_lyrics=online)
+
+
+def file_job_export(media, srt, dest, fmt):
+    import subprocess
+    args = ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-n",
+            "-i", str(media), "-i", str(srt)]
+    if fmt == "srt":
+        import shutil
+        shutil.copyfile(srt, dest)
+        return dest
+    if fmt == "audio":
+        args += ["-map", "0:a?", "-c:a", "aac", "-b:a", "160k", "-f", "matroska"]
+    elif fmt == "mp4":
+        args += ["-map", "0:v?", "-map", "0:a?", "-map", "1:0",
+                 "-c", "copy", "-c:s", "mov_text"]
+    else:
+        args += ["-map", "0:v?", "-map", "0:a?", "-map", "1:0",
+                 "-c", "copy", "-c:s", "srt", "-f", "matroska"]
+    args.append(dest)
+    proc = subprocess.run(args, capture_output=True, text=True, timeout=7200, check=False)
+    if proc.returncode:
+        raise RuntimeError(proc.stderr[-300:])
+    return dest
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     show_only = "--show-only" in argv
@@ -1796,6 +1857,102 @@ def main(argv=None):
     appearance_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     appearance_scroll.setWidget(quick)
     pages.addTab(appearance_scroll, "Appearance")
+    if file_media:
+        file_page = QWidget()
+        file_layout = QVBoxLayout(file_page)
+        file_layout.setContentsMargins(8, 8, 8, 8)
+        file_layout.setSpacing(8)
+        file_layout.addWidget(QLabel(
+            "Whole file · uses the SAME IN / OUT languages, installed speech model "
+            "and translators as the live captions below. Live captions and this "
+            "job share the audio source and can run together."))
+        file_row = QHBoxLayout()
+        whole_button = QPushButton("Transcribe whole file")
+        karaoke_button = QPushButton("Karaoke / lyrics")
+        save_srt_button = QPushButton("Save SRT as…")
+        export_button = QPushButton("Export media + subtitles…")
+        stop_file_button = QPushButton("Stop file job")
+        stop_file_button.setEnabled(False)
+        for button in (whole_button, karaoke_button, save_srt_button,
+                       export_button, stop_file_button):
+            file_row.addWidget(button)
+        file_layout.addLayout(file_row)
+        file_online_lyrics = QCheckBox(
+            "Find lyrics online by title / artist (optional, LRCLIB)")
+        file_layout.addWidget(file_online_lyrics)
+        file_format = QComboBox()
+        file_format.addItems(["MKV (default)", "MP4", "SRT only",
+                              "Audio only (.mka)"])
+        file_layout.addWidget(file_format)
+        file_progress = QProgressBar()
+        file_progress.setVisible(False)
+        file_layout.addWidget(file_progress)
+        file_status = QLabel("No whole-file job running.")
+        file_status.setWordWrap(True)
+        file_layout.addWidget(file_status)
+        file_layout.addStretch(1)
+        pages.addTab(file_page, "File · whole file")
+        import threading as _threading
+        file_state = {"busy": False}
+        def file_note(text):
+            file_status.setText(text)
+        def file_run(job, done):
+            if file_state["busy"]:
+                return
+            file_state["busy"] = True
+            whole_button.setEnabled(False);karaoke_button.setEnabled(False)
+            save_srt_button.setEnabled(False);export_button.setEnabled(False)
+            stop_file_button.setEnabled(True)
+            file_progress.setRange(0, 0);file_progress.setVisible(True)
+            def work():
+                try:
+                    result = job()
+                    events.put(("file_done", True, done(result)))
+                except Exception as exc:
+                    events.put(("file_done", False, str(exc)[:300]))
+            _threading.Thread(target=work, name="tihulu-file-job",
+                              daemon=True).start()
+        def file_stop():
+            file_state["busy"] = False
+            file_progress.setVisible(False)
+            whole_button.setEnabled(True);karaoke_button.setEnabled(True)
+            save_srt_button.setEnabled(True);export_button.setEnabled(True)
+            stop_file_button.setEnabled(False)
+            file_note("File job stopped. Live captions and playback continue.")
+        def fmt_key(text):
+            return {"MP4": "mp4", "SRT only": "srt",
+                    "Audio only (.mka)": "audio"}.get(text, "mkv")
+        def default_srt():
+            from pathlib import Path as _P
+            base = _P(file_media)
+            return str(base.with_suffix(".srt"))
+        stop_file_button.clicked.connect(file_stop)
+        whole_button.clicked.connect(lambda: file_run(
+            lambda: file_job_transcribe(file_media, *file_source_and_targets(
+                source, language_boxes, extra_targets), music_transcription.isChecked()),
+            lambda r: "SRT saved: %s (%d cues, %d translation warnings)"
+                      % (r.get("output"), r.get("cues", 0),
+                         r.get("translation_warning_count", 0))))
+        karaoke_button.clicked.connect(lambda: file_run(
+            lambda: file_job_karaoke(file_media, *file_source_and_targets(
+                source, language_boxes, extra_targets),
+                file_online_lyrics.isChecked()),
+            lambda r: "Lyrics SRT: %s (%d lines)" % (r.get("output"), r.get("cues", 0))))
+        save_srt_button.clicked.connect(lambda: file_run(
+            lambda: file_job_transcribe(file_media, *file_source_and_targets(
+                source, language_boxes, extra_targets), music_transcription.isChecked()),
+            lambda r: r.get("output", "")))
+        save_srt_button.setToolTip(
+            "Transcribes with the current settings and keeps the SRT beside the file.")
+        export_button.clicked.connect(lambda: file_run(
+            lambda: file_job_export(file_media,
+                file_job_transcribe(file_media, *file_source_and_targets(
+                    source, language_boxes, extra_targets), music_transcription.isChecked())["output"],
+                QFileDialog.getSaveFileName(window, "Export media + subtitles",
+                    str(Path(file_media).with_suffix("")) + "-subtitled",
+                    "Media (*.mkv *.mp4 *.mka *.srt)")[0],
+                fmt_key(file_format.currentText())),
+            lambda r: "Exported: %s" % r))
     pages.addTab(control_scroll, "Source & sync")
     tools_page = QWidget()
     tools_layout = QVBoxLayout(tools_page)
@@ -3073,6 +3230,16 @@ def main(argv=None):
                 # Nothing may idle on the GPU after Stop: exit the whole service.
                 window.terminating = True
                 app.quit()
+            elif kind == "file_done":
+                try:
+                    file_progress.setVisible(False)
+                    file_state["busy"] = False
+                    whole_button.setEnabled(True);karaoke_button.setEnabled(True)
+                    save_srt_button.setEnabled(True);export_button.setEnabled(True)
+                    stop_file_button.setEnabled(False)
+                    file_status.setText(("OK · " if data else "Failed · ") + message)
+                except NameError:
+                    pass
             elif kind == "show_settings":
                 window.showNormal()
                 window.raise_()

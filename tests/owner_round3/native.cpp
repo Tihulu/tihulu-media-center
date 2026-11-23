@@ -77,6 +77,8 @@ private slots:
         QPushButton *run=nullptr;
         for(auto *button:panel.findChildren<QPushButton *>())if(button->text()=="Transcribe file")run=button;
         QVERIFY(run);QVERIFY(run->isEnabled());run->click();
+        QTest::qWait(300);
+        for(auto *l:panel.findChildren<QLabel *>()) if(l->text().contains("captions")||l->text().contains("caption")||l->text().contains("model")) qWarning() << "MSG:" << l->text();
         QTRY_VERIFY_WITH_TIMEOUT(!run->isEnabled(),1000);player.stop();
         QTest::qWait(400);QCOMPARE(player.state,MediaWidget::Idle);QVERIFY(run->isEnabled());
         QVERIFY(!QFile::exists(dir.filePath("drop.srt")));
@@ -110,15 +112,15 @@ private slots:
         player.play(QUrl::fromLocalFile(video.fileName()));
         auto *mode=panel.findChild<QComboBox *>();Q_UNUSED(mode)
         auto *lyrics=panel.findChild<QCheckBox *>("");
-        // Video -> TV service; the radio-only karaoke controls stay disabled.
-        QCheckBox *lrc=nullptr;for(auto *box:panel.findChildren<QCheckBox *>())if(box->text().startsWith("Use a matching local"))lrc=box;
-        QVERIFY(lrc);QVERIFY(!lrc->isEnabled());
+        // Video -> TV service; the radio-only karaoke button stays disabled.
+        QPushButton *karaoke=nullptr;for(auto *b:panel.findChildren<QPushButton *>())if(b->text()=="Karaoke / lyrics")karaoke=b;
+        QVERIFY(karaoke);QVERIFY(!karaoke->isEnabled());
         player.play(QUrl::fromLocalFile(audio.fileName()));
-        QTRY_VERIFY_WITH_TIMEOUT(lrc->isEnabled(),1500); // audio -> Radio service
+        QTRY_VERIFY_WITH_TIMEOUT(karaoke->isEnabled(),1500); // audio -> Radio service
         // Manual override back to the TV service for the same audio file.
         auto *combo=panel.findChildren<QComboBox *>().value(panel.findChildren<QComboBox *>().size()-1);
         const int tvIndex=combo->findData("tv");QVERIFY(tvIndex>=0);combo->setCurrentIndex(tvIndex);
-        QTest::qWait(200);QVERIFY(!lrc->isEnabled());
+        QTest::qWait(200);QVERIFY(!karaoke->isEnabled());
     }
     void karaokeShowsActiveAndNextLyricLine() {
         QTemporaryDir dir;QFile srt(dir.filePath("song.lrc"));
