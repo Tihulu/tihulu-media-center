@@ -41,3 +41,28 @@ the baseline snapshot and Kaffeine `v2.0.19`. Clean-environment GUI start
 
 Both versions therefore install from their own tag, in isolation, without
 downloading AI models or touching the owner's installation.
+
+## CI verification (GitHub Actions, 23 Nov 2026)
+
+Run `45113610350` on `fix/media-acceptance-round3-parked` — **success**:
+
+- `Syntax, installer dry-run, source guard` — success
+- `Build portable AppDir and headless smoke` — success
+  - AppDir built and verified (AppRun, native binary, Python companion,
+    desktop entry in the AppDir root plus `.DirIcon`)
+  - headless no-AI startup smoke — success
+  - **single-file AppImage built (required step)** — success
+- Artifact `tihulu-media-center-portable` — 5,679,564 bytes:
+  - `tihulu-media-center.AppImage` 2,894,328 bytes (ELF static-pie)
+  - `tihulu-media-center.AppDir.tar` 3,267,527 bytes
+
+Independent check of the downloaded artifact:
+
+- `--appimage-extract` succeeds; the image contains `AppRun`,
+  `tihulu-media-center.desktop`, `.DirIcon`, and `usr/bin/kaffeine`
+  (2,770,312 bytes — the same round-3 build).
+- `tihulu-media-center.AppImage --help` in a clean Xvfb environment with no AI
+  models: exit 0, no fatal loader errors.
+
+The AppImage therefore matches the tag-installed build; portability beyond this
+machine (real tuner, audio server, GPU) still requires owner acceptance.

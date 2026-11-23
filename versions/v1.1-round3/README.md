@@ -29,6 +29,21 @@ already installed models are reused in place.
 - Market changes always refresh “Ready modes”; stale generated caption caches
   are pruned automatically.
 
+## Portable AppImage (optional)
+
+CI builds a single-file AppImage on every push of this branch. Download the
+`tihulu-media-center-portable` artifact from the latest successful run, extract
+`tihulu-media-center.AppImage`, then:
+
+```bash
+chmod +x tihulu-media-center.AppImage
+./tihulu-media-center.AppImage            # no installation needed
+TIHULU_ASSET_HOME="$HOME" ./tihulu-media-center.AppImage   # reuse installed models
+```
+
+No AI models are bundled; the app starts without them and offers the in-app
+market.
+
 ## Source of truth
 
 Tag `v1.1-round3` in https://github.com/Tihulu/tihulu-media-center .
