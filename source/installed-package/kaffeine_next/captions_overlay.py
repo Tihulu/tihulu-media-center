@@ -1078,19 +1078,31 @@ def main(argv=None):
     # This is a separate controller, never a modal Kaffeine channel-switch
     # dialog. Alt-Tab and the pinned Back-to-TV control preserve capture.
     window.setWindowModality(Qt.NonModal)
+    # Follow the active Light/Dark appearance instead of a fixed dark theme:
+    # the owner reported unreadable text in some themes.
+    from PyQt5.QtGui import QPalette as _QPalette
+    _pal = app.palette()
+    _win = _pal.color(_QPalette.Window).name()
+    _base = _pal.color(_QPalette.Base).name()
+    _text = _pal.color(_QPalette.Text).name()
+    _button = _pal.color(_QPalette.Button).name()
+    _bt = _pal.color(_QPalette.ButtonText).name()
+    _mid = _pal.color(_QPalette.Mid).name()
+    _link = _pal.color(_QPalette.Link).name()
     window.setStyleSheet(
-        "QWidget{background:#0c1722;color:#e8f3fa;font-size:13px}"
-        "QGroupBox{border:1px solid #304b63;border-radius:8px;margin-top:14px;padding:10px}"
+        "QWidget{background:%s;color:%s;font-size:13px}"
+        "QGroupBox{border:1px solid %s;border-radius:8px;margin-top:14px;padding:10px}"
         "QGroupBox::title{subcontrol-origin:margin;left:12px;padding:0 5px}"
-        "QComboBox,QSpinBox,QDoubleSpinBox,QPushButton{background:#173449;"
-        "border:1px solid #356784;border-radius:6px;padding:7px}"
-        "QPushButton#apply{background:#207796;font-weight:700}"
+        "QComboBox,QSpinBox,QDoubleSpinBox,QPushButton{background:%s;"
+        "color:%s;border:1px solid %s;border-radius:6px;padding:7px}"
+        "QPushButton#apply{background:%s;color:%s;font-weight:700}"
         "QLabel#subtitle{font-size:20px;max-height:86px}"
-        "QProgressBar{border:1px solid #356784;border-radius:6px;"
-        "background:#122533;color:#e8f3fa;text-align:center;"
+        "QProgressBar{border:1px solid %s;border-radius:6px;"
+        "background:%s;color:%s;text-align:center;"
         "min-height:22px;font-weight:600}"
-        "QProgressBar::chunk{background:#38b8d2;border-radius:5px}"
-    )
+        "QProgressBar::chunk{background:%s;border-radius:5px}"
+        % (_win, _text, _mid, _button, _bt, _mid, _link, _bt,
+           _mid, _base, _text, _link))
     desktop = app.primaryScreen().availableGeometry()
     window.resize(min(780, max(620, desktop.width()-90)),
                   min(690, max(480, desktop.height()-100)))

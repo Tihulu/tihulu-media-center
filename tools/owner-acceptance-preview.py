@@ -33,6 +33,17 @@ def main():
     marker = state / ".tihulu-owner-preview"
     if state.exists() and any(state.iterdir()) and not marker.is_file():
         parser.error("Preview directory already contains unrelated files")
+    # Exactly one preview instance per profile: two instances look like a
+    # duplicated window with doubled control bars and fight over the tuner.
+    import fcntl
+    lock_path = state / ".tihulu-preview.lock"
+    lock_file = open(lock_path, "a+")
+    try:
+        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        lock_file.close()
+        parser.error("Another preview of this profile is already running "
+                     "(close it first, or use a different --state directory)")
     if not Path("/usr/bin/bwrap").is_file() or not Path("/usr/bin/dbus-run-session").is_file():
         parser.error("bubblewrap and dbus-run-session are required for this preview")
     os.umask(0o077)
