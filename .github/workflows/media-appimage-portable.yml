@@ -1,12 +1,10 @@
 name: MEDIA-APPIMAGE-PORTABLE
 on:
+  # Every candidate and branch is gated by CI: no path filter, so a release
+  # branch can never skip the gates that publish an AppImage.
   pull_request:
-    paths:
-      - install.sh
-      - packaging/appimage/**
-      - docs/APPIMAGE.md
-      - docs/ONE-LINE-INSTALL.md
-      - .github/workflows/media-appimage-portable.yml
+  push:
+    branches: ["**"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -90,19 +88,20 @@ jobs:
           timeout 30 xvfb-run -a \
             "$RUNNER_TEMP/appdir/AppDir/AppRun" --help
           echo 'AppDir started headless without AI models or tuner devices.'
-      - name: Try optional single-file AppImage
+      - name: Build single-file AppImage (required)
         run: |
           set -euo pipefail
           curl -fsSL -o "$RUNNER_TEMP/appimagetool" \
             https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x "$RUNNER_TEMP/appimagetool"
-          if APPIMAGE_EXTRACT_AND_RUN=1 "$RUNNER_TEMP/appimagetool" \
-              "$RUNNER_TEMP/appdir/AppDir" \
-              "$RUNNER_TEMP/out/tihulu-media-center.AppImage"; then
-            echo 'Created single-file AppImage.'
-          else
-            echo 'appimagetool unavailable in runner; AppDir archive remains the tested artifact.'
-          fi
+          APPIMAGE_EXTRACT_AND_RUN=1 "$RUNNER_TEMP/appimagetool" \
+            "$RUNNER_TEMP/appdir/AppDir" \
+            "$RUNNER_TEMP/out/tihulu-media-center.AppImage"
+          # A silent AppDir fallback is not acceptable: the artifact must exist
+          # and be a real single-file image.
+          test -s "$RUNNER_TEMP/out/tihulu-media-center.AppImage" || {
+            echo "ERROR: no AppImage was produced" >&2; exit 1; }
+          echo "AppImage produced: $(du -h "$RUNNER_TEMP/out/tihulu-media-center.AppImage" | cut -f1)"
       - name: Upload portable artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -110,4 +109,4 @@ jobs:
           path: |
             ${{ runner.temp }}/out/tihulu-media-center.AppDir.tar
             ${{ runner.temp }}/out/tihulu-media-center.AppImage
-          if-no-files-found: ignore
+          if-no-files-found: error
