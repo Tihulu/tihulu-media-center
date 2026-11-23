@@ -72,6 +72,10 @@ jobs:
           test -f "$RUNNER_TEMP/appdir/AppDir/usr/share/tihulu-tv-center/tv_center/__main__.py"
           test -f "$RUNNER_TEMP/appdir/AppDir/usr/share/tihulu-tv-center/kaffeine_next/patch_upstream.py"
           test -f "$RUNNER_TEMP/appdir/AppDir/usr/share/applications/tihulu-media-center.desktop"
+          # appimagetool needs both in the AppDir root; catch it before the
+          # single-file build instead of failing late.
+          test -f "$RUNNER_TEMP/appdir/AppDir/tihulu-media-center.desktop"
+          test -f "$RUNNER_TEMP/appdir/AppDir/.DirIcon"
           echo 'AppDir contains native binary, Python companion and desktop entry.'
       - name: Headless no-AI startup smoke
         env:

@@ -134,6 +134,12 @@ DESKTOP
 install -m 0644 "$SOURCE/kaffeine_next/assets/tihulu-media-center.svg" \
   "$APPDIR/usr/share/icons/hicolor/scalable/apps/tihulu-media-center.svg"
 
+# appimagetool looks for the desktop entry and the icon in the AppDir ROOT.
+install -m 0644 "$APPDIR/usr/share/applications/tihulu-media-center.desktop" \
+  "$APPDIR/tihulu-media-center.desktop"
+install -m 0644 "$SOURCE/kaffeine_next/assets/tihulu-media-center.svg" \
+  "$APPDIR/.DirIcon"
+
 if [[ "$BUNDLE_LIBS" -eq 1 ]]; then
   mkdir -p "$APPDIR/usr/lib"
   # Copy direct and transitive libraries, except the base glibc runtime.
