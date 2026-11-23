@@ -118,10 +118,10 @@ class FrozenModeParity(unittest.TestCase):
         # The setting key and its opt-in default are unchanged; only the call
         # form differs from the older panel revision.
         self.assertIn('"transcribeBeforeOpen",false', media)
-        self.assertIn('QLatin1String("MediaPlayer")', media)
-        self.assertIn('beforeOpenMode_=beforeOpen', media)
-        self.assertIn("DVB live buffer/Teletext clock are NOT applied to a file.", media)
-        self.assertIn("source untouched", media)
+        self.assertIn('"TIHULU","MediaPlayer"', media)
+        self.assertIn("prepareLocalFileOpen", media)
+        self.assertIn("preprocess_->isChecked()", media)
+        self.assertIn("source and SRT preserved", media)
 
     def test_karaoke_pure_fallback_without_models_or_hardware(self) -> None:
         sys.path.insert(0, str(SRC))
