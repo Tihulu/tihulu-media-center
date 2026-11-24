@@ -118,8 +118,11 @@ private slots:
         player.play(QUrl::fromLocalFile(audio.fileName()));
         QTRY_VERIFY_WITH_TIMEOUT(karaoke->isEnabled(),1500); // audio -> Radio service
         // Manual override back to the TV service for the same audio file.
-        auto *combo=panel.findChildren<QComboBox *>().value(panel.findChildren<QComboBox *>().size()-1);
-        const int tvIndex=combo->findData("tv");QVERIFY(tvIndex>=0);combo->setCurrentIndex(tvIndex);
+        QComboBox *service=nullptr;
+        for(auto *c:panel.findChildren<QComboBox *>())
+            if(c->findData("tv")>=0 && c->findData("radio")>=0)service=c;
+        QVERIFY(service);
+        const int tvIndex=service->findData("tv");QVERIFY(tvIndex>=0);service->setCurrentIndex(tvIndex);
         QTest::qWait(200);QVERIFY(!karaoke->isEnabled());
     }
     void karaokeShowsActiveAndNextLyricLine() {

@@ -88,6 +88,22 @@ public:
         fileOptions->addWidget(embedVideo_);
         fileOptions->addWidget(preprocess_);
         fileOptions->addWidget(wait_);
+        overlayMode_=new QComboBox(this);
+        overlayMode_->addItem(tr("Caption overlay: compact (default)"),QStringLiteral("compact"));
+        overlayMode_->addItem(tr("Caption overlay: off"),QStringLiteral("off"));
+        overlayMode_->addItem(tr("Caption overlay: full"),QStringLiteral("full"));
+        QSettings overlayPrefs(QStringLiteral("TIHULU"),QStringLiteral("CaptionOverlay"));
+        const QString overlayKey=overlayPrefs.value(QStringLiteral("mode"),QStringLiteral("compact")).toString();
+        overlayMode_->setCurrentIndex(overlayMode_->findData(overlayKey));
+        overlayMode_->setToolTip(tr("Video overlay size. Off keeps captions in the caption window only; "
+            "compact shows a strip of at most a quarter of the video."));
+        fileOptions->addWidget(new QLabel(tr("Overlay:"),this));
+        fileOptions->addWidget(overlayMode_);
+        connect(overlayMode_,QOverload<int>::of(&QComboBox::currentIndexChanged),this,[this](int){
+            QSettings saved(QStringLiteral("TIHULU"),QStringLiteral("CaptionOverlay"));
+            saved.setValue(QStringLiteral("mode"),overlayMode_->currentData().toString());
+            saved.sync();
+        });
         fileOptions->addStretch(1);
         root->addLayout(fileOptions);
         connect(preprocess_,&QCheckBox::toggled,this,[](bool value){QSettings("TIHULU","MediaPlayer").setValue("transcribeBeforeOpen",value);});
@@ -387,7 +403,7 @@ private:
     MediaWidget *player_;TihuluAiProcess process_,live_,exportProcess_;
     TihuluFileCaptions *captions_;TihuluCaptionOptions *choices_;
     QLabel *file_,*message_;QPushButton *run_,*liveButton_,*cancel_,*karaoke_=nullptr,*mpvButton_=nullptr;QProgressBar *progress_;
-    QComboBox *serviceMode_=nullptr;QSpinBox *liveWindow_=nullptr;
+    QComboBox *serviceMode_=nullptr,*overlayMode_=nullptr;QSpinBox *liveWindow_=nullptr;
     QCheckBox *embedVideo_=nullptr,*externalPlayer_=nullptr;
     QProcess externalPlayerProcess_;
     QCheckBox *original_=nullptr,*music_=nullptr,*lyrics_=nullptr,*onlineLyrics_=nullptr,*preprocess_=nullptr,*wait_=nullptr;

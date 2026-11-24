@@ -442,6 +442,7 @@ QAbstractButton *StartTab::addShortcut''')
 }''')
 
     media="src/mediawidget.cpp"
+    change(media, '#include <QBoxLayout>', '#include <QBoxLayout>\n#include <QSettings>')
     change(media, '''void MediaWidget::play(MediaSource *source_)
 {
 \tif (source != source_) {''',
@@ -1450,8 +1451,10 @@ void VlcMediaWidget::setExternalSubtitle(const QUrl &url)
 \t\tconst QRect measured = metrics.boundingRect(
 \t\t\tQRect(0,0,qMax(80,stripWidth-30),270),
 \t\t\tQt::TextWordWrap | Qt::AlignHCenter, tihuluCaptionText);
-\t\tconst int stripHeight = qBound(48, measured.height()+30,
-\t\t\tqMax(48,video.height()/3));
+		const int stripHeight = qBound(40, measured.height()+24,
+			// At most a quarter of the video height; the owner reported
+			// the strip covering half of the screen.
+			qMax(40,video.height()/4));
 \t\tconst int left = video.left()+qMax(0,(video.width()-stripWidth)/2);
 \t\tconst int top = tihuluCaptionTop ? video.top()+18 :
 \t\t\tvideo.bottom()-stripHeight-24;
@@ -1705,6 +1708,15 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\tobj.value(QLatin1String("background_color")).toString(QLatin1String("#000000")),
 \t\t\tbackend->geometry());
 \t\t});
+		{ // Caption overlay mode: off / compact (default) / full
+			QSettings overlay(QLatin1String("TIHULU"),QLatin1String("CaptionOverlay"));
+			const QString overlayMode=overlay.value(QLatin1String("mode"),QLatin1String("compact")).toString();
+			if(overlayMode==QLatin1String("off")) {
+				tihuluCaptionWidget->hideCaption();
+				if(auto *tihuluVlc=qobject_cast<VlcMediaWidget *>(backend))
+					tihuluVlc->setTihuluNativeCaption(QString(),false,25,0,QLatin1String("#FFFFFF"));
+			}
+		}
 \t\tcaptionPoll->start(150);
 \t}
 ''')
