@@ -1100,6 +1100,11 @@ void DvbLiveView::replay()
     # Every platform remains configurable: original Kaffeine settings take
     # priority whenever user explicitly supplies an equivalent option.
     vlc = "src/backend-vlc/vlcmediawidget.cpp"
+    # Re-bind after the widget is reparented (tab switching) as well.
+    change(vlc, "libvlc_media_player_set_media(vlcMediaPlayer, vlcMedia);",
+           "if(!tihuluSeparateVideoSurface())\n"
+           "\t\tlibvlc_media_player_set_xwindow(vlcMediaPlayer, quint32(winId()));\n"
+           "\tlibvlc_media_player_set_media(vlcMediaPlayer, vlcMedia);")
     change(vlc, '''\tQString args = Configuration::instance()->getLibVlcArguments();
 \tQStringList argList;''', '''\tQString args = Configuration::instance()->getLibVlcArguments();
 \tconst QByteArray tihuluProfile = qgetenv("TIHULU_VLC_PROFILE");

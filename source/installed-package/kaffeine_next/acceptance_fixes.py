@@ -14,6 +14,19 @@ def transform(files):
             '\tTihuluTheme::install(menu);')
     vlc = "src/backend-vlc/vlcmediawidget.cpp"
     replace(vlc, '#include <QSettings>', '#include <QSettings>\n#include "../tihulu_playback_profile.h"')
+    # Bind the CURRENT native surface before VLC creates its video output: a
+    # reparented MediaWidget has a different window id, and VLC opens its own
+    # window when the id is stale (owner reported a separate "VLC media player"
+    # window). Skipped only when the separate-window surface is selected.
+    replace(vlc, "\treturn libvlc_media_player_play(vlcMediaPlayer);",
+            "\tif(!tihuluSeparateVideoSurface())\n"
+            "\t\tlibvlc_media_player_set_xwindow(vlcMediaPlayer, quint32(winId()));\n"
+            "\tsetAttribute(Qt::WA_NativeWindow);\n"
+            "\treturn libvlc_media_player_play(vlcMediaPlayer);")
+    replace(vlc, "libvlc_media_player_set_media(vlcMediaPlayer, vlcMedia);",
+            "if(!tihuluSeparateVideoSurface())\n"
+            "\t\tlibvlc_media_player_set_xwindow(vlcMediaPlayer, quint32(winId()));\n"
+            "\tlibvlc_media_player_set_media(vlcMediaPlayer, vlcMedia);")
     if files[vlc].count('qgetenv("TIHULU_VLC_PROFILE")') != 4:
         raise ValueError("Unexpected libVLC playback profile sites")
     files[vlc] = files[vlc].replace('qgetenv("TIHULU_VLC_PROFILE")', 'tihuluPlaybackProfile()')
