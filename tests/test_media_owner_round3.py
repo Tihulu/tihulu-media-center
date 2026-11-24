@@ -407,6 +407,81 @@ class DefaultsAndCache(unittest.TestCase):
                 self.assertTrue(ai.return_value.values["asr_enabled"])
                 self.assertEqual(ai.return_value.values["model_path"],str(model))
 
+    def test_dab_capture_keeps_pacing_without_stalling(self):
+        """Owner report: radio live AI hangs. The audio capture must keep a
+        steady pace against a live loopback stream, never stall or report a
+        false end of stream while audio is still flowing."""
+        import http.server
+        import socketserver
+        import threading as _threading
+        from tv_center.radio_capture import BoundedRadioCapture
+
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            mp3 = base / "stream.mp3"
+            subprocess.run(
+                ["/usr/bin/ffmpeg", "-nostdin", "-v", "error",
+                 "-f", "lavfi", "-i", "sine=frequency=440:duration=30",
+                 "-c:a", "libmp3lame", "-b:a", "64k", str(mp3)],
+                timeout=90, check=True)
+            payload = mp3.read_bytes()
+
+            class Quiet(http.server.BaseHTTPRequestHandler):
+                def do_GET(self):
+                    self.send_response(200)
+                    self.send_header("Content-Type", "audio/mpeg")
+                    # An unbounded body keeps the client from seeing EOF early.
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                def log_message(self, *_a):
+                    pass
+
+            class Server(socketserver.ThreadingTCPServer):
+                allow_reuse_address = True
+                daemon_threads = True
+
+            server = Server(("127.0.0.1", 0), Quiet)
+            port = server.server_address[1]
+            thread = _threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                ffmpeg = subprocess.Popen(
+                    ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error",
+                     "-protocol_whitelist", "file,http,tcp",
+                     "-rw_timeout", "5000000",
+                     "-i", f"http://127.0.0.1:{port}/stream.mp3",
+                     "-map", "0:a:0", "-ac", "1", "-ar", "32000",
+                     "-vn", "-f", "s16le", "pipe:1"],
+                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL)
+                capture = BoundedRadioCapture(
+                    ffmpeg.stdout, samples_per_second=32000,
+                    max_windows=0, queue_size=4).start()
+                windows = []
+                deadline = time.monotonic() + 12.0
+                try:
+                    while time.monotonic() < deadline and len(windows) < 4:
+                        item = capture.next(timeout=1.0)
+                        if item is None:
+                            break          # a real end of stream
+                        windows.append(item)
+                finally:
+                    capture.stop()
+                    ffmpeg.terminate()
+                    try:
+                        ffmpeg.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        ffmpeg.kill(); ffmpeg.wait(timeout=10)
+                # Four audio windows must arrive without the reader stalling.
+                self.assertGreaterEqual(len(windows), 3,
+                    "radio audio capture stalled or reported an early EOF")
+                index, pcm, _stamp = windows[0]
+                self.assertEqual(index, 0)
+                self.assertGreater(len(pcm), 32000 * 2)
+            finally:
+                server.shutdown(); server.server_close()
+
     def test_private_cache_prune_never_touches_user_files(self):
         from tv_center.file_live_captions import prune_private_caches
         with tempfile.TemporaryDirectory() as folder:
