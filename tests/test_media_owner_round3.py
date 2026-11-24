@@ -361,6 +361,35 @@ class FileCaptionService(unittest.TestCase):
         self.assertIn('QSettings("TIHULU", "Appearance")',
                       read("tv_center/theme.py"))
 
+    def test_local_media_gets_the_same_in_video_captions_as_tv(self):
+        """Owner report: on playback the subtitles only ever appeared in the
+        separate subtitle panel, never inside the video the way live TV does,
+        and the panel covered half the screen."""
+        patch = read("kaffeine_next/patch_upstream.py")
+        # The caption poll must not clear the overlay for a local file: a
+        # local file/stream is MediaSource::Url, so both types render.
+        self.assertIn("source->getType() != MediaSource::Dvb &&", patch)
+        self.assertIn("source->getType() != MediaSource::Url) {", patch)
+        # The old TV-only guard, which rejected every non-DVB source, is gone.
+        self.assertNotIn(
+            "if (source->getType() != MediaSource::Dvb) {", patch.replace("\\t", ""))
+
+    def test_caption_strip_is_bounded_to_a_quarter_of_the_player(self):
+        """The caption strip is a layout widget; unbounded it grows with its
+        text and eats half of the player. Captions also go into the video with
+        the same engine as live TV, so the panel must stay supplementary."""
+        code = read("kaffeine_next/native_file_captions.h")
+        self.assertIn("void clampHeight()", code)
+        self.assertIn("player_->height()/4", code)
+        # It must follow the player when the player is resized.
+        self.assertIn("installEventFilter(this)", code)
+        self.assertIn("event->type()==QEvent::Resize", code)
+        # The public caption API must stay public (a protected block may not
+        # be inserted in the middle of the class).
+        first_public = code.index("void setSticky(")
+        self.assertLess(first_public, code.index("protected:"),
+                        "caption API must stay public")
+
     def test_radio_caption_start_never_blocks_the_ui_thread(self):
         """Owner report: radio live AI hangs.
 

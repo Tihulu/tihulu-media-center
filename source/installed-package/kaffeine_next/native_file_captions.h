@@ -6,6 +6,7 @@
 #include <QFont>
 #include <QFile>
 #include <QLabel>
+#include <QResizeEvent>
 #include <QRegularExpression>
 #include <QTimer>
 #include <QVector>
@@ -31,6 +32,12 @@ public:
         player->layout()->addWidget(this);hide();
         connect(&clock_,&QTimer::timeout,this,[this](){updateCaption();});
         clock_.start(100);
+        // The strip is a layout widget, so without a bound it grows with its
+        // text and takes half of the player. Cap it at a quarter of the
+        // player height, exactly like the live TV video overlay, and keep it
+        // in step when the player is resized or goes fullscreen.
+        clampHeight();
+        player_->installEventFilter(this);
     }
     // A live caption session keeps the strip open even between phrases: it
     // closes only when playback is idle or a new file replaces it.
@@ -81,5 +88,22 @@ private:
         setText(text);setVisible(!text.isEmpty());
     }
     MediaWidget *player_;QVector<Cue> cues_;QTimer clock_;bool sticky_=false,karaoke_=false;
+protected:
+    // The panel may never cover a large part of the video; the owner reported
+    // it taking half of the screen. Captions themselves also go into the video
+    // with the same engine as live TV, so the panel is supplementary.
+    void clampHeight() {
+        if(!player_)return;
+        const int cap=qMax(56,player_->height()/4);
+        if(maximumHeight()!=cap)setMaximumHeight(cap);
+    }
+    void resizeEvent(QResizeEvent *event) override {
+        clampHeight();
+        QLabel::resizeEvent(event);
+    }
+    bool eventFilter(QObject *watched,QEvent *event) override {
+        if(watched==player_ && event->type()==QEvent::Resize)clampHeight();
+        return QLabel::eventFilter(watched,event);
+    }
 };
 #endif

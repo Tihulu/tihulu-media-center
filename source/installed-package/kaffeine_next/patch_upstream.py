@@ -1649,7 +1649,13 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\t\t}
 \t\t\t\tsubtitlesChanged();
 \t\t\t};
-\t\t\tif (source->getType() != MediaSource::Dvb) {
+\t\t\t// Captions are not TV-only. A local file or stream is
+\t\t\t// MediaSource::Url, and the file caption service publishes
+\t\t\t// the same private runtime JSON live TV uses, so local media
+\t\t\t// gets the identical in-video rendering. A source with no
+\t\t\t// running caption service has no JSON and is cleared below.
+\t\t\tif (source->getType() != MediaSource::Dvb &&
+\t\t\t\tsource->getType() != MediaSource::Url) {
 \t\t\t\tclearCaption();
 \t\t\t\tsetAiAvailability(false);
 \t\t\t\treturn;
