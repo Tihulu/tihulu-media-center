@@ -556,11 +556,16 @@ class ThreeCaptionServices(unittest.TestCase):
         self.assertIn("QStyleFactory.create(\"Fusion\")", read("tv_center/theme.py"))
 
     def test_both_services_start_headless(self):
-        for command in ("kaffeine-captions", "kaffeine-captions-file"):
+        sockets = {"kaffeine-captions": "tihulu-dvb-1.sock",
+                   "kaffeine-captions-file": "tihulu-file-1.sock"}
+        for command, socket_name in sockets.items():
             with self.subTest(command=command):
+                # Each service is started on its own private session socket;
+                # they stay separate through their control sockets, which this
+                # suite verifies elsewhere.
                 proc = subprocess.Popen(
                     ["/usr/bin/python3", "-m", "tv_center", command,
-                     "--socket", str(_runtime_path / "tihulu-dvb-1.sock")],
+                     "--socket", str(_runtime_path / socket_name)],
                     cwd=str(SOURCE), env=_caption_env, stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT, text=True)
                 try:
