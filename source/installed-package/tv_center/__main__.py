@@ -97,7 +97,12 @@ def main():
     if len(sys.argv) >= 2 and sys.argv[1] == "kaffeine-doctor":
         from kaffeine_next.diagnostics import main as diagnose
         return diagnose(sys.argv[2:])
-    if len(sys.argv) >= 2 and sys.argv[1] == "kaffeine-captions":
+    if len(sys.argv) >= 2 and sys.argv[1] in ("kaffeine-captions", "kaffeine-captions-file"):
+        # Three SEPARATE caption services share one tested window implementation:
+        #   kaffeine-captions       -> live TV (DVB) captions
+        #   kaffeine-captions-file  -> local file captions (radio features +
+        #                              whole-file work + subtitle search)
+        # The TV service is never modified by the file path.
         from kaffeine_next.captions_overlay import main as captions_main
         return captions_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "ai":

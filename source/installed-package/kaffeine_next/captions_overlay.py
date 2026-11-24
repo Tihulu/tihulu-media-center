@@ -1037,6 +1037,7 @@ def main(argv=None):
     from PyQt5.QtWidgets import (QApplication, QWidget, QDialog, QDialogButtonBox,
         QMessageBox, QPlainTextEdit, QVBoxLayout, QHBoxLayout,
         QLabel, QComboBox, QPushButton, QToolButton, QMenu, QWidgetAction,
+        QListWidget, QLineEdit,
         QSpinBox, QDoubleSpinBox,
         QCheckBox, QGroupBox, QFormLayout, QLineEdit, QColorDialog,
         QScrollArea, QFrame, QGridLayout, QFileDialog, QTabWidget,
@@ -1889,6 +1890,44 @@ def main(argv=None):
                        export_button, stop_file_button):
             file_row.addWidget(button)
         file_layout.addLayout(file_row)
+        # Radio-style extras for local audio: karaoke offset and reading preset.
+        file_offset = QSpinBox()
+        file_offset.setRange(-12000, 12000)
+        file_offset.setSuffix(" ms")
+        file_offset.setValue(0)
+        file_offset.setToolTip("Moves captions earlier (-) or later (+); the audio "
+                               "presentation time is not claimed to be measured.")
+        file_reading = QComboBox()
+        file_reading.addItems(["Live / fast halves", "TV-style adaptive",
+                               "Full sentence reading", "Slow reading"])
+        file_layout.addWidget(QLabel("Caption offset (radio style):"))
+        file_layout.addWidget(file_offset)
+        file_layout.addWidget(QLabel("Reading preset (radio style):"))
+        file_layout.addWidget(file_reading)
+        # Optional subtitle search for films: explicit action, keyless service.
+        search_row = QHBoxLayout()
+        search_hash_button = QPushButton("Search by file hash")
+        search_title = QLineEdit()
+        search_title.setPlaceholderText("…or type a film title")
+        search_title_button = QPushButton("Search by title")
+        search_row.addWidget(search_hash_button)
+        search_row.addWidget(search_title, 1)
+        search_row.addWidget(search_title_button)
+        file_layout.addLayout(search_row)
+        search_language = QComboBox()
+        for code in ("en", "tr", "de", "fr", "es", "ar"):
+            search_language.addItem(code.upper(), code)
+        file_layout.addWidget(search_language)
+        search_results = QListWidget()
+        search_results.setMaximumHeight(120)
+        file_layout.addWidget(search_results)
+        search_download = QPushButton("Download selected subtitle")
+        search_download.setEnabled(False)
+        file_layout.addWidget(search_download)
+        search_note = QLabel("No search happens until you press a search button. "
+                             "Keyless OpenSubtitles; your file is hashed locally.")
+        search_note.setWordWrap(True)
+        file_layout.addWidget(search_note)
         file_online_lyrics = QCheckBox(
             "Find lyrics online by title / artist (optional, LRCLIB)")
         file_layout.addWidget(file_online_lyrics)
@@ -1939,6 +1978,41 @@ def main(argv=None):
             base = _P(file_media)
             return str(base.with_suffix(".srt"))
         stop_file_button.clicked.connect(file_stop)
+        def run_search(by_hash):
+            query = search_title.text().strip()
+            search_results.clear();search_download.setEnabled(False)
+            search_note.setText("Searching…")
+            def work():
+                try:
+                    from tv_center.subtitle_search import search as search_subs
+                    rows = search_subs(path=file_media if by_hash else None,
+                                       title="" if by_hash else query,
+                                       language=search_language.currentData())
+                    events.put(("file_search", rows))
+                except Exception as exc:
+                    events.put(("file_search_error", str(exc)[:220]))
+            _threading.Thread(target=work, name="tihulu-subtitle-search",
+                              daemon=True).start()
+        def run_download():
+            item = search_results.currentItem()
+            if not item:
+                return
+            entry = item.data(Qt.UserRole)
+            def work():
+                try:
+                    from tv_center.subtitle_search import download as get_sub
+                    dest = str(Path(file_media).with_suffix(".srt"))
+                    saved = get_sub(entry, dest)
+                    events.put(("file_download", saved))
+                except Exception as exc:
+                    events.put(("file_download_error", str(exc)[:220]))
+            _threading.Thread(target=work, name="tihulu-subtitle-download",
+                              daemon=True).start()
+        search_hash_button.clicked.connect(lambda: run_search(True))
+        search_title_button.clicked.connect(lambda: run_search(False))
+        search_download.clicked.connect(run_download)
+        search_results.itemSelectionChanged.connect(
+            lambda: search_download.setEnabled(search_results.currentItem() is not None))
         whole_button.clicked.connect(lambda: file_run(
             lambda: file_job_transcribe(file_media, *file_source_and_targets(
                 source, language_boxes, extra_targets), music_transcription.isChecked()),
@@ -3242,6 +3316,23 @@ def main(argv=None):
                 # Nothing may idle on the GPU after Stop: exit the whole service.
                 window.terminating = True
                 app.quit()
+            elif kind == "file_search":
+                for row in (data or [])[:40]:
+                    item = QListWidgetItem("%s · %s · %s downloads" % (
+                        row.get("name","")[:70], row.get("language",""),
+                        row.get("downloads","")))
+                    item.setData(Qt.UserRole, row)
+                    search_results.addItem(item)
+                search_note.setText("%d result(s). Select one and download to "
+                                    "attach it beside the file." % search_results.count())
+            elif kind == "file_search_error":
+                search_note.setText("Search failed: " + str(data))
+            elif kind == "file_download":
+                search_note.setText(
+                    "Subtitle saved beside the file: %s. The player attaches it "
+                    "automatically, and it is available in Export." % data)
+            elif kind == "file_download_error":
+                search_note.setText("Download failed: " + str(data))
             elif kind == "file_done":
                 try:
                     file_progress.setVisible(False)
