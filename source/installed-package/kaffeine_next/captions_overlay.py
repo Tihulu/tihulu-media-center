@@ -1043,11 +1043,29 @@ def main(argv=None):
         QScrollArea, QFrame, QGridLayout, QFileDialog, QTabWidget,
         QProgressBar)
     app = QApplication.instance() or QApplication(["TIHULU Kaffeine Live Captions"])
-    # Old generated SRT sidecars are removed on session start; user files never are.
+    # The caption service is a SEPARATE process, so it must apply the same
+    # appearance the main application uses (Light/Dark/System) itself.
     try:
-        from tv_center.file_live_captions import prune_private_caches
-        prune_private_caches()
-    except (ImportError, OSError, ValueError):
+        from PyQt5.QtGui import QPalette, QColor
+        _theme_store = QSettings("TIHULU", "Appearance")
+        _theme = _theme_store.value("theme", "system")
+        app.setStyle("Fusion")
+        if _theme in ("light", "dark"):
+            _pal = QPalette()
+            _win = QColor("#f4f6f8" if _theme == "light" else "#18222d")
+            _base = QColor("#ffffff" if _theme == "light" else "#111a23")
+            _text = QColor("#17212b" if _theme == "light" else "#ecf1f6")
+            _button = QColor("#e5ebf1" if _theme == "light" else "#293b4b")
+            for _group in (QPalette.Active, QPalette.Inactive, QPalette.Disabled):
+                for _role, _color in ((QPalette.Window, _win), (QPalette.Base, _base),
+                                      (QPalette.Text, _text), (QPalette.Button, _button),
+                                      (QPalette.ButtonText, _text),
+                                      (QPalette.WindowText, _text),
+                                      (QPalette.Highlight, QColor("#145c8e")),
+                                      (QPalette.HighlightedText, QColor("#ffffff"))):
+                    _pal.setColor(_group, _role, _color)
+            app.setPalette(_pal)
+    except Exception:
         pass
     # Hiding the only QWidget must NOT quit the Qt event loop: audio capture,
     # auto-sync and video-overlay publishing continue independently of UI.

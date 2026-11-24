@@ -20,6 +20,38 @@ from tv_center import media_ai, file_live_captions, local_assets
 from tv_center.lyrics_sync import LyricCue
 
 
+
+_runtime = None
+_caption_env = None
+_runtime_path = None
+
+
+def read(relative):
+    return (SOURCE / relative).read_text(encoding="utf-8")
+
+
+def setUpModule():
+    global _runtime, _caption_env, _runtime_path
+    _runtime = tempfile.TemporaryDirectory(prefix="tihulu-cap-services-")
+    home = Path(_runtime.name) / "home"
+    home.mkdir(parents=True, exist_ok=True)
+    runtime = Path(_runtime.name) / "run"
+    runtime.mkdir(parents=True, exist_ok=True)
+    os.chmod(runtime, 0o700)
+    _runtime_path = runtime
+    _caption_env = {k: v for k, v in os.environ.items()
+                    if k not in ("PYTHONPATH", "LD_LIBRARY_PATH", "CONDA_PREFIX")}
+    _caption_env.update({"HOME": str(home), "XDG_RUNTIME_DIR": str(runtime),
+                         "QT_QPA_PLATFORM": "offscreen",
+                         "PYTHONDONTWRITEBYTECODE": "1",
+                         "PYTHONPATH": str(SOURCE)})
+
+
+def tearDownModule():
+    if _runtime is not None:
+        _runtime.cleanup()
+
+
 class OfflineRegressions(unittest.TestCase):
     def test_live_window_keeps_real_timing_and_translation_failure_original(self):
         decoded = Mock(returncode=0, stdout=b"\x30\x01" * 256000)
@@ -392,3 +424,45 @@ else:
 
 
 if __name__=="__main__":unittest.main()
+
+class ThreeCaptionServices(unittest.TestCase):
+    """TV, radio and file are separate services; TV and radio stay untouched."""
+
+    def test_entry_points_are_separate_and_share_tested_window_code(self):
+        code = read("tv_center/__main__.py")
+        self.assertIn('"kaffeine-captions", "kaffeine-captions-file"', code)
+        self.assertIn('live TV (DVB) captions', code)
+        self.assertIn('local file captions', code)
+        self.assertIn('"radio-captions"', code)
+
+    def test_file_window_applies_the_saved_appearance(self):
+        code = read("kaffeine_next/captions_overlay.py")
+        self.assertIn('QSettings("TIHULU", "Appearance")', code)
+        self.assertIn('app.setStyle("Fusion")', code)
+        self.assertIn('_pal.setColor(_group, _role, _color)', code)
+        self.assertIn("QColor(", code)
+
+    def test_both_services_start_headless(self):
+        for command in ("kaffeine-captions", "kaffeine-captions-file"):
+            with self.subTest(command=command):
+                proc = subprocess.Popen(
+                    ["/usr/bin/python3", "-m", "tv_center", command,
+                     "--socket", str(_runtime_path / "tihulu-dvb-1.sock")],
+                    cwd=str(SOURCE), env=_caption_env, stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT, text=True)
+                try:
+                    time.sleep(4)
+                    self.assertIsNone(proc.poll(),
+                                     f"{command} exited early")
+                finally:
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=6)
+                    except subprocess.TimeoutExpired:
+                        proc.kill(); proc.wait(timeout=6)
+
+    def test_subtitle_search_is_never_automatic(self):
+        code = read("kaffeine_next/captions_overlay.py")
+        self.assertIn('"No search happens until you press a search button.', code)
+        self.assertIn("search_hash_button.clicked.connect(lambda: run_search(True))", code)
+        self.assertIn("search_title_button.clicked.connect(lambda: run_search(False))", code)
