@@ -1457,6 +1457,38 @@ def main(argv=None):
         "content sync; separate languages are not treated as mismatches. "
         "Three conflicts trigger Whisper and two later matches allow "
         "return to Teletext.")
+    if file_media:
+        # The file IS the caption source: no broadcaster, no DVB service and
+        # no Teletext page is looked for, in any mode.
+        mode.clear()
+        mode.addItem("Whisper live transcription · this file's audio", "asr")
+        mode.addItem("Off", "off")
+        mode.setToolTip("Local file: Whisper transcribes this file's own audio "
+                        "track. There is no broadcaster source to select.")
+        source.setToolTip(
+            "Spoken language of THIS file's audio. This is the SOURCE "
+            "language; the output languages above are the targets. Type an "
+            "ISO code such as pl, es, ja, ar.")
+        file_source_row = QHBoxLayout()
+        file_source_row.addWidget(QLabel("Source"))
+        file_source_label = QLabel(Path(file_media).name)
+        file_source_label.setToolTip(file_media)
+        file_source_row.addWidget(file_source_label, 1)
+        settings_layout.addRow(file_source_row)
+        # Broadcaster subtitle pages and DVB track descriptors cannot exist
+        # for a local file, so they are not offered at all.
+        for index in range(tracks_row.count()):
+            widget = tracks_row.itemAt(index).widget()
+            if widget is not None:
+                widget.setVisible(False)
+        track_status.setVisible(False)
+        teletext_speech_status.setText(
+            "FILE AUDIO · Whisper transcribes the selected file's own "
+            "audio track; no broadcaster subtitles are consulted.")
+        teletext_speech_status.setToolTip(
+            "Local file source: captions come from this file's audio, "
+            "decoded on the player clock. Teletext and broadcaster pages "
+            "do not apply.")
     audio_row = QHBoxLayout()
     audio_row.addWidget(QLabel("Whisper source audio channel"))
     audio_track = QComboBox()
@@ -2091,6 +2123,18 @@ def main(argv=None):
     caption_pipeline_health.setToolTip(
         "Real queued six-second clips, caption delivery losses, and time "
         "since a subtitle was shown. Not a speech/silence detector.")
+    if file_media:
+        pinned_progress.setText(
+            "File audio: decoded from the media file on the playback clock")
+        pinned_progress.setToolTip(
+            "Local file source. No receiver timeshift buffer is involved.")
+        buffer_progress.setFormat("Local file audio · no receiver buffer")
+        buffer_progress.setRange(0, 0)
+        native_channel_status.setText(
+            "Source: local file · " + Path(file_media).name)
+        native_channel_status.setToolTip(file_media)
+        caption_pipeline_health.setText(
+            "Local file audio · waiting for the player position")
     root.addWidget(caption_pipeline_health)
     # Always visible on every tab, including Caption preview and diagnostics.
     # Never merely equate Teletext existence or PTS with spoken correctness.
@@ -3208,7 +3252,8 @@ def main(argv=None):
         if tap.program_epoch != last_ui_program_epoch:
             last_ui_program_epoch = tap.program_epoch
             reset_channel_captions(last_ui_program_epoch,tap.native_tune_state)
-        if now - last_effective_check >= 1.0:
+        # Receiver timeshift telemetry only exists for live TV.
+        if now - last_effective_check >= 1.0 and not file_media:
             last_effective_check = now
             effective = native_release_clock.stabilized(
                 ipc.read_effective_delay())
@@ -3944,7 +3989,7 @@ def main(argv=None):
                     "could not reach the UI; check system load.")
             elif missed:
                 message=(
-                    f"CAPTURE OVERFLOW: {missed:.1f}s of real TV audio "
+                    f"CAPTURE OVERFLOW: {missed:.1f}s of real audio "
                     "could not be retained; current scene may have no "
                     "subtitles. Reduce optional AI load.")
             elif snap.get("active_clip_at") is not None:
@@ -3958,6 +4003,21 @@ def main(argv=None):
                     f"ASR CATCH-UP: {backlog['queued_clips']} real audio "
                     f"clips queued, last wait {recent.get('queue_wait_ms','?')}ms. "
                     "TV playback may be ahead of captions.")
+            elif file_media:
+                if tap.file_last_position is None:
+                    message=(
+                        "Local file source · waiting for the player "
+                        "position. Start playback in Kaffeine.")
+                elif tap.file_last_end is None:
+                    message=(
+                        "Local file source · playback paused; resume to "
+                        "receive new audio windows.")
+                else:
+                    message=(
+                        f"Local file source · audio window ending at "
+                        f"{tap.file_last_end:.1f}s · queue "
+                        f"{backlog['queued_clips']} clip(s) · "
+                        f"last subtitle {shown_gap:.1f}s ago")
             elif (shown_gap>=10 and snap.get("last_ts_at") is not None
                   and now-snap["last_ts_at"]>4.0):
                 message=(

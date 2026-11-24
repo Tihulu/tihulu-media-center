@@ -579,6 +579,27 @@ class ThreeCaptionServices(unittest.TestCase):
                     except subprocess.TimeoutExpired:
                         proc.kill(); proc.wait(timeout=6)
 
+    def test_file_mode_offers_the_file_as_the_caption_source(self):
+        """A local file must be the caption source: no broadcaster, no
+        Teletext page and no DVB track lookup in file mode."""
+        code = read("kaffeine_next/captions_overlay.py")
+        # The file replaces the broadcaster as the selectable source.
+        self.assertIn('mode.addItem("Whisper live transcription · this file\'s audio", "asr")',
+                      code)
+        self.assertIn('QLabel("Source")', code)
+        self.assertIn('source_row.addWidget(QLabel("Source"))', code)
+        # Broadcast-only controls are not offered for a file.
+        self.assertIn('track_status.setVisible(False)', code)
+        # The always-visible status lines describe the file, not a receiver.
+        self.assertIn('"Source: local file · "', code)
+        self.assertIn('"File audio: decoded from the media file on the playback clock"',
+                      code)
+        # Live-TV receiver telemetry is not polled for a file.
+        self.assertIn(">= 1.0 and not file_media:", code)
+        # The DVB-only pipeline-health messages are unreachable in file mode.
+        self.assertIn("elif file_media:", code)
+        self.assertIn('"Local file source · waiting for the player "', code)
+
     def test_overlay_mode_is_read_on_every_poll(self):
         """Switching the overlay off/compact/full must not need a restart."""
         patch=read("kaffeine_next/patch_upstream.py")
@@ -606,6 +627,41 @@ class ThreeCaptionServices(unittest.TestCase):
         package=SOURCE/"kaffeine_next"
         for stray in sorted(package.glob(".p*.py")):
             self.fail("Unexpected scratch file in the package: "+str(stray))
+
+    def test_file_service_runs_on_a_real_media_file_without_any_receiver(self):
+        """Owner report: the file panel still looked for a broadcaster source.
+        The file service must start on a real media file, on its own socket,
+        with no DVB device, tuner or channel anywhere in the path."""
+        with tempfile.TemporaryDirectory(prefix="tihulu-filecap-") as folder:
+            base = Path(folder)
+            media = base / "clip.wav"
+            subprocess.run(
+                ["/usr/bin/ffmpeg", "-nostdin", "-v", "error",
+                 "-f", "lavfi", "-i", "sine=frequency=440:duration=12",
+                 "-c:a", "pcm_s16le", str(media)],
+                timeout=60, check=True)
+            env = dict(_caption_env)
+            env["HOME"] = str(base / "home")
+            (base / "home").mkdir()
+            proc = subprocess.Popen(
+                ["/usr/bin/python3", "-m", "tv_center", "kaffeine-captions-file",
+                 "--socket", str(_runtime_path / "tihulu-file-77.sock"),
+                 "--file", str(media), "--window", "6"],
+                cwd=str(SOURCE), env=env, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, text=True)
+            try:
+                time.sleep(5)
+                self.assertIsNone(proc.poll(), "file caption service exited early")
+            finally:
+                proc.terminate()
+                try:
+                    out, _ = proc.communicate(timeout=8)
+                except subprocess.TimeoutExpired:
+                    proc.kill(); out, _ = proc.communicate(timeout=8)
+            # It must never fall back to looking for a DVB receiver: that
+            # error path ends in "Cannot receive Kaffeine DVB stream".
+            self.assertNotIn("Cannot receive Kaffeine DVB stream", out or "")
+            self.assertNotIn("Expected a private Kaffeine", out or "")
 
     def test_subtitle_search_is_never_automatic(self):
         code = read("kaffeine_next/captions_overlay.py")
