@@ -361,6 +361,31 @@ class FileCaptionService(unittest.TestCase):
         self.assertIn('QSettings("TIHULU", "Appearance")',
                       read("tv_center/theme.py"))
 
+    def test_radio_caption_start_never_blocks_the_ui_thread(self):
+        """Owner report: radio live AI hangs.
+
+        startCaptioning() runs inside the 150 ms captionTick_ timer lambda on
+        the Qt main thread, and it used to call waitForStarted(1200). Every
+        retry therefore froze the radio tab for up to 1.2 s, and the recovery
+        loop kept retrying, so the tab stayed effectively frozen.
+        """
+        code = read("kaffeine_next/native_radio_tab.h")
+        start = code.index("void startCaptioning()")
+        end = code.index("void clearKaraokeLine()", start)
+        body = code[start:end]
+        # No blocking start wait anywhere in the caption start path
+        # (comments may name the removed call, so match the actual call).
+        self.assertNotIn("captionProcess_.waitForStarted", body,
+                         "caption start must not block the main thread")
+        self.assertNotIn("captionProcess_.waitForFinished", body)
+        # The start is asynchronous and a failure is still reported.
+        self.assertIn("captionProcess_.start(QLatin1String(\"tihulu-tv-center\")",
+                      body)
+        self.assertIn("radio ASR/translation starting", body)
+        # The async error handler must surface the failure, not stay silent.
+        self.assertIn("Offline radio AI sidecar could not start · retrying",
+                      code)
+
     def test_panel_launches_the_file_caption_service_with_its_own_socket(self):
         """The player opens kaffeine-captions-file on a file socket, never the
         TV service name."""

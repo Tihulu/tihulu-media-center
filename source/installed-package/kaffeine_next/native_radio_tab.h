@@ -2695,6 +2695,10 @@ public:
                    !quickAi_->isChecked()) return;
                 // FailedToStart may never emit finished: periodic tick
                 // checks this same deadline. Do not spin in errorOccurred.
+                if(captionProgress_) captionProgress_->setVisible(false);
+                radioCaption_->setText(tr(
+                    "Offline radio AI sidecar could not start · retrying "
+                    "local ASR only; radio playback is unchanged."));
                 scheduleCaptionRecovery();
             });
 
@@ -5142,20 +5146,20 @@ private:
 		options<<QLatin1String("--output")<<captionPath_
                <<QLatin1String("--controls")<<captionControlsPath_;
 		QFile::remove(captionPath_);
+		// Never block the radio UI thread: waitForStarted(1200) here froze the
+		// tab on every retry when the sidecar could not start (owner report:
+		// "radio live AI hangs"). A failed start is reported by the
+		// errorOccurred handler below, and the periodic caption tick re-arms
+		// recovery, so nothing has to wait on the main thread.
 		captionProcess_.start(QLatin1String("tihulu-tv-center"),options);
-        if (!captionProcess_.waitForStarted(1200)) {
-            radioCaption_->setText(tr("Offline radio AI sidecar could not start."));
-            captionProgress_->setVisible(false);
-        } else {
-            captionProgress_->setVisible(true);
-            captionProgress_->setRange(0,0);
-            captionProgress_->setFormat(tr(
-                "Whisper starting · collecting ~5 s of real DAB audio…"));
-            // Only a REAL decoded Whisper chunk may count as success
-            // for the ASR reconnection backoff.
-            radioCaption_->setText(tr("Offline radio ASR/translation started. "
-                "Radio audio plays independently; heavy AI may fall behind."));
-        }
+		captionProgress_->setVisible(true);
+		captionProgress_->setRange(0,0);
+		captionProgress_->setFormat(tr(
+			"Whisper starting · collecting ~5 s of real DAB audio…"));
+		// Only a REAL decoded Whisper chunk may count as success
+		// for the ASR reconnection backoff.
+		radioCaption_->setText(tr("Offline radio ASR/translation starting. "
+			"Radio audio plays independently; heavy AI may fall behind."));
 	}
     void clearKaraokeLine() {
         lastKaraokeUntilMs_=0;
