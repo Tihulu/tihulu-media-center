@@ -590,6 +590,18 @@ class ThreeCaptionServices(unittest.TestCase):
         # Both render sites use the mode-aware size, and the hard cap stays.
         self.assertEqual(patch.count("captionFontSize(obj.value("),2)
         self.assertIn("video.height()/4",patch)
+        # The mode and the font-size lambda must live in the POLL body scope:
+        # a nested brace block would leave them invisible at the render sites
+        # and the native build would fail with "was not declared in this scope".
+        start = patch.index("QSettings overlay(QLatin1String(\"TIHULU\")")
+        line_start = patch.rfind("\n", 0, start) + 1
+        prev_start = patch.rfind("\n", 0, line_start - 1) + 1
+        # patch_upstream.py stores indentation as literal \t escapes, so
+        # collapse them before comparing.
+        previous = (patch[prev_start:line_start - 1]
+                    .replace("\\t", "").strip())
+        self.assertNotEqual(previous, "{",
+                            "overlay mode must not sit in a nested brace block")
         # No stray developer scratch files are shipped in the package.
         package=SOURCE/"kaffeine_next"
         for stray in sorted(package.glob(".p*.py")):
