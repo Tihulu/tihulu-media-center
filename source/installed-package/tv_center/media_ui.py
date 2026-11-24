@@ -25,6 +25,8 @@ def main(args=None):
     if os.environ.get("WAYLAND_DISPLAY"):
         os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
     app=QApplication.instance() or QApplication(["TIHULU offline media AI"])
+    from .theme import install_theme
+    install_theme(app)
 
     class Runner(QObject):
         done=pyqtSignal(object)

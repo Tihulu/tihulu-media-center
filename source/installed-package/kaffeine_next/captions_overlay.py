@@ -28,14 +28,33 @@ OVERLAP_SECONDS = 1.0
 MAX_TS_BYTES = 24 * 1024 * 1024
 LANGS = ("de", "en", "tr", "fr")
 
+_TV_SOCKET = re.compile(r"tihulu-dvb-[0-9]{1,10}\.sock\Z")
+_FILE_SOCKET = re.compile(r"tihulu-file-[0-9]{1,10}\.sock\Z")
+
+
 def validate_socket(path: str) -> Path:
     location = Path(os.environ.get("XDG_RUNTIME_DIR", ""))
     p = Path(path)
     if not location.is_dir() or not p.is_absolute() or p.parent != location:
         raise ValueError("Captions socket must be in the current user's XDG_RUNTIME_DIR")
-    if not re.fullmatch(r"tihulu-dvb-[0-9]{1,10}\.sock", p.name):
-        raise ValueError("Expected a private Kaffeine DVB socket from this session")
+    # Both names are private to this session's Kaffeine process and stay
+    # inside the owner's own runtime directory. The file service never
+    # opens a DVB device; it only shares the same ID-safety rules.
+    if not (_TV_SOCKET.fullmatch(p.name) or _FILE_SOCKET.fullmatch(p.name)):
+        raise ValueError("Expected a private Kaffeine session socket from this user")
     return p
+
+
+def service_identity(argv) -> str:
+    """Return the caption-service tag implied by the command line.
+
+    The three services are deliberately separate processes with separate
+    single-instance control: live TV keeps ``kaffeine-captions``, local
+    file playback uses ``kaffeine-captions-file``.
+    """
+    if argv and argv[0] == "kaffeine-captions-file":
+        return "file"
+    return "dvb"
 
 class CaptionTap:
     def __init__(self, path, current_options, events, packet_sink=None,
@@ -1014,15 +1033,24 @@ def main(argv=None):
         index += 1
     argv = rest
     if len(argv) != 2 or argv[0] != "--socket":
-        raise SystemExit("Usage: tihulu-tv-center kaffeine-captions --socket $XDG_RUNTIME_DIR/tihulu-dvb-PID.sock")
+        raise SystemExit(
+            "Usage: tihulu-tv-center kaffeine-captions       --socket "
+            "$XDG_RUNTIME_DIR/tihulu-dvb-PID.sock\n"
+            "       tihulu-tv-center kaffeine-captions-file  --socket "
+            "$XDG_RUNTIME_DIR/tihulu-file-PID.sock --file MEDIA")
     endpoint = validate_socket(argv[1])
     from .caption_control import CaptionServiceControl
     from tv_center.language_codes import language_code
     from textcenter.compute import LANGUAGES as WHISPER_LANGUAGES
     pid = int(endpoint.stem.rsplit("-", 1)[-1])
-    if CaptionServiceControl.request_show(endpoint.parent, pid):
-        # Reopening the TIHULU AI menu focuses the existing controller.
-        # Do not create a competing DVB/Whisper reader.
+    # Separate service identity: the file service must never focus, reuse or
+    # stop the live TV caption service (and vice versa).
+    service = service_identity(sys.argv[1:2])
+    if file_media and service != "file":
+        service = "file"
+    if CaptionServiceControl.request_show(endpoint.parent, pid, service):
+        # Reopening the TIHULU AI menu focuses the existing controller for
+        # THIS service. Do not create a competing reader for the same service.
         return 0
     if show_only:
         return 1
@@ -1043,28 +1071,12 @@ def main(argv=None):
         QScrollArea, QFrame, QGridLayout, QFileDialog, QTabWidget,
         QProgressBar)
     app = QApplication.instance() or QApplication(["TIHULU Kaffeine Live Captions"])
-    # The caption service is a SEPARATE process, so it must apply the same
-    # appearance the main application uses (Light/Dark/System) itself.
+    # Each caption service is a SEPARATE process, so it must follow the same
+    # appearance the native player uses. The shared helper also re-reads the
+    # setting while a dialog is open, so a later change is applied live.
     try:
-        from PyQt5.QtGui import QPalette, QColor
-        _theme_store = QSettings("TIHULU", "Appearance")
-        _theme = _theme_store.value("theme", "system")
-        app.setStyle("Fusion")
-        if _theme in ("light", "dark"):
-            _pal = QPalette()
-            _win = QColor("#f4f6f8" if _theme == "light" else "#18222d")
-            _base = QColor("#ffffff" if _theme == "light" else "#111a23")
-            _text = QColor("#17212b" if _theme == "light" else "#ecf1f6")
-            _button = QColor("#e5ebf1" if _theme == "light" else "#293b4b")
-            for _group in (QPalette.Active, QPalette.Inactive, QPalette.Disabled):
-                for _role, _color in ((QPalette.Window, _win), (QPalette.Base, _base),
-                                      (QPalette.Text, _text), (QPalette.Button, _button),
-                                      (QPalette.ButtonText, _text),
-                                      (QPalette.WindowText, _text),
-                                      (QPalette.Highlight, QColor("#145c8e")),
-                                      (QPalette.HighlightedText, QColor("#ffffff"))):
-                    _pal.setColor(_group, _role, _color)
-            app.setPalette(_pal)
+        from tv_center.theme import install_theme
+        install_theme(app)
     except Exception:
         pass
     # Hiding the only QWidget must NOT quit the Qt event loop: audio capture,
@@ -2219,7 +2231,7 @@ def main(argv=None):
 
     ipc = KaffeineOSD(pid, runtime=endpoint.parent)
     events = queue.Queue(maxsize=32)
-    control = CaptionServiceControl(endpoint.parent, pid, events)
+    control = CaptionServiceControl(endpoint.parent, pid, events, service)
     try:
         control.start()
     except (OSError, RuntimeError) as exc:

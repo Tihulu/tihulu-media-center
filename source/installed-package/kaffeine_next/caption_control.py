@@ -7,19 +7,48 @@ existing process rather than starting a second subtitle engine.
 """
 from __future__ import annotations
 import os
+import re
 from pathlib import Path
 import socket
 import stat
 import threading
 
 
+_CONTROL_PREFIX = "tihulu-captions-control-"
+
+
+def _service_tag(service):
+    """Normalise a caption-service tag for use in a socket file name."""
+    tag = re.sub(r"[^a-z0-9]+", "", str(service or "").lower())
+    return tag or "dvb"
+
+
+def control_path(runtime, kaffeine_pid: int, service: str = "dvb") -> Path:
+    """Return the control socket for ONE caption service.
+
+    The live TV service keeps its historical name
+    (``tihulu-captions-control-<pid>.sock``) so the Kaffeine core, the
+    recorder and the packaged AI helpers keep addressing it unchanged.
+    Every other service (file playback, radio) is appended with its own
+    tag, so the three services are genuinely separate processes with
+    separate single-instance control.
+    """
+    pid = int(kaffeine_pid)
+    tag = _service_tag(service)
+    if tag == "dvb":
+        return Path(runtime) / f"{_CONTROL_PREFIX}{pid}.sock"
+    return Path(runtime) / f"{_CONTROL_PREFIX}{pid}-{tag}.sock"
+
+
 class CaptionServiceControl:
-    def __init__(self, runtime: Path, kaffeine_pid: int, events):
+    def __init__(self, runtime: Path, kaffeine_pid: int, events,
+                 service: str = "dvb"):
         self.root = Path(runtime)
         if (not self.root.is_dir() or self.root.is_symlink() or
                 type(kaffeine_pid) is not int or kaffeine_pid <= 0):
             raise ValueError("Expected the current user's private runtime directory")
-        self.path = self.root / f"tihulu-captions-control-{kaffeine_pid}.sock"
+        self.service = _service_tag(service)
+        self.path = control_path(self.root, kaffeine_pid, self.service)
         self.events = events
         self.pid = kaffeine_pid
         self.sock = None
@@ -27,13 +56,13 @@ class CaptionServiceControl:
         self.reader = None
 
     @staticmethod
-    def request_stop(runtime, kaffeine_pid):
+    def request_stop(runtime, kaffeine_pid, service: str = "dvb"):
         """Ask the running caption service to stop recognition and release AI.
 
         Used when the player's own Stop is pressed, in any mode: playback ends,
         so Whisper/translation workers must not keep VRAM busy.
         """
-        path = Path(runtime) / f"tihulu-captions-control-{int(kaffeine_pid)}.sock"
+        path = control_path(runtime, kaffeine_pid, service)
         if not path.exists() or path.is_symlink():
             return False
         meta = path.stat()
@@ -50,8 +79,8 @@ class CaptionServiceControl:
             request.close()
 
     @staticmethod
-    def request_show(runtime, kaffeine_pid):
-        path = Path(runtime) / f"tihulu-captions-control-{int(kaffeine_pid)}.sock"
+    def request_show(runtime, kaffeine_pid, service: str = "dvb"):
+        path = control_path(runtime, kaffeine_pid, service)
         if not path.exists():
             return False
         if path.is_symlink():
@@ -72,7 +101,7 @@ class CaptionServiceControl:
 
     def start(self):
         if os.path.lexists(self.path):
-            if self.request_show(self.root, self.pid):
+            if self.request_show(self.root, self.pid, self.service):
                 raise RuntimeError("Caption settings are already running; shown existing panel")
             meta = self.path.lstat()
             if meta.st_uid != os.getuid() or not stat.S_ISSOCK(meta.st_mode):
@@ -92,7 +121,11 @@ class CaptionServiceControl:
 
     @property
     def kaffeine_pid(self):
-        return int(self.path.name.rsplit("-", 1)[-1].split(".")[0])
+        """Owner Kaffeine PID parsed from either socket naming scheme."""
+        stem = self.path.name
+        if stem.startswith(_CONTROL_PREFIX):
+            stem = stem[len(_CONTROL_PREFIX):]
+        return int(stem.rsplit("-", 1)[0].split(".")[0])
 
     def _run(self):
         while not self.stop.is_set():

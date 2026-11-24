@@ -347,9 +347,12 @@ private:
             openFullCaptionWindow();return;
         }
         stopLive();cancelled_=false;++revision_;
-        const QString name=runtime+QStringLiteral("/tihulu-dvb-")+
+        // Local file playback is a SEPARATE caption service from live TV:
+        // its own service name and its own private runtime socket, so the
+        // file service can never reuse, focus or stop the TV caption service.
+        const QString name=runtime+QStringLiteral("/tihulu-file-")+
             QString::number(QCoreApplication::applicationPid())+QStringLiteral(".sock");
-        QStringList args{QStringLiteral("kaffeine-captions"),QStringLiteral("--socket"),name,
+        QStringList args{QStringLiteral("kaffeine-captions-file"),QStringLiteral("--socket"),name,
                          QStringLiteral("--file"),path_};
         for(int i=0;i<captionArgs.size();++i) {
             if(captionArgs.value(i)==QStringLiteral("--source") && i+1<captionArgs.size())

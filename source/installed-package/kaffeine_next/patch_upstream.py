@@ -1310,24 +1310,22 @@ void DvbLiveView::replay()
 \t\t\tconst int edge = 26;
 \t\t\tQImage artwork(width, height + edge, QImage::Format_ARGB32);
 \t\t\tartwork.fill(Qt::transparent);
-\t\t\t{
-\t\t\t\tQPainter painter(&artwork);
-\t\t\t\tpainter.setRenderHint(QPainter::Antialiasing, true);
-\t\t\t\tpainter.setRenderHint(QPainter::TextAntialiasing, true);
-\t\t\t\tconst QRect box(2, atTop ? edge : 0, width - 4, height);
-\t\t\t\tQColor backing(backgroundColor);
-\t\t\t\tif (!backing.isValid()) backing = QColor(Qt::black);
-\t\t\t\tbacking.setAlpha(qBound(0, backgroundPercent, 100)*255/100);
-\t\t\t\tpainter.setPen(Qt::NoPen);
-\t\t\t\tpainter.setBrush(backing);
-\t\t\t\tpainter.drawRoundedRect(box, 9, 9);
-\t\t\t\tQColor ink(safeColor);
-\t\t\t\tink.setAlpha(qBound(0, textOpacity, 100)*255/100);
-\t\t\t\tpainter.setPen(ink);
-\t\t\t\tpainter.setFont(font);
-\t\t\t\tpainter.drawText(box.adjusted(16, 9, -16, -9),
-\t\t\t\t\tQt::AlignCenter | Qt::TextWordWrap, displayText);
-\t\t\t}
+\t\t\tQPainter painter(&artwork);
+\t\t\tpainter.setRenderHint(QPainter::Antialiasing, true);
+\t\t\tpainter.setRenderHint(QPainter::TextAntialiasing, true);
+\t\t\tconst QRect box(2, atTop ? edge : 0, width - 4, height);
+\t\t\tQColor backing(backgroundColor);
+\t\t\tif (!backing.isValid()) backing = QColor(Qt::black);
+\t\t\tbacking.setAlpha(qBound(0, backgroundPercent, 100)*255/100);
+\t\t\tpainter.setPen(Qt::NoPen);
+\t\t\tpainter.setBrush(backing);
+\t\t\tpainter.drawRoundedRect(box, 9, 9);
+\t\t\tQColor ink(safeColor);
+\t\t\tink.setAlpha(qBound(0, textOpacity, 100)*255/100);
+\t\t\tpainter.setPen(ink);
+\t\t\tpainter.setFont(font);
+\t\t\tpainter.drawText(box.adjusted(16, 9, -16, -9),
+\t\t\t\tQt::AlignCenter | Qt::TextWordWrap, displayText);
 \t\t\tconst QString png = tihuluCaptionLogoDir.path()
 \t\t\t\t+ QLatin1String("/subtitle-")
 \t\t\t\t+ QString::number(++tihuluCaptionLogoSequence)
@@ -1617,6 +1615,25 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\t\tif (auto *vlc = qobject_cast<VlcMediaWidget *>(backend))
 \t\t\t\t\tvlc->setTihuluNativeCaption(QString(),false,25,0,QLatin1String("#FFFFFF"));
 \t\t\t};
+\t\t\t// The overlay mode is re-read on EVERY poll, so the owner can
+\t\t\t// switch the overlay off / compact / full during playback
+\t\t\t// without restarting Kaffeine. "off" keeps the captions in
+\t\t\t// the caption window only and clears the video overlay at once.
+\t\t\t{
+\t\t\tQSettings overlay(QLatin1String("TIHULU"),QLatin1String("CaptionOverlay"));
+\t\t\tconst QString overlayMode=overlay.value(QLatin1String("mode"),QLatin1String("compact")).toString();
+\t\t\tif(overlayMode==QLatin1String("off")) {
+\t\t\t\tclearCaption();
+\t\t\t\treturn;
+\t\t\t}
+\t\t\t// "compact" and "full" only change the caption TEXT size.
+\t\t\t// The strip geometry stays capped at a quarter of the video in
+\t\t\t// every mode, so no setting can cover half of the screen.
+\t\t\tauto captionFontSize=[overlayMode](int saved) {
+\t\t\t\treturn overlayMode==QLatin1String("compact")
+\t\t\t\t\t? qBound(16,saved,28) : qBound(24,saved*2,48);
+\t\t\t};
+\t\t\t}
 \t\t\tauto setAiAvailability = [this](bool available) {
 \t\t\t\tif (tihuluAiCaptionAvailable == available) return;
 \t\t\t\ttihuluAiCaptionAvailable = available;
@@ -1694,7 +1711,7 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\t\tif (vlc)
 \t\t\t\t\tvlc->setTihuluNativeCaption(text,
 \t\t\t\t\t\tobj.value(QLatin1String("position")).toString()==QLatin1String("top"),
-\t\t\t\t\t\tobj.value(QLatin1String("size")).toInt(25),
+\t\t\t\t\t\tcaptionFontSize(obj.value(QLatin1String("size")).toInt(25)),
 \t\t\t\t\t\tobj.value(QLatin1String("text_opacity")).toInt(100),
 \t\t\t\t\t\tobj.value(QLatin1String("text_color")).toString(QLatin1String("#FFFFFF")),
 \t\t\t\t\t\tobj.value(QLatin1String("opacity")).toInt(0),
@@ -1706,22 +1723,14 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\ttihuluCaptionWidget->showCaption(
 \t\t\t\ttext,
 \t\t\t\tobj.value(QLatin1String("position")).toString() == QLatin1String("top"),
-\t\t\t\tobj.value(QLatin1String("size")).toInt(25),
+\t\t\t\tcaptionFontSize(obj.value(QLatin1String("size")).toInt(25)),
 \t\t\t\tobj.value(QLatin1String("opacity")).toInt(70),
 \t\t\t\tobj.value(QLatin1String("text_opacity")).toInt(100),
 \t\t\tobj.value(QLatin1String("text_color")).toString(QLatin1String("#FFFFFF")),
 \t\t\tobj.value(QLatin1String("background_color")).toString(QLatin1String("#000000")),
 \t\t\tbackend->geometry());
 \t\t});
-		{ // Caption overlay mode: off / compact (default) / full
-			QSettings overlay(QLatin1String("TIHULU"),QLatin1String("CaptionOverlay"));
-			const QString overlayMode=overlay.value(QLatin1String("mode"),QLatin1String("compact")).toString();
-			if(overlayMode==QLatin1String("off")) {
-				tihuluCaptionWidget->hideCaption();
-				if(auto *tihuluVlc=qobject_cast<VlcMediaWidget *>(backend))
-					tihuluVlc->setTihuluNativeCaption(QString(),false,25,0,QLatin1String("#FFFFFF"));
-			}
-		}
+		// The overlay mode is enforced inside the poll above; switching modes never needs a restart.
 \t\tcaptionPoll->start(150);
 \t}
 ''')

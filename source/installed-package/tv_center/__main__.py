@@ -75,6 +75,9 @@ def main():
         if os.environ.get("WAYLAND_DISPLAY"):
             os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
         app = QApplication.instance() or QApplication(["TIHULU Whisper / Translator Market"])
+        # Follow the same Light/Dark/System appearance as the native player.
+        from .theme import install_theme
+        install_theme(app)
         ai = AISettings()
         ai.configure_environment()
         open_ai_settings(None, ai)

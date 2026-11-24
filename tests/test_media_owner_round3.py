@@ -260,6 +260,120 @@ class FileCaptionService(unittest.TestCase):
             time.sleep(.3)
             self.assertIsNone(tap.file_last_end)
 
+    def _control(self):
+        import glob, importlib
+        mod=glob.glob(str(SOURCE/"kaff*"))[0].rsplit("/",1)[-1]
+        return importlib.import_module(f"{mod}.caption_control")
+
+    def test_file_service_uses_its_own_private_socket(self):
+        """The file caption service must not borrow the DVB socket name."""
+        overlay=self._tap()
+        runtime=Path(os.environ["XDG_RUNTIME_DIR"])
+        for name in ("tihulu-dvb-99.sock","tihulu-file-99.sock"):
+            self.assertEqual(overlay.validate_socket(str(runtime/name)).name,name)
+        for name in ("tihulu-dvb-99.sock","tihulu-file-99.sock"):
+            # Both names must stay inside the owner's own runtime directory.
+            with self.assertRaises(ValueError):
+                overlay.validate_socket("/etc/"+name)
+        # A foreign or crafted name is still refused.
+        with self.assertRaises(ValueError):
+            overlay.validate_socket(str(runtime/"tihulu-tuner-99.sock"))
+
+    def test_service_identity_only_names_the_file_service(self):
+        overlay=self._tap()
+        self.assertEqual(overlay.service_identity(["kaffeine-captions-file",
+                                                   "--socket","x"]),"file")
+        self.assertEqual(overlay.service_identity(["kaffeine-captions",
+                                                   "--socket","x"]),"dvb")
+        self.assertEqual(overlay.service_identity([]),"dvb")
+
+    def test_file_and_tv_services_have_separate_control_sockets(self):
+        """Starting file captions must not focus or reuse the TV service."""
+        control=self._control()
+        with tempfile.TemporaryDirectory() as folder:
+            runtime=Path(folder)
+            self.assertEqual(
+                control.control_path(runtime,4242,"dvb").name,
+                "tihulu-captions-control-4242.sock")       # TV keeps its name
+            self.assertEqual(
+                control.control_path(runtime,4242,"file").name,
+                "tihulu-captions-control-4242-file.sock")
+            self.assertEqual(
+                control.control_path(runtime,4242,"radio").name,
+                "tihulu-captions-control-4242-radio.sock")
+            # A running TV service must NOT answer for the file service.
+            import socket
+            server=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM)
+            tv=control.control_path(runtime,4242,"dvb")
+            server.bind(str(tv));server.settimeout(.5)
+            self.assertTrue(control.CaptionServiceControl.request_show(runtime,4242,"dvb"))
+            data,_=server.recvfrom(64);self.assertEqual(data,b"SHOW")
+            server.close();tv.unlink()
+            self.assertFalse(
+                control.CaptionServiceControl.request_show(runtime,4242,"file"))
+
+    def test_every_python_ui_follows_the_saved_appearance(self):
+        """No Python dialog may stay light while the native player is dark."""
+        from tv_center.theme import install_theme
+        callers=("tv_center/__main__.py","tv_center/media_ui.py")
+        for caller in callers:
+            self.assertIn("install_theme(app)",read(caller),caller)
+        # The caption service must use the shared helper, not a private copy.
+        overlay=read("kaffeine_next/captions_overlay.py")
+        self.assertIn("from tv_center.theme import install_theme",overlay)
+        self.assertIn("install_theme(app)",overlay)
+
+    def test_shared_theme_helper_reaches_already_open_dialogs(self):
+        """A dark appearance must actually reach the dialogs, and a later
+        change must be picked up while a dialog is still open."""
+        from PyQt5.QtWidgets import QApplication
+        from PyQt5.QtGui import QPalette
+        from PyQt5.QtCore import QSettings as RealSettings
+        from tv_center.theme import install_theme
+
+        class ModeSettings:
+            """Minimal stand-in: Qt caches QSettings per org/app in-process,
+            so the saved appearance is supplied directly."""
+            current = "system"
+            def value(self, key, default=None):
+                return self.current if key == "theme" else default
+            def sync(self):
+                pass
+
+        fake = ModeSettings()
+        app = QApplication.instance() or QApplication(["tihulu-theme-test"])
+        for mode, expected in (("dark", "#18222d"), ("light", "#f4f6f8")):
+            if hasattr(app, "_tihulu_theme_timer"):
+                app._tihulu_theme_timer.stop()
+                del app._tihulu_theme_timer
+            fake.current = mode
+            with patch("PyQt5.QtCore.QSettings", return_value=fake):
+                app.setPalette(QPalette())
+                install_theme(app)
+                color = app.palette().color(QPalette.Active, QPalette.Window)
+                self.assertEqual(color.name(), expected, mode)
+        # The helper keeps polling, so an already open dialog follows a later
+        # appearance change instead of staying light.
+        timer = getattr(app, "_tihulu_theme_timer", None)
+        self.assertIsNotNone(timer)
+        self.assertTrue(timer.isActive())
+        # The saved appearance is read from the shared TIHULU/Appearance store.
+        self.assertIn('QSettings("TIHULU", "Appearance")',
+                      read("tv_center/theme.py"))
+
+    def test_panel_launches_the_file_caption_service_with_its_own_socket(self):
+        """The player opens kaffeine-captions-file on a file socket, never the
+        TV service name."""
+        code=read("kaffeine_next/native_media_panel.h")
+        self.assertIn('QStringLiteral("kaffeine-captions-file")',code)
+        self.assertIn('QStringLiteral("/tihulu-file-")',code)
+        self.assertNotIn('QStringLiteral("kaffeine-captions"),QStringLiteral("--socket")',
+                         code)
+        # Live TV captions keep their own untouched entry point.
+        recorder=read("kaffeine_next/native_unified_recorder.h")
+        self.assertIn('QLatin1String("kaffeine-captions"),',recorder)
+        self.assertIn('QLatin1String("/tihulu-dvb-")',recorder)
+
 
 class DefaultsAndCache(unittest.TestCase):
     def test_installed_model_is_found_without_enabling_ai(self):
@@ -393,7 +507,7 @@ class NativeRegressions(unittest.TestCase):
             companion=work/"tihulu-tv-center"
             companion.write_text('''#!/usr/bin/python3
 import sys,json,time
-if sys.argv[1] in ('media-captions','kaffeine-captions') and len(sys.argv)>2:
+if sys.argv[1] in ('media-captions','kaffeine-captions','kaffeine-captions-file') and len(sys.argv)>2:
  import os
  folder=os.environ.get('TIHULU_TEST_WORK')
  try:
@@ -437,10 +551,9 @@ class ThreeCaptionServices(unittest.TestCase):
 
     def test_file_window_applies_the_saved_appearance(self):
         code = read("kaffeine_next/captions_overlay.py")
-        self.assertIn('QSettings("TIHULU", "Appearance")', code)
-        self.assertIn('app.setStyle("Fusion")', code)
-        self.assertIn('_pal.setColor(_group, _role, _color)', code)
-        self.assertIn("QColor(", code)
+        self.assertIn("from tv_center.theme import install_theme", code)
+        self.assertIn("install_theme(app)", code)
+        self.assertIn("QStyleFactory.create(\"Fusion\")", read("tv_center/theme.py"))
 
     def test_both_services_start_headless(self):
         for command in ("kaffeine-captions", "kaffeine-captions-file"):
@@ -460,6 +573,22 @@ class ThreeCaptionServices(unittest.TestCase):
                         proc.wait(timeout=6)
                     except subprocess.TimeoutExpired:
                         proc.kill(); proc.wait(timeout=6)
+
+    def test_overlay_mode_is_read_on_every_poll(self):
+        """Switching the overlay off/compact/full must not need a restart."""
+        patch=read("kaffeine_next/patch_upstream.py")
+        self.assertIn("re-read on EVERY poll",patch)
+        self.assertIn("captionFontSize",patch)
+        # The one-time, build-time-only read must be gone.
+        self.assertNotIn("Caption overlay mode: off / compact (default) / full",
+                         patch)
+        # Both render sites use the mode-aware size, and the hard cap stays.
+        self.assertEqual(patch.count("captionFontSize(obj.value("),2)
+        self.assertIn("video.height()/4",patch)
+        # No stray developer scratch files are shipped in the package.
+        package=SOURCE/"kaffeine_next"
+        for stray in sorted(package.glob(".p*.py")):
+            self.fail("Unexpected scratch file in the package: "+str(stray))
 
     def test_subtitle_search_is_never_automatic(self):
         code = read("kaffeine_next/captions_overlay.py")
