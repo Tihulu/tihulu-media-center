@@ -157,11 +157,17 @@ def transform(files):
 
     replace(main, '\tconnect(captionAction, &QAction::triggered, this, [this]() {',
             '\tauto *tvCaptionJob = new TihuluAiProcess(this);\n'
+            '\tconnect(captionAction, &QAction::triggered, this, [this,tvCaptionJob]() {')
+    # The Stop wiring must be connected AFTER mediaWidget exists: it is
+    # created later in MainWindow::run(), and connecting a null sender is
+    # silently dropped by Qt, which is what made Stop fail to release the
+    # AI workers (and produced two "invalid nullptr parameter" warnings).
+    replace(main, '\tmediaWidget = new MediaWidget(playerMenu, controlBar, collection, widget);',
+            '\tmediaWidget = new MediaWidget(playerMenu, controlBar, collection, widget);\n'
             '\t// Stop in any mode also tells the caption service to stop ASR and\n'
             '\t// release Whisper/translator work; the panel stays usable.\n'
             '\tconnect(mediaWidget,&MediaWidget::stopRequested,this,[tvCaptionJob](){tvCaptionJob->stopJob();tihuluStopCaptionService();});\n'
-            '\tconnect(mediaWidget,&MediaWidget::sourceOpened,this,[tvCaptionJob](const QUrl &url){if(url.isValid())tvCaptionJob->stopJob();});\n'
-            '\tconnect(captionAction, &QAction::triggered, this, [this,tvCaptionJob]() {')
+            '\tconnect(mediaWidget,&MediaWidget::sourceOpened,this,[tvCaptionJob](const QUrl &url){if(url.isValid())tvCaptionJob->stopJob();});\n')
     replace(main, '\t\tif (!QProcess::startDetached(QLatin1String("tihulu-tv-center"),\n'
             '\t\t\tQStringList() << QLatin1String("kaffeine-captions")\n'
             '\t\t\t\t<< QLatin1String("--socket") << name))',

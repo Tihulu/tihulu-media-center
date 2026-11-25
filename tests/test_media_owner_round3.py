@@ -374,6 +374,32 @@ class FileCaptionService(unittest.TestCase):
         self.assertNotIn(
             "if (source->getType() != MediaSource::Dvb) {", patch.replace("\\t", ""))
 
+    def test_stop_wiring_is_connected_after_mediawidget_exists(self):
+        """Owner log: two "QObject::connect(MediaWidget, MainWindow): invalid
+        nullptr parameter" warnings at startup.
+
+        The Stop wiring was inserted at the captionAction anchor, which sits in
+        the aiMenu block, but mediaWidget is only created later in
+        MainWindow::run(). Connecting a null sender is silently dropped by Qt,
+        so pressing Stop never stopped the caption job and never released the
+        Whisper/translator workers.
+        """
+        code = read("kaffeine_next/acceptance_fixes.py")
+        # The connects must be inserted at the mediaWidget-creation anchor.
+        self.assertIn("replace(main, '\\tmediaWidget = new MediaWidget(",
+                      code)
+        self.assertIn("connect(mediaWidget,&MediaWidget::stopRequested",
+                      code)
+        self.assertIn("connect(mediaWidget,&MediaWidget::sourceOpened",
+                      code)
+        # And must NOT be inserted at the captionAction anchor any more.
+        # Only the captionAction replacement itself, not later blocks.
+        caption = code[code.index("connect(captionAction, &QAction::triggered"):
+                      code.index("[this,tvCaptionJob]() {')")]
+        self.assertNotIn("connect(mediaWidget,&MediaWidget::stopRequested",
+                         caption,
+                         "Stop wiring must not precede mediaWidget creation")
+
     def test_whisper_button_never_kills_the_caption_process_group(self):
         """Owner: the top menu bar opens live captions fine, but the Whisper
         button in the bottom-left corner closes the application in TV mode.
