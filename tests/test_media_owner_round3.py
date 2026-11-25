@@ -425,6 +425,16 @@ class FileCaptionService(unittest.TestCase):
         self.assertIn("90000", patch)
         self.assertIn("getPlaybackStatus()==MediaWidget::Playing",
                       patch.replace("\\t", ""))
+        # It must never hold a LIVE DVB broadcast, and it must run for BOTH
+        # render modes: the native path returns early, so a block placed after
+        # it would never execute.
+        self.assertIn("source->getType()!=MediaSource::Dvb) {",
+                      patch.replace("\\t", ""))
+        self.assertIn('QLatin1String("queued")).toInt(0)',
+                      patch.replace("\\t", ""))
+        hold_start = patch.index("// Hold for AI analysis")
+        self.assertLess(hold_start, patch.index('const QString text ='),
+                        "the hold must run before the render branch")
         # The owner can turn it on from the file panel.
         panel = read("kaffeine_next/native_media_panel.h")
         self.assertIn('tr("Hold for AI analysis")', panel)

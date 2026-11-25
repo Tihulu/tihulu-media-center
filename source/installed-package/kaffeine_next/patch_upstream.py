@@ -1717,6 +1717,40 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\t\tclearCaption();
 \t\t\t\treturn;
 \t\t\t}
+\t\t\t// Hold for AI analysis: while real audio windows are still queued
+\t\t\t// for Whisper, or one is being analysed right now, playback is
+\t\t\t// held so the AI can finish the interval. The hold is bounded, so
+\t\t\t// a stalled worker can never freeze the video.
+\t\t\t{
+\t\t\t\tQSettings hold(QStringLiteral("TIHULU"),QStringLiteral("CaptionHold"));
+\t\t\t\tif(hold.value(QStringLiteral("enabled"),false).toBool() &&
+\t\t\t\tsource->getType()!=MediaSource::Dvb) {
+\t\t\t\t\t// Live DVB is never held: pausing the broadcast would
+\t\t\t\t\t// lose real-time content instead of buying accuracy.
+\t\t\t\t\tconst qint64 maxHold=hold.value(QStringLiteral("maxHoldMs"),90000).toLongLong();
+\t\t\t\t\tconst int queued=obj.value(QLatin1String("queued")).toInt(0);
+\t\t\t\t\tconst bool analysing=obj.value(QLatin1String("analysing")).toBool();
+\t\t\t\t\tconst bool behind=queued>0 || analysing;
+\t\t\t\t\tif(behind) {
+\t\t\t\t\t\tif(tihuluCaptionHoldStart_<=0) tihuluCaptionHoldStart_=now;
+\t\t\t\t\t\tif(getPlaybackStatus()==MediaWidget::Playing) {
+\t\t\t\t\t\t\ttogglePause();
+\t\t\t\t\t\t\ttihuluCaptionHeldUs_=true;
+\t\t\t\t\t\t}
+\t\t\t\t\t\tif(tihuluCaptionHoldStart_>0 && now-tihuluCaptionHoldStart_>maxHold) {
+\t\t\t\t\t\t\tif(tihuluCaptionHeldUs_ && getPlaybackStatus()==MediaWidget::Paused)
+\t\t\t\t\t\t\t\ttogglePause();
+\t\t\t\t\t\t\ttihuluCaptionHeldUs_=false;
+\t\t\t\t\t\t\ttihuluCaptionHoldStart_=0;
+\t\t\t\t\t\t}
+\t\t\t\t\t} else {
+\t\t\t\t\t\ttihuluCaptionHoldStart_=0;
+\t\t\t\t\t\tif(tihuluCaptionHeldUs_ && getPlaybackStatus()==MediaWidget::Paused)
+\t\t\t\t\t\t\ttogglePause();
+\t\t\t\t\t\ttihuluCaptionHeldUs_=false;
+\t\t\t\t\t}
+\t\t\t\t}
+\t\t\t}
 \t\t\tconst QString text = obj.value(QLatin1String("text")).toString();
 \t\t\tconst QString renderMode = obj.value(QLatin1String("render_mode"))
 \t\t\t\t.toString(QLatin1String("native"));
@@ -1745,37 +1779,6 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\tobj.value(QLatin1String("text_color")).toString(QLatin1String("#FFFFFF")),
 \t\t\tobj.value(QLatin1String("background_color")).toString(QLatin1String("#000000")),
 \t\t\tbackend->geometry());
-\t\t\t// Hold for AI analysis: while real audio windows are still queued
-\t\t\t// for Whisper, or one is being analysed right now, playback is
-\t\t\t// held so the AI can finish the interval. The hold is bounded, so
-\t\t\t// a stalled worker can never freeze the video.
-\t\t\t{
-\t\t\t\tQSettings hold(QStringLiteral("TIHULU"),QStringLiteral("CaptionHold"));
-\t\t\t\tif(hold.value(QStringLiteral("enabled"),false).toBool()) {
-\t\t\t\t\tconst qint64 maxHold=hold.value(QStringLiteral("maxHoldMs"),90000).toLongLong();
-\t\t\t\t\tconst int queued=obj.value(QLatin1String("queued")).toInt(0);
-\t\t\t\t\tconst bool analysing=obj.value(QLatin1String("analysing")).toBool();
-\t\t\t\t\tconst bool behind=queued>0 || analysing;
-\t\t\t\t\tif(behind) {
-\t\t\t\t\t\tif(tihuluCaptionHoldStart_<=0) tihuluCaptionHoldStart_=now;
-\t\t\t\t\t\tif(getPlaybackStatus()==MediaWidget::Playing) {
-\t\t\t\t\t\t\ttogglePause();
-\t\t\t\t\t\t\ttihuluCaptionHeldUs_=true;
-\t\t\t\t\t\t}
-\t\t\t\t\t\tif(tihuluCaptionHoldStart_>0 && now-tihuluCaptionHoldStart_>maxHold) {
-\t\t\t\t\t\t\tif(tihuluCaptionHeldUs_ && getPlaybackStatus()==MediaWidget::Paused)
-\t\t\t\t\t\t\t\ttogglePause();
-\t\t\t\t\t\t\ttihuluCaptionHeldUs_=false;
-\t\t\t\t\t\t\ttihuluCaptionHoldStart_=0;
-\t\t\t\t\t\t}
-\t\t\t\t\t} else {
-\t\t\t\t\t\ttihuluCaptionHoldStart_=0;
-\t\t\t\t\t\tif(tihuluCaptionHeldUs_ && getPlaybackStatus()==MediaWidget::Paused)
-\t\t\t\t\t\t\ttogglePause();
-\t\t\t\t\t\ttihuluCaptionHeldUs_=false;
-\t\t\t\t\t}
-\t\t\t\t}
-\t\t\t}
 \t\t});
 		// The overlay mode is enforced inside the poll above; switching modes never needs a restart.
 \t\tcaptionPoll->start(150);
