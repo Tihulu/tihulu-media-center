@@ -437,12 +437,17 @@ private:
                     {QLatin1String("kaffeine-captions"),QLatin1String("--socket"),name,QLatin1String("--show-only")}))
                 return;
         }
-        whisperJob_.start(QLatin1String("tihulu-tv-center"),
-            {QLatin1String("kaffeine-captions"),QLatin1String("--socket"),name});
-        if(!whisperJob_.waitForStarted(900))
-            report(tr("Could not open the Whisper caption service."));
-        else
+        // Start the caption service EXACTLY like the TIHULU AI menu action:
+        // a fully detached process. Never a TihuluAiProcess member here - its
+        // setsid() process group, its unconditional group SIGKILL on stop, and
+        // the blocking waitForStarted() on the UI thread are what closed the
+        // application when this button was used in TV mode, where the DVB
+        // device manager keeps signalling while we wait.
+        if(QProcess::startDetached(QLatin1String("tihulu-tv-center"),
+                {QLatin1String("kaffeine-captions"),QLatin1String("--socket"),name}))
             report(tr("Opening live captions for the current TV service\u2026"));
+        else
+            report(tr("Could not open the Whisper caption service."));
     }
     void stopRecording() {
         if(!recording_)return;

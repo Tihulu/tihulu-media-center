@@ -374,6 +374,34 @@ class FileCaptionService(unittest.TestCase):
         self.assertNotIn(
             "if (source->getType() != MediaSource::Dvb) {", patch.replace("\\t", ""))
 
+    def test_whisper_button_never_kills_the_caption_process_group(self):
+        """Owner: the top menu bar opens live captions fine, but the Whisper
+        button in the bottom-left corner closes the application in TV mode.
+
+        Both paths start the very same service. The menu action uses
+        QProcess::startDetached() and works; the button had used a
+        TihuluAiProcess member plus a blocking waitForStarted() on the UI
+        thread, and TihuluAiProcess calls setsid() in the child and
+        unconditionally SIGKILLs the child's process group on stopJob() while
+        the DVB device manager keeps signalling in TV mode.
+        """
+        code = read("kaffeine_next/native_unified_recorder.h")
+        start = code.index("void openWhisperService()")
+        end = code.index("void stopRecording()", start)
+        # Strip // comments first: they may name the removed hazard.
+        body = "\n".join(line.split("//", 1)[0] for line in
+                         code[start:end].split("\n"))
+        # No process-group owner and no UI-thread block in this path.
+        self.assertNotIn("whisperJob_.start", body)
+        self.assertNotIn("whisperJob_.waitForStarted", body)
+        self.assertNotIn("waitForStarted", body)
+        self.assertNotIn("setsid", body)
+        # It starts the service exactly like the working menu action.
+        self.assertIn("QProcess::startDetached", body)
+        self.assertIn('QLatin1String("kaffeine-captions")', body)
+        # Focusing an already-running service still uses --show-only.
+        self.assertIn('QLatin1String("--show-only")', body)
+
     def test_playback_can_hold_while_the_ai_analyses_an_interval(self):
         """Owner: even for a played file we should be able to freeze it for a
         while so the subtitle AI can analyse the interval; that is what "live
