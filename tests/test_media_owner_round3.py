@@ -374,6 +374,23 @@ class FileCaptionService(unittest.TestCase):
         self.assertNotIn(
             "if (source->getType() != MediaSource::Dvb) {", patch.replace("\\t", ""))
 
+    def test_in_video_captions_have_a_real_vlc_filter_to_render_through(self):
+        """Owner report: live captions never appeared inside the video.
+
+        The in-video renderer writes through libVLC's marquee subpicture
+        filter, but the enforced libVLC argument chain never contained that
+        filter, so every set_marquee_* call was silently dropped and the text
+        only ever reached the separate panel.
+        """
+        patch = read("kaffeine_next/patch_upstream.py")
+        self.assertIn('args.append(QLatin1String(" --sub-filter=marq"));',
+                      patch.replace("\\t", ""))
+        self.assertIn('if (!args.contains(QLatin1String("--sub-filter")))',
+                      patch.replace("\\t", ""))
+        # The caption renderer must keep using the marquee, not a widget that
+        # freezes pixels over the video surface.
+        self.assertIn("setTihuluNativeCaption(text,", patch)
+
     def test_caption_strip_is_bounded_to_a_quarter_of_the_player(self):
         """The caption strip is a layout widget; unbounded it grows with its
         text and eats half of the player. Captions also go into the video with

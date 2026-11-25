@@ -1136,6 +1136,13 @@ void DvbLiveView::replay()
 \t\t\targs.append(QLatin1String(" --file-caching=1500"));
 \t\tif (!args.contains(QLatin1String("--no-video-title-show")))
 \t\t\targs.append(QLatin1String(" --no-video-title-show"));
+\t\t// The in-video caption renderer writes through the libVLC
+\t\t// marquee subpicture filter. Without the filter in the chain
+\t\t// the set_marquee_* calls are silently ignored, so live
+\t\t// captions never reach the video (owner report: subtitles
+\t\t// only ever appeared in the separate panel).
+\t\tif (!args.contains(QLatin1String("--sub-filter")))
+\t\t\targs.append(QLatin1String(" --sub-filter=marq"));
 \t\tif (tihuluProfile == "software-no-audio" &&
 \t\t    !args.contains(QLatin1String("--no-audio")))
 \t\t\targs.append(QLatin1String(" --no-audio"));
