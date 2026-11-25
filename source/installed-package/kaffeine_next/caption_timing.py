@@ -858,6 +858,10 @@ class KaffeineOSD:
             raise ValueError("Invalid Kaffeine PID")
         self.root = runtime
         self.path = runtime / f"tihulu-caption-{pid}.json"
+        # Live analysis state: how many real audio windows are waiting for
+        # Whisper, and whether one is in progress right now. The player uses
+        # this to HOLD the video while the AI analyses an interval.
+        self._backlog = {"queued": 0, "analysing": False}
         self.delay = runtime / f"tihulu-playback-delay-{pid}.txt"
         self.effective = runtime / f"tihulu-playback-effective-{pid}.txt"
         self.last_delay = 0
@@ -873,6 +877,11 @@ class KaffeineOSD:
         finally:
             temp.unlink(missing_ok=True)
 
+    def set_backlog(self, queued, analysing):
+        """Report live analysis load; the player may hold on it."""
+        self._backlog = {"queued": max(0, int(queued)),
+                         "analysing": bool(analysing)}
+
     def publish(self, text, config: CaptionConfig, ttl_ms=2000):
         config.validate()
         if not config.on_video or config.mode == "off":
@@ -885,6 +894,7 @@ class KaffeineOSD:
                "background_color":config.background_color,
                "enabled":bool(config.on_video and config.mode != "off"),
                "expires_ms":int(time.time()*1000) + min(max(int(ttl_ms),0),15000)}
+        obj.update(self._backlog)
         self._atomic(self.path, json.dumps(obj,ensure_ascii=False,separators=(",",":")))
 
     def set_playback_delay(self, config: CaptionConfig):

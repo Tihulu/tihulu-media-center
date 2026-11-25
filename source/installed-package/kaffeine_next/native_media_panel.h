@@ -104,6 +104,25 @@ public:
             saved.setValue(QStringLiteral("mode"),overlayMode_->currentData().toString());
             saved.sync();
         });
+        // Hold for AI analysis: while the AI is still analysing a real audio
+        // interval, hold the video so the captions stay accurate, then resume.
+        holdForAnalysis_=new QCheckBox(this);
+        holdForAnalysis_->setText(tr("Hold for AI analysis"));
+        {
+            QSettings holdPrefs(QStringLiteral("TIHULU"),QStringLiteral("CaptionHold"));
+            holdForAnalysis_->setChecked(
+                holdPrefs.value(QStringLiteral("enabled"),false).toBool());
+        }
+        holdForAnalysis_->setToolTip(tr(
+            "While Whisper still has audio windows to analyse, playback is held "
+            "so the captions stay accurate, then it resumes. A long analysis "
+            "never freezes the video."));
+        connect(holdForAnalysis_,&QCheckBox::toggled,this,[](bool value){
+            QSettings saved(QStringLiteral("TIHULU"),QStringLiteral("CaptionHold"));
+            saved.setValue(QStringLiteral("enabled"),value);
+            saved.sync();
+        });
+        fileOptions->addWidget(holdForAnalysis_);
         fileOptions->addStretch(1);
         root->addLayout(fileOptions);
         connect(preprocess_,&QCheckBox::toggled,this,[](bool value){QSettings("TIHULU","MediaPlayer").setValue("transcribeBeforeOpen",value);});
@@ -406,7 +425,8 @@ private:
     MediaWidget *player_;TihuluAiProcess process_,live_,exportProcess_;
     TihuluFileCaptions *captions_;TihuluCaptionOptions *choices_;
     QLabel *file_,*message_;QPushButton *run_,*liveButton_,*cancel_,*karaoke_=nullptr,*mpvButton_=nullptr;QProgressBar *progress_;
-    QComboBox *serviceMode_=nullptr,*overlayMode_=nullptr;QSpinBox *liveWindow_=nullptr;
+    QComboBox *serviceMode_=nullptr,*overlayMode_=nullptr;
+    QCheckBox *holdForAnalysis_=nullptr;QSpinBox *liveWindow_=nullptr;
     QCheckBox *embedVideo_=nullptr,*externalPlayer_=nullptr;
     QProcess externalPlayerProcess_;
     QCheckBox *original_=nullptr,*music_=nullptr,*lyrics_=nullptr,*onlineLyrics_=nullptr,*preprocess_=nullptr,*wait_=nullptr;

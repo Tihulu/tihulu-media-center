@@ -3177,6 +3177,7 @@ def main(argv=None):
         status.setText("New Kaffeine TV tune observed: stale ASR/Teletext "
                        "cue queue discarded; retuning does NOT stop subtitles.")
 
+    analysis_backlog = {"queued": 0, "analysing": False}
     def pump():
         nonlocal current_cue, current_text, current_until, last_published
         nonlocal applied, last_service_id, last_effective_check
@@ -3946,6 +3947,8 @@ def main(argv=None):
                     len(result.get("overlap_lines") or [])==2):
                 original.setText(current_text)
                 translated.setText("")
+            ipc.set_backlog(analysis_backlog["queued"],
+                            analysis_backlog["analysing"])
             ipc.publish(current_text,applied,ttl_ms=3000)
             last_published = now
         elif current_cue and now >= current_until + 1.0:
@@ -3977,6 +3980,8 @@ def main(argv=None):
             last_pipeline_health_at=now
             snap=tap.performance_snapshot()
             backlog=snap["queue"]
+            analysis_backlog["queued"]=int(backlog.get("queued_clips",0))
+            analysis_backlog["analysing"]=snap.get("active_clip_at") is not None
             shown_gap=max(0.0,now-last_cue_shown_at)
             lost=snap.get("lost_ui_caption_events",0)
             missed=backlog.get("missed_seconds",0.0)

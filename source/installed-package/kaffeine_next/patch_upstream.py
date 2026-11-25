@@ -1541,6 +1541,9 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t// AI live subtitle is a virtual, user-selectable DVB track in Kaffeine.
 \t// Broadcast Teletext/DVB tracks remain owned by their original providers.
 \tbool tihuluAiCaptionAvailable = false;
+\t// Hold-for-analysis state: we only resume a pause that WE caused.
+\tbool tihuluCaptionHeldUs_ = false;
+\tqint64 tihuluCaptionHoldStart_ = 0;
 \tbool tihuluAiCaptionSelected = false;
 \tbool tihuluAiCaptionUserOverride = false;''')
     mediac = "src/mediawidget.cpp"
@@ -1742,6 +1745,37 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\tobj.value(QLatin1String("text_color")).toString(QLatin1String("#FFFFFF")),
 \t\t\tobj.value(QLatin1String("background_color")).toString(QLatin1String("#000000")),
 \t\t\tbackend->geometry());
+\t\t\t// Hold for AI analysis: while real audio windows are still queued
+\t\t\t// for Whisper, or one is being analysed right now, playback is
+\t\t\t// held so the AI can finish the interval. The hold is bounded, so
+\t\t\t// a stalled worker can never freeze the video.
+\t\t\t{
+\t\t\t\tQSettings hold(QStringLiteral("TIHULU"),QStringLiteral("CaptionHold"));
+\t\t\t\tif(hold.value(QStringLiteral("enabled"),false).toBool()) {
+\t\t\t\t\tconst qint64 maxHold=hold.value(QStringLiteral("maxHoldMs"),90000).toLongLong();
+\t\t\t\t\tconst int queued=obj.value(QLatin1String("queued")).toInt(0);
+\t\t\t\t\tconst bool analysing=obj.value(QLatin1String("analysing")).toBool();
+\t\t\t\t\tconst bool behind=queued>0 || analysing;
+\t\t\t\t\tif(behind) {
+\t\t\t\t\t\tif(tihuluCaptionHoldStart_<=0) tihuluCaptionHoldStart_=now;
+\t\t\t\t\t\tif(getPlaybackStatus()==MediaWidget::Playing) {
+\t\t\t\t\t\t\ttogglePause();
+\t\t\t\t\t\t\ttihuluCaptionHeldUs_=true;
+\t\t\t\t\t\t}
+\t\t\t\t\t\tif(tihuluCaptionHoldStart_>0 && now-tihuluCaptionHoldStart_>maxHold) {
+\t\t\t\t\t\t\tif(tihuluCaptionHeldUs_ && getPlaybackStatus()==MediaWidget::Paused)
+\t\t\t\t\t\t\t\ttogglePause();
+\t\t\t\t\t\t\ttihuluCaptionHeldUs_=false;
+\t\t\t\t\t\t\ttihuluCaptionHoldStart_=0;
+\t\t\t\t\t\t}
+\t\t\t\t\t} else {
+\t\t\t\t\t\ttihuluCaptionHoldStart_=0;
+\t\t\t\t\t\tif(tihuluCaptionHeldUs_ && getPlaybackStatus()==MediaWidget::Paused)
+\t\t\t\t\t\t\ttogglePause();
+\t\t\t\t\t\ttihuluCaptionHeldUs_=false;
+\t\t\t\t\t}
+\t\t\t\t}
+\t\t\t}
 \t\t});
 		// The overlay mode is enforced inside the poll above; switching modes never needs a restart.
 \t\tcaptionPoll->start(150);

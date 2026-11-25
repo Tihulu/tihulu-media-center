@@ -374,6 +374,35 @@ class FileCaptionService(unittest.TestCase):
         self.assertNotIn(
             "if (source->getType() != MediaSource::Dvb) {", patch.replace("\\t", ""))
 
+    def test_playback_can_hold_while_the_ai_analyses_an_interval(self):
+        """Owner: even for a played file we should be able to freeze it for a
+        while so the subtitle AI can analyse the interval; that is what "live
+        subtitles for offline documents" means."""
+        # The service publishes the real analysis load.
+        timing = read("kaffeine_next/caption_timing.py")
+        self.assertIn('"queued"', timing)
+        self.assertIn('"analysing"', timing)
+        self.assertIn("def set_backlog", timing)
+        overlay = read("kaffeine_next/captions_overlay.py")
+        self.assertIn('analysis_backlog["queued"]', overlay)
+        self.assertIn("ipc.set_backlog(", overlay)
+        # The patch ships the hold logic and its state.
+        patch = read("kaffeine_next/patch_upstream.py")
+        self.assertIn("bool tihuluCaptionHeldUs_ = false;",
+                      patch.replace("\\t", ""))
+        self.assertIn("Hold for AI analysis: while real audio windows are still queued",
+                      patch.replace("\\t", " "))
+        self.assertIn('QStringLiteral("CaptionHold")', patch)
+        # The hold must be bounded and must not resume a user pause.
+        self.assertIn("90000", patch)
+        self.assertIn("getPlaybackStatus()==MediaWidget::Playing",
+                      patch.replace("\\t", ""))
+        # The owner can turn it on from the file panel.
+        panel = read("kaffeine_next/native_media_panel.h")
+        self.assertIn('tr("Hold for AI analysis")', panel)
+        self.assertIn('QStringLiteral("CaptionHold")', panel)
+        self.assertIn('saved.setValue(QStringLiteral("enabled"),value)', panel)
+
     def test_in_video_captions_have_a_real_vlc_filter_to_render_through(self):
         """Owner report: live captions never appeared inside the video.
 
