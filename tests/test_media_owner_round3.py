@@ -507,7 +507,7 @@ class FileCaptionService(unittest.TestCase):
         only ever reached the separate panel.
         """
         patch = read("kaffeine_next/patch_upstream.py")
-        self.assertIn("args.indexOf(QLatin1String(\"--sub-filter=\"))",
+        self.assertIn('if (!args.contains(QLatin1String("--sub-filter"))',
                       patch.replace("\\t", ""))
         self.assertIn("--sub-filter=marq", patch)
         # The caption renderer must keep using the marquee, not a widget that
