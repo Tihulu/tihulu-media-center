@@ -1141,8 +1141,30 @@ void DvbLiveView::replay()
 \t\t// the set_marquee_* calls are silently ignored, so live
 \t\t// captions never reach the video (owner report: subtitles
 \t\t// only ever appeared in the separate panel).
-\t\tif (!args.contains(QLatin1String("--sub-filter")))
-\t\t\targs.append(QLatin1String(" --sub-filter=marq"));
+            '\t\t// The in-video caption renderer writes through libVLC's marquee\n'
+            '\t\t// subpicture filter. Without it in the chain every set_marquee_* call\n'
+            '\t\t// is silently dropped, so live captions never reach the video (owner\n'
+            '\t\t// report: subtitles only ever appeared in the separate panel).\n'
+            '\t\t// A user-supplied sub-filter chain keeps every entry it asked for;\n'
+            '\t\t// marq is ADDED to it, never substituted for it.\n'
+            '\t\tconst int tihuluSubFilterAt=\n'
+            '\t\t    args.indexOf(QLatin1String("--sub-filter="));\n'
+            '\t\tif (tihuluSubFilterAt < 0) {\n'
+            '\t\t    args.append(QLatin1String(" --sub-filter=marq"));\n'
+            '\t\t} else {\n'
+            '\t\t    const QString tihuluChainPrefix(QLatin1String("--sub-filter="));\n'
+            '\t\t    const int tihuluValueStart=\n'
+            '\t\t        tihuluSubFilterAt + tihuluChainPrefix.size();\n'
+            '\t\t    int tihuluValueEnd=\n'
+            '\t\t        args.indexOf(QLatin1Char(' '), tihuluValueStart);\n'
+            '\t\t    if (tihuluValueEnd < 0) tihuluValueEnd = args.size();\n'
+            '\t\t    const QString tihuluChain=\n'
+            '\t\t        args.mid(tihuluValueStart, tihuluValueEnd - tihuluValueStart);\n'
+            '\t\t    if (!tihuluChain.split(QLatin1Char(','),\n'
+            '\t\t            QString::SkipEmptyParts).contains(QLatin1String("marq")))\n'
+            '\t\t        args.replace(tihuluValueStart, tihuluChain.size(),\n'
+            '\t\t                     tihuluChain + QLatin1String(",marq"));\n'
+            '\t\t}\n'
 \t\tif (tihuluProfile == "software-no-audio" &&
 \t\t    !args.contains(QLatin1String("--no-audio")))
 \t\t\targs.append(QLatin1String(" --no-audio"));
