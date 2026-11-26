@@ -374,6 +374,21 @@ class FileCaptionService(unittest.TestCase):
         self.assertNotIn(
             "if (source->getType() != MediaSource::Dvb) {", patch.replace("\\t", ""))
 
+    def test_one_failed_asr_chunk_does_not_end_radio_captions(self):
+        """Owner: radio live AI hangs. Reproduced with the installed model: the
+        worker died on a single speech-engine failure, the runtime JSON stopped
+        being rewritten, and the stale status stayed "running" forever.
+
+        The ASR call is unguarded, so a RuntimeError/OSError/ImportError from the
+        engine propagates out of the capture loop and the process exits.
+        """
+        from tv_center import radio_ai
+        code = read("tv_center/radio_ai.py")
+        # The ASR call is inside a try, and the handler degrades the chunk.
+        self.assertIn("recognition_rejected\"]=\"asr_failed\"", code)
+        self.assertIn("except (ImportError,OSError,RuntimeError,", code)
+        self.assertIn("listening continues.", code)
+
     def test_stop_wiring_is_connected_after_mediawidget_exists(self):
         """Owner log: two "QObject::connect(MediaWidget, MainWindow): invalid
         nullptr parameter" warnings at startup.

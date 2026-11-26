@@ -350,14 +350,36 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 detection["confidence"]=0.0
                 cues=[]
             else:
-                cues=_chunk_cues(pcm,position=capture_index*5,lang=src,
-                                profile=profile,backend=backend,
-                                # Lyrics metadata alone cannot turn an
-                                # announcer/advert into singing mode: this
-                                # made ordinary speech fall through the
-                                # music-oriented no-VAD path.
-                                music=music_for_matching,
-                                detection=detection)
+                # One failed ASR chunk must never end the session: a speech
+                # engine error (GPU OOM on this host is a known trigger) used
+                # to propagate out of the capture loop, killing the worker and
+                # leaving a stale "running" status behind - the caller saw
+                # live AI as hung while nothing was analysing any more.
+                # Degrade this chunk and keep reading the stream.
+                try:
+                    cues=_chunk_cues(pcm,position=capture_index*5,lang=src,
+                                    profile=profile,backend=backend,
+                                    # Lyrics metadata alone cannot turn an
+                                    # announcer/advert into singing mode: this
+                                    # made ordinary speech fall through the
+                                    # music-oriented no-VAD path.
+                                    music=music_for_matching,
+                                    detection=detection)
+                except (ImportError,OSError,RuntimeError,
+                        ValueError,MemoryError) as exc:
+                    detection["recognition_rejected"]="asr_failed"
+                    detection["asr_error"]=str(exc)[:180]
+                    detection["language"]=None
+                    detection["confidence"]=0.0
+                    cues=[]
+                    write_runtime_json(location,{
+                        "status":"running","source_language":src,
+                        "language_source":"pending_audio",
+                        "translation_state":"listening",
+                        "original":"","translations":{},
+                        "chunk_index":capture_index,
+                        "note":"Speech engine failed on this chunk; "
+                               "listening continues."})
             if capture_index>0:
                 # Retain words crossing the genuine 1-second read overlap.
                 cues=[cue for cue in cues
