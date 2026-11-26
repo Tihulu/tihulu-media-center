@@ -431,6 +431,37 @@ class FileCaptionService(unittest.TestCase):
                          caption,
                          "Stop wiring must not precede mediaWidget creation")
 
+    def test_no_patched_widget_connects_a_sender_before_it_exists(self):
+        """A bare connect(member, ...) before that member's first `new` is
+        silently dropped by Qt. That exact defect made the caption Stop wiring
+        dead code (two "invalid nullptr parameter" warnings) while looking
+        verified. This audits every patched widget for the same defect class."""
+        import re
+        names = ["tihulu_media_panel.h", "tihulu_radio_tab.h",
+                 "tihulu_unified_recorder.h", "tihulu_caption_options.h",
+                 "tihulu_file_captions.h", "tihulu_hardware_tab.h",
+                 "tihulu_web_tv_dialog.h"]
+        for name in names:
+            code = read("kaffeine_next/native_" + name.split("_", 1)[1])
+            lines = code.split("\n")
+            members = set(re.findall(
+                r'^\t[A-Za-z_][A-Za-z0-9_]*\s*\*\s*'
+                r'([A-Za-z_][A-Za-z0-9_]*)\s*;', code, re.M))
+            created = {}
+            for i, line in enumerate(lines, 1):
+                m = re.match(r'\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*new\b', line)
+                if m and m.group(1) in members and m.group(1) not in created:
+                    created[m.group(1)] = i
+            for i, line in enumerate(lines, 1):
+                m = re.match(r'\s*connect\(([A-Za-z_][A-Za-z0-9_]*)\s*,', line)
+                if not m:
+                    continue
+                who = m.group(1)
+                self.assertFalse(who in members and who in created
+                                 and created[who] > i,
+                                 f"{name}: {who} is connected at line {i} but "
+                                 f"only created at line {created.get(who)}")
+
     def test_whisper_button_never_kills_the_caption_process_group(self):
         """Owner: the top menu bar opens live captions fine, but the Whisper
         button in the bottom-left corner closes the application in TV mode.
