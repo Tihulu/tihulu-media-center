@@ -1716,6 +1716,14 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tQJsonObject obj = doc.object();
+\t\t\t// The caption rectangle is opened and closed from the caption
+\t\t\t// window itself: the service publishes \"panel\"
+\t\t\t// with the rest of its settings, so there is a single control
+\t\t\t// and no second, silently different switch.
+\t\t\tif(!obj.value(QLatin1String(\"panel\")).toBool(true)) {
+\t\t\t\tclearCaption();
+\t\t\t\treturn;
+\t\t\t}
 \t\t\tif (!obj.value(QLatin1String("enabled")).toBool(false)) {
 \t\t\t\t// An explicit OFF remains immediate.
 \t\t\t\t*lastValidMs = 0;

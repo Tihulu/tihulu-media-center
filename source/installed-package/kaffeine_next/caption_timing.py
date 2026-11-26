@@ -76,6 +76,9 @@ class CaptionConfig:
     playback_delay_ms: int = 0
     automatic_sync: bool = False
     on_video: bool = True
+    # The in-player caption rectangle. Off keeps the captions in the
+    # caption window only; the owner asked for an explicit open/close.
+    show_panel: bool = True
     render_mode: str = "native"  # libVLC compositor, never a QWidget over video
     show_original: bool = True
     show_translation: bool = True
@@ -893,6 +896,7 @@ class KaffeineOSD:
                "text_color":config.text_color,
                "background_color":config.background_color,
                "enabled":bool(config.on_video and config.mode != "off"),
+               "panel":bool(config.show_panel),
                "expires_ms":int(time.time()*1000) + min(max(int(ttl_ms),0),15000)}
         obj.update(self._backlog)
         self._atomic(self.path, json.dumps(obj,ensure_ascii=False,separators=(",",":")))

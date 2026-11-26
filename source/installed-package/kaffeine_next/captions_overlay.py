@@ -1794,6 +1794,8 @@ def main(argv=None):
                         "background opacity, but may still be limited by Wayland compositing.")
     quick_layout.addRow("Renderer", renderer)
     show_video = QCheckBox("On-video subtitles"); show_video.setChecked(True)
+    show_panel = QCheckBox("Caption rectangle"); show_panel.setChecked(True)
+    show_panel.setToolTip('The caption rectangle inside the player. Off keeps the captions in this window only.')
     position = QComboBox(); position.addItems(("bottom", "top"))
     font = QSpinBox(); font.setRange(16, 44); font.setValue(25)
     opacity = QSpinBox(); opacity.setRange(0, 100); opacity.setValue(0); opacity.setSuffix("%")
@@ -2435,6 +2437,7 @@ def main(argv=None):
             playback_delay_ms=round(playback_delay.value()*1000),
             automatic_sync=automatic.isChecked(),
             on_video=show_video.isChecked(),
+            show_panel=show_panel.isChecked(),
             show_original=output in ("original","both"),
             show_translation=output in ("translated","both"),
             position=position.currentText(),font_px=font.value(),

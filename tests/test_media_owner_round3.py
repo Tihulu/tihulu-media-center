@@ -462,6 +462,24 @@ class FileCaptionService(unittest.TestCase):
                                  f"{name}: {who} is connected at line {i} but "
                                  f"only created at line {created.get(who)}")
 
+    def test_caption_rectangle_can_be_opened_and_closed(self):
+        """Owner: "we can't open/close that (the subtitle rectangle)".
+
+        One control, one source of truth: the caption window's checkbox sets
+        CaptionConfig.show_panel, the service publishes it as "panel", and the
+        player honours that flag. An earlier attempt read a second QSettings
+        key instead, which the checkbox never wrote - so it did nothing.
+        """
+        config = read("kaffeine_next/caption_timing.py")
+        self.assertIn("show_panel: bool = True", config)
+        self.assertIn('"panel":bool(config.show_panel)', config)
+        overlay = read("kaffeine_next/captions_overlay.py")
+        self.assertIn('QCheckBox("Caption rectangle")', overlay)
+        self.assertIn("show_panel=show_panel.isChecked()", overlay)
+        patch = read("kaffeine_next/patch_upstream.py")
+        self.assertIn('obj.value(QLatin1String(\\"panel\\"))', patch)
+        self.assertIn("toBool(true)", patch)
+
     def test_whisper_button_opens_the_caption_service_for_the_current_mode(self):
         """Owner: the bottom-left Whisper button always opened the TV-only
         Whisper panel, whatever was playing. It must open the file caption
