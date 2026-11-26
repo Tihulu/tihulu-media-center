@@ -374,6 +374,22 @@ class FileCaptionService(unittest.TestCase):
         self.assertNotIn(
             "if (source->getType() != MediaSource::Dvb) {", patch.replace("\\t", ""))
 
+    def test_menu_caption_start_has_no_process_group_hazard(self):
+        """The owner's crash came from the Whisper button, but the TIHULU AI
+        menu action had the SAME pattern: a TihuluAiProcess member (setsid()
+        plus an unconditional process-group SIGKILL on stopJob) driving a
+        blocking waitForStarted() on the UI thread. Both paths must now be
+        identical and detached."""
+        code = read("kaffeine_next/acceptance_fixes.py")
+        start = code.index("connect(captionAction, &QAction::triggered")
+        end = code.index("return;')", start) + len("return;')")
+        body = code[start:end]
+        self.assertNotIn("tvCaptionJob->start", body)
+        self.assertNotIn("waitForStarted", body)
+        self.assertIn("QProcess::startDetached", body)
+        self.assertIn("tihuluCaptionControl", body)
+        self.assertIn('QLatin1String("--show-only")', body)
+
     def test_one_failed_asr_chunk_does_not_end_radio_captions(self):
         """Owner: radio live AI hangs. Reproduced with the installed model: the
         worker died on a single speech-engine failure, the runtime JSON stopped

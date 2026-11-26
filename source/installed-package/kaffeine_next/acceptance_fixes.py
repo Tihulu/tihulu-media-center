@@ -175,8 +175,22 @@ def transform(files):
             '\t\t\t// A short focus request uses the existing controller socket.\n'
             '\t\t\tQProcess::startDetached(QLatin1String("tihulu-tv-center"), {QLatin1String("kaffeine-captions"),QLatin1String("--socket"),name,QLatin1String("--show-only")});\n'
             '\t\t\treturn;\n\t\t}\n'
-            '\t\ttvCaptionJob->start(QLatin1String("tihulu-tv-center"), {QLatin1String("kaffeine-captions"),QLatin1String("--socket"),name});\n'
-            '\t\tif (!tvCaptionJob->waitForStarted(800))')
+            '\t\t// Start the caption service DETACHED, exactly like the\n'
+            '\t\t// Whisper button: a TihuluAiProcess member (setsid() plus an\n'
+            '\t\t// unconditional process-group SIGKILL on stopJob) with a blocking\n'
+            '\t\t// wait on the UI thread closed the application in TV mode.\n'
+            '\t\tconst QString tihuluCaptionControl=runtime+\n'
+            '\t\tQLatin1String(\"/tihulu-captions-control-\")+\n'
+            '\t\tQString::number(QCoreApplication::applicationPid())+\n'
+            '\t\tQLatin1String(\".sock\");\n'
+            '\t\tif(QFileInfo::exists(tihuluCaptionControl)) {\n'
+            '\t\t\t// A short focus request uses the existing controller.\n'
+            '\t\t\tQProcess::startDetached(QLatin1String(\"tihulu-tv-center\"), {QLatin1String(\"kaffeine-captions\"),QLatin1String(\"--socket\"),name,QLatin1String(\"--show-only\")});\n'
+            '\t\t\treturn;\n'
+            '\t\t}\n'
+            '\t\tif (QProcess::startDetached(QLatin1String(\"tihulu-tv-center\"),\n'
+            '\t\t\t\t{QLatin1String(\"kaffeine-captions\"),QLatin1String(\"--socket\"),name}))\n'
+            '\t\t\treturn;')
 
     # A local file with a sidecar <name>.srt plays with it attached, so a
     # finished recording or an export never starts without subtitles.
