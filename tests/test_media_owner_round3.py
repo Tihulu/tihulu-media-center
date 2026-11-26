@@ -529,6 +529,23 @@ class FileCaptionService(unittest.TestCase):
         self.assertIn('QStringLiteral("CaptionHold")', panel)
         self.assertIn('saved.setValue(QStringLiteral("enabled"),value)', panel)
 
+    def test_marq_is_enforced_as_an_spu_filter(self):
+        """Owner's live log showed:
+
+            main subpicture error: Failed to create sub filter 'marq'
+
+        'marq' and 'logo' are SPU filters in libVLC 3, so the option is
+        --spu-filter; --sub-filter is the legacy alias. Enforcing only the
+        legacy name makes libVLC drop the filter, so the in-video captions
+        never render - exactly what the owner kept reporting.
+        """
+        patch = read("kaffeine_next/patch_upstream.py")
+        self.assertIn("--spu-filter=marq", patch)
+        # The SPU enforcement must be INDEPENDENT of the sub-filter chain
+        # handling: inside that if/else it only runs for a custom chain.
+        self.assertIn('if (!args.contains(QLatin1String("--spu-filter")))',
+                      patch.replace("\\t", ""))
+
     def test_in_video_captions_have_a_real_vlc_filter_to_render_through(self):
         """Owner report: live captions never appeared inside the video.
 

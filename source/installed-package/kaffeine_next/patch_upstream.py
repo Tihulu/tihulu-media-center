@@ -1156,6 +1156,13 @@ void DvbLiveView::replay()
 \t\t\tif (!tihuluChain.split(QLatin1Char(','),QString::SkipEmptyParts).contains(QLatin1String("marq")))
 \t\t\t\targs.replace(tihuluValueStart,tihuluChain.size(),tihuluChain+QLatin1String(",marq"));
 \t\t}
+\t\t// 'marq' and 'logo' are SPU filters in libVLC 3: the option is
+\t\t// --spu-filter, and --sub-filter is the legacy alias. Enforcing the
+\t\t// legacy name makes libVLC fail with "Failed to create sub filter
+\t\t// 'marq'" and the in-video captions never render. Enforce both so an
+\t\t// owner config using either name still ends up with the filter.
+\t\tif (!args.contains(QLatin1String("--spu-filter")))
+\t\t\targs.append(QLatin1String(" --spu-filter=marq"));
 \t\tif (tihuluProfile == "software-no-audio" &&
 \t\t    !args.contains(QLatin1String("--no-audio")))
 \t\t\targs.append(QLatin1String(" --no-audio"));
