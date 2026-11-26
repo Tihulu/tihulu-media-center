@@ -1141,8 +1141,21 @@ void DvbLiveView::replay()
 \t\t// the set_marquee_* calls are silently ignored, so live
 \t\t// captions never reach the video (owner report: subtitles
 \t\t// only ever appeared in the separate panel).
-\t\tif (!args.contains(QLatin1String("--sub-filter")))
+\t\t// A user-supplied sub-filter chain keeps every entry it asked
+\t\t// for; marq is ADDED to it, never substituted for it, or an owner
+\t\t// who configured a chain silently loses in-video captions again.
+\t\tconst int tihuluSubFilterAt=args.indexOf(QLatin1String("--sub-filter="));
+\t\tif (tihuluSubFilterAt < 0) {
 \t\t\targs.append(QLatin1String(" --sub-filter=marq"));
+\t\t} else {
+\t\t\tconst QString tihuluChainPrefix(QLatin1String("--sub-filter="));
+\t\t\tconst int tihuluValueStart=tihuluSubFilterAt+tihuluChainPrefix.size();
+\t\t\tint tihuluValueEnd=args.indexOf(QLatin1Char(' '),tihuluValueStart);
+\t\t\tif (tihuluValueEnd < 0) tihuluValueEnd = args.size();
+\t\t\tconst QString tihuluChain=args.mid(tihuluValueStart,tihuluValueEnd-tihuluValueStart);
+\t\t\tif (!tihuluChain.split(QLatin1Char(','),QString::SkipEmptyParts).contains(QLatin1String("marq")))
+\t\t\t\targs.replace(tihuluValueStart,tihuluChain.size(),tihuluChain+QLatin1String(",marq"));
+\t\t}
 \t\tif (tihuluProfile == "software-no-audio" &&
 \t\t    !args.contains(QLatin1String("--no-audio")))
 \t\t\targs.append(QLatin1String(" --no-audio"));
