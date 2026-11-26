@@ -462,6 +462,20 @@ class FileCaptionService(unittest.TestCase):
                                  f"{name}: {who} is connected at line {i} but "
                                  f"only created at line {created.get(who)}")
 
+    def test_whisper_button_opens_the_caption_service_for_the_current_mode(self):
+        """Owner: the bottom-left Whisper button always opened the TV-only
+        Whisper panel, whatever was playing. It must open the file caption
+        service when a local file is the source."""
+        code = read("kaffeine_next/native_unified_recorder.h")
+        self.assertIn("player_->tihuluLocalMediaPath()", code)
+        self.assertIn('QLatin1String("kaffeine-captions-file")', code)
+        self.assertIn('QLatin1String("/tihulu-file-")', code)
+        # The TV path must remain for DVB sources.
+        self.assertIn('QLatin1String("kaffeine-captions")', code)
+        # The player must expose the local media path for that decision.
+        fixes = read("kaffeine_next/acceptance_fixes.py")
+        self.assertIn("tihuluLocalMediaPath", fixes)
+
     def test_whisper_button_never_kills_the_caption_process_group(self):
         """Owner: the top menu bar opens live captions fine, but the Whisper
         button in the bottom-left corner closes the application in TV mode.
