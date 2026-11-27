@@ -867,8 +867,8 @@ class KaffeineOSD:
         # Whisper, and whether one is in progress right now. The player uses
         # this to HOLD the video while the AI analyses an interval.
         self._backlog = {"queued": 0, "analysing": False}
-        self.delay = runtime / f"tihulu-playback-delay-{pid}.txt"
-        self.effective = runtime / f"tihulu-playback-effective-{pid}.txt"
+        self.delay = runtime / (f"tihulu-file-playback-delay-{pid}.txt" if service=="file" else f"tihulu-playback-delay-{pid}.txt")
+        self.effective = runtime / (f"tihulu-file-playback-effective-{pid}.txt" if service=="file" else f"tihulu-playback-effective-{pid}.txt")
         self.last_delay = 0
 
     def _atomic(self, path, content):
