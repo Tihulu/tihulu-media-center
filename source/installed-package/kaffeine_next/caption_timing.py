@@ -84,7 +84,9 @@ class CaptionConfig:
     show_translation: bool = True
     position: str = "bottom"
     font_px: int = 25
-    opacity: int = 70
+    # No opaque backing is forced: the caption text renders over the video
+    # and the owner may add a translucent band from Appearance if they want it.
+    opacity: int = 0
     text_opacity: int = 100
     text_color: str = "#FFFFFF"
     background_color: str = "#000000"

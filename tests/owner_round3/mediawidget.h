@@ -19,10 +19,18 @@ public:
         current=url;emit sourceOpened(url);state=Playing;position=0;
     }
     void setSubtitle(const QUrl &url) {bool handled=false;emit subtitleOpened(url,&handled);}
+    // Real Kaffeine mediawidget.h: play() replays the current media, pause is
+    // the play/pause action, and setPosition() seeks in milliseconds.
+    void play() {state=Playing;emit playResumed();}
+    void togglePause() {if(state==Playing)state=Paused;else if(state==Paused)state=Playing;emit pauseToggled();}
+    void setPosition(int ms) {position=ms;emit positionSeeked(ms);}
 signals:
     void stopRequested();
     void sourceOpened(const QUrl &url);
     void fileOpenRequested(const QUrl &url,bool *handled);
     void subtitleOpened(const QUrl &url,bool *handled);
+    void playResumed();
+    void pauseToggled();
+    void positionSeeked(int ms);
 };
 #endif

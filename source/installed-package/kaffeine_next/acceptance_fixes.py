@@ -149,7 +149,7 @@ def transform(files):
     # by player Stop and by leaving the Television tab. It is inserted
     # before the first TIHULU include the patch adds, so it precedes
     # every use.
-    _caption_stop_helper = 'static void tihuluStopCaptionService()\n{\n\tconst QString ctl = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation) +\n\t\tQLatin1String("/tihulu-captions-control-") +\n\t\tQString::number(QCoreApplication::applicationPid()) + QLatin1String(".sock");\n\tif(!QFileInfo::exists(ctl))return;\n\tQLocalSocket stop;\n\tstop.connectToServer(ctl);\n\tif(stop.waitForConnected(200)) {\n\t\tstop.write("STOP");\n\t\tstop.flush();\n\t\tstop.waitForBytesWritten(200);\n\t\tstop.disconnectFromServer();\n\t}\n}\n\nvoid MainWindow::activateTab(int tabIndex)'
+    _caption_stop_helper = 'static void tihuluStopCaptionService()\n{\n\tconst QString runtime = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);\n\tif(runtime.isEmpty())return;\n\tconst qint64 owner = QCoreApplication::applicationPid();\n\t// EVERY capture service for this player must be told to stop: the TV and\n\t// Radio services use the plain control socket, the local-file service uses\n\t// its own "-file" socket. Sending STOP to only one of them left the other\n\t// service reading audio and holding the model in RAM/VRAM, which is what\n\t// made the player Stop button look like it did nothing for offline files.\n\tfor(const QString &suffix : {QLatin1String(""), QLatin1String("-file")}) {\n\t\tconst QString ctl = runtime + QLatin1String("/tihulu-captions-control-") +\n\t\t\tQString::number(owner) + suffix + QLatin1String(".sock");\n\t\tif(!QFileInfo::exists(ctl))continue;\n\t\tQLocalSocket stop;\n\t\tstop.connectToServer(ctl);\n\t\tif(stop.waitForConnected(200)) {\n\t\t\tstop.write("STOP");\n\t\t\tstop.flush();\n\t\t\tstop.waitForBytesWritten(200);\n\t\t\tstop.disconnectFromServer();\n\t\t}\n\t}\n}\n\nvoid MainWindow::activateTab(int tabIndex)'
     replace(main, '#include "tihulu_theme.h"',
             '#include "tihulu_theme.h"\n#include <QLocalSocket>\n'\
             + _caption_stop_helper.split('void MainWindow::activateTab')[0])
@@ -167,7 +167,12 @@ def transform(files):
             '\t// Stop in any mode also tells the caption service to stop ASR and\n'
             '\t// release Whisper/translator work; the panel stays usable.\n'
             '\tconnect(mediaWidget,&MediaWidget::stopRequested,this,[tvCaptionJob](){tvCaptionJob->stopJob();tihuluStopCaptionService();});\n'
-            '\tconnect(mediaWidget,&MediaWidget::sourceOpened,this,[tvCaptionJob](const QUrl &url){if(url.isValid())tvCaptionJob->stopJob();});\n')
+            '\tconnect(mediaWidget,&MediaWidget::sourceOpened,this,[tvCaptionJob](const QUrl &url){if(url.isValid())tvCaptionJob->stopJob();});\n'
+            # Closing the player must release every running caption service,
+            # not only the ones this process owns: the Whisper button starts
+            # detached controllers that keep the speech/translation model in
+            # RAM and VRAM after the window is gone.
+            '\tconnect(this,&MainWindow::mayCloseApplication,this,[](){tihuluStopCaptionService();});\n')
     replace(main, '\t\tif (!QProcess::startDetached(QLatin1String("tihulu-tv-center"),\n'
             '\t\t\tQStringList() << QLatin1String("kaffeine-captions")\n'
             '\t\t\t\t<< QLatin1String("--socket") << name))',

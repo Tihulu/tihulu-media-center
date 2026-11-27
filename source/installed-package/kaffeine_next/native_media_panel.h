@@ -182,6 +182,12 @@ public:
                     const QString warning=reply.value("warning").toString();
                     message_->setText(!warning.isEmpty()?warning:nextMs_<player_->getPosition()?tr("AI is behind playback; skipping stale captions."):tr("Live captions · local audio · synchronized to playback position"));
                     if(reply.value("eof").toBool())stopLive(false);
+                    else if(waitForAnalysis_) {
+                        // First caption is ready: resume from the frozen position,
+                        // subtitles are already synchronized with that position.
+                        waitForAnalysis_ = false;
+                        resumeAfterAnalysis();
+                    }
                 }
             }
         });
@@ -384,7 +390,28 @@ private:
         live_.start(QStringLiteral("tihulu-tv-center"),args);
         if(!live_.waitForStarted(900)) {captions_->setSticky(false);message_->setText(tr("Caption service could not start."));return;}
         cancel_->setEnabled(true);
-        message_->setText(tr("Caption panel opened · every TV caption tool works on this file."));
+        // Buffer analysis, exactly like live TV: freeze playback for the
+        // configured buffer window so Whisper can transcribe ahead of the
+        // playhead. Playback resumes at the SAME position when the first
+        // caption arrives or the buffer elapses, so subtitles are already
+        // synchronized on resume. MediaSource::replay() is a no-op for local
+        // files, so the frozen position is restored with an explicit seek.
+        if(!waitForAnalysis_) {
+            waitForAnalysis_=true;
+            analysisStartMs_=QDateTime::currentMSecsSinceEpoch();
+            analysisTimeoutMs_=liveWindow_?liveWindow_->value()*1000:8000;
+            analysisResumeMs_=player_->getPosition();
+            player_->togglePause();
+            message_->setText(tr("Analyzing audio for subtitles — playback resumes when the first caption is ready."));
+        }
+    }
+    // Resume playback after the buffer analysis window. Local-file playback
+    // is restarted from the frozen position so no audio is lost or repeated.
+    void resumeAfterAnalysis() {
+        if(player_->getPlaybackStatus()==MediaWidget::Playing)return;
+        player_->play(QUrl::fromLocalFile(path_));
+        if(analysisResumeMs_>0)player_->setPosition(analysisResumeMs_);
+        analysisResumeMs_=0;
     }
     void tickLive() {
         // Auto-resume after timeout if captions haven't arrived yet
@@ -392,9 +419,7 @@ private:
             qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - analysisStartMs_;
             if(elapsed >= analysisTimeoutMs_) {
                 waitForAnalysis_ = false;
-                if(player_->getPlaybackStatus()!=MediaWidget::Playing) {
-                    player_->play(QUrl::fromLocalFile(path_));
-                }
+                resumeAfterAnalysis();
             }
         }
         if(player_->getPlaybackStatus()!=MediaWidget::Playing)return;
@@ -446,6 +471,7 @@ private:
     bool waitForAnalysis_=false;
     qint64 analysisStartMs_=0;
     qint64 analysisTimeoutMs_=8000;
+    qint64 analysisResumeMs_=0;
     bool openingCaptionWindow_=false;
     int revision_=0;qint64 nextMs_=0,lastMs_=0;
 };

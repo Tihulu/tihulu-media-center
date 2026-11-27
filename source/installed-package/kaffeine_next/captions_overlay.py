@@ -1091,6 +1091,25 @@ def main(argv=None):
     app.setQuitOnLastWindowClosed(False)
     import signal
     signal.signal(signal.SIGTERM, lambda *_: app.quit())
+    # The Whisper button starts this service DETACHED, so no parent process
+    # runs the QProcess destructor when Kaffeine exits. Watch the owning
+    # application PID taken from the private socket name and exit with it, so
+    # the speech/translation model is released from RAM and VRAM on close
+    # instead of surviving in the background.
+    def _owner_went_away():
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            app.quit()
+            return False
+        except PermissionError:
+            pass
+        return True
+    if pid > 1:
+        owner_watchdog = QTimer(app)
+        owner_watchdog.setInterval(2000)
+        owner_watchdog.timeout.connect(_owner_went_away)
+        owner_watchdog.start()
     window_state = QSettings("TIHULU", "CaptionWindowGeometry")
 
     class CaptionSettingsWindow(QWidget):
@@ -3086,7 +3105,13 @@ def main(argv=None):
         if not destination:
             return
         try:
-            folder = srt_recorder.start(destination, "live-TV")
+            # Name the SRT session after the media that produced the captions:
+            # the owner reads the finished files by name, and "live-TV" was
+            # wrong for an offline file or a radio service.
+            session_name = "live-TV"
+            if file_media:
+                session_name = Path(file_media).stem or "media"
+            folder = srt_recorder.start(destination, session_name)
         except (OSError, ValueError, RuntimeError) as exc:
             srt_status.setText("Cannot create SRT: " + str(exc))
             return
