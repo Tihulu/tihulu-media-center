@@ -25,8 +25,8 @@ What it adds over the first stable baseline:
 - **Recording output formats**: MKV / `.m2t` / audio `.mka` / radio on a black
   video canvas, with subtitle generation after saving.
 - **VLC surface**: embedded (default) or separate window, plus
-  “Re-embed video surface”; optional **mpv** playback for local files.
-- Market changes always refresh “Ready modes”, stale generated caption caches
+  "Re-embed video surface"; optional **mpv** playback for local files.
+- Market changes always refresh "Ready modes", stale generated caption caches
   are pruned automatically, and Light/Dark appearance covers the new panels.
 
 Full verification checklist: [versions/v1.1-round3/README.md](versions/v1.1-round3/README.md).
@@ -54,3 +54,11 @@ branches/PRs must not silently replace the on-device snapshot.
 
 Kaffeine remains KDE Kaffeine (GPL-2.0-or-later); attribution is kept in the
 NOTICE/LICENSES files. Original project: https://github.com/KDE/kaffeine .
+
+## For AI coding agents / Codex
+
+Start with [AGENTS.md](AGENTS.md) and the [application-specific Codex resume prompt](docs/codex/CODEX_RESUME_PROMPT.md). More detailed version history and vector-ready knowledge live on the separate `docs/stable-first-codex-handoff-20261120` Draft branch; follow the entry instructions to read them. **No installation, merge or release is authorized by these documents.**
+
+This repository tracks stable-first preservation of a custom Kaffeine-based media application, including TV, FM/DAB+, teletext and optional local AI functions. Frozen source and the owner's installed application are distinct; no exact build parity or public release is certified.
+
+**Public release: HOLD.** Do not replace the owner's working installation or publish private archives, recordings, AI weights or other user files. See [the archive-first coordination issue](https://github.com/Tihulu/tihulu-media-center/issues/1).
