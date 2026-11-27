@@ -16,16 +16,26 @@ from .media_ai import (validate_local_media, _choose_model, _chunk_cues,
 
 def caption_window(media, position, *, source, targets, profile, backend,
                    music=False, translations_only=False, window=8):
+    if type(window) is not int or not 2 <= window <= 20:
+        raise ValueError("Invalid file caption window")
     if not math.isfinite(position) or not 0 <= position <= 21600:
         raise ValueError("Playback position outside the six-hour caption limit")
     decoded = subprocess.run([
         "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error",
-        "-ss", str(position), "-i", str(media), "-t", "8", "-map", "0:a:0",
+        "-ss", str(position), "-i", str(media), "-t", str(window), "-map", "0:a:0",
         "-vn", "-ac", "1", "-ar", "32000", "-f", "s16le", "pipe:1"],
         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=35, check=False)
     if decoded.returncode:
         raise RuntimeError("Cannot decode this local audio window")
-    pcm = decoded.stdout
+    return caption_pcm(decoded.stdout, position, source=source, targets=targets,
+        profile=profile, backend=backend, music=music,
+        translations_only=translations_only)
+
+def caption_pcm(pcm, position, *, source, targets, profile, backend,
+                music=False, translations_only=False):
+    """File audio is already 32 kHz mono PCM, not MPEG-TS."""
+    if type(pcm) is not bytes or len(pcm)%2 or len(pcm)>20*64000:
+        raise ValueError("Invalid bounded file PCM")
     duration = len(pcm) / 64000.
     cues = [] if _near_silent_pcm(pcm) else _chunk_cues(
         pcm, position=position, lang=source, profile=profile,
@@ -41,7 +51,7 @@ def caption_window(media, position, *, source, targets, profile, backend,
         rows.append({"start": round(cue.start * 1000),
                      "end": round(cue.end * 1000), "text": text})
     return {"cues": rows, "end": round((position + duration) * 1000),
-            "eof": duration < .1,
+            "eof": duration == 0,
             "warning": warnings[0]["warning"] if warnings else ""}
 
 
