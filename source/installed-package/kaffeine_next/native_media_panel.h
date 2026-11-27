@@ -111,7 +111,7 @@ public:
         {
             QSettings holdPrefs(QStringLiteral("TIHULU"),QStringLiteral("CaptionHold"));
             holdForAnalysis_->setChecked(
-                holdPrefs.value(QStringLiteral("enabled"),false).toBool());
+                holdPrefs.value(QStringLiteral("enabled"),true).toBool());
         }
         holdForAnalysis_->setToolTip(tr(
             "While Whisper still has audio windows to analyse, playback is held "
@@ -132,7 +132,7 @@ public:
         connect(run_,&QPushButton::clicked,this,[this](){generate(false);});
         connect(mpvButton_,&QPushButton::clicked,this,[this](){openInMpv();});
         connect(liveButton_,&QPushButton::clicked,this,[this](){startLive();});
-        connect(cancel_,&QPushButton::clicked,this,[this](){stopAi();});
+        connect(cancel_,&QPushButton::clicked,this,[this](){stopAi();player_->cancelFileCaptionHold();});
         connect(player_,&MediaWidget::stopRequested,this,[this](){if(!internalStop_)stopAi();});
         connect(player_,&MediaWidget::sourceOpened,this,[this](const QUrl &url){setLocalFile(url);});
         connect(player_,&MediaWidget::fileOpenRequested,this,[this](const QUrl &url,bool *handled){
@@ -187,6 +187,7 @@ public:
         });
         connect(&live_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),this,[this](int code,QProcess::ExitStatus){
             liveClock_.stop();pending_=false;cancel_->setEnabled(false);
+            if(!cancelled_)player_->cancelFileCaptionHold();
             if(code && !cancelled_)message_->setText(tr("Live captions stopped: %1").arg(QString::fromUtf8(live_.readAllStandardError()).right(240)));
         });
         connect(&liveClock_,&QTimer::timeout,this,[this](){tickLive();});
@@ -383,8 +384,9 @@ private:
         captions_->setSticky(true);
         live_.start(QStringLiteral("tihulu-tv-center"),args);
         if(!live_.waitForStarted(900)) {captions_->setSticky(false);message_->setText(tr("Caption service could not start."));return;}
+        player_->beginFileCaptionHold();
         cancel_->setEnabled(true);
-        message_->setText(tr("Caption panel opened · every TV caption tool works on this file."));
+        message_->setText(tr("Caption panel opened · buffering synchronized file subtitles."));
     }
     void tickLive() {
         if(player_->getPlaybackStatus()!=MediaWidget::Playing)return;
