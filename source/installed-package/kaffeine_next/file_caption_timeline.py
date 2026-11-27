@@ -8,6 +8,7 @@ class FileCaptionTimeline:
         self.rows=[]
         self.eof=False
         self.error=""
+        self.has_window=False
     def sync(self,generation,revision,state):
         key=(generation,revision,state[2] if state else None)
         if key!=self.key:
@@ -16,6 +17,7 @@ class FileCaptionTimeline:
             self.rows=[]
             self.eof=False
             self.error=""
+            self.has_window=False
     def accept(self,kind,data):
         key=(data["generation"],data["revision"],data["session"])
         if key!=self.key:
@@ -25,11 +27,15 @@ class FileCaptionTimeline:
             self.rows=[]
             self.eof=False
             self.error=""
+            self.has_window=False
         if kind=="file_window_error":
             self.error=data["error"]
             return
         if self.error:
             return
+        if not self.has_window:
+            self.start=self.end=data["start"]
+            self.has_window=True
         if data["start"]!=self.end or data["end"]<data["start"]:
             self.error="Non-contiguous audio analysis; restart captions."
             return
@@ -40,7 +46,7 @@ class FileCaptionTimeline:
     def snapshot(self,state,window,active,offset=0):
         pos=round(state[0]) if state else 0
         active=bool(active and state and state[1])
-        covered=self.start<=pos<=self.end
+        covered=self.has_window and self.start<=pos<=self.end
         ready=covered and (self.end-pos>=window*1000-100 or self.eof)
         # Display on the file clock, not wall time or native TV FIFO ACK.
         text="\n".join(row["text"] for row in self.rows
