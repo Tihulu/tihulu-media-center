@@ -83,26 +83,37 @@ private slots:
         QTest::qWait(400);QCOMPARE(player.state,MediaWidget::Idle);QVERIFY(run->isEnabled());
         QVERIFY(!QFile::exists(dir.filePath("drop.srt")));
     }
-    void audioCaptionStripStaysOpenWhileServiceIsOn() {
-        QTemporaryDir dir;QFile file(dir.filePath("stay.wav"));QVERIFY(file.open(QIODevice::WriteOnly));file.write("fixture");file.close();
+    void liveBufferHoldsAndSrtUsesTheFrozenMediaPosition() {
+        QTemporaryDir dir;QFile file(dir.filePath("stay.mkv"));QVERIFY(file.open(QIODevice::WriteOnly));file.write("fixture");file.close();
         MediaWidget player;TihuluMediaPanel panel(&player);player.show();panel.show();
         auto *source=panel.findChild<QComboBox *>("captionInputLanguage");QTRY_VERIFY_WITH_TIMEOUT(source->count()>1,3000);
-        player.play(QUrl::fromLocalFile(file.fileName()));player.state=MediaWidget::Playing;
+        auto *window=panel.findChild<QSpinBox *>("tihuluFileBuffer");QVERIFY(window);window->setValue(2);
+        player.play(QUrl::fromLocalFile(file.fileName()));player.position=12300;
+        QSignalSpy reopened(&player,&MediaWidget::sourceOpened);
         QLabel *strip=player.findChild<QLabel *>("tihuluFileCaptionStrip");QVERIFY(strip);
-        QPushButton *live=nullptr;for(auto *button:panel.findChildren<QPushButton *>())if(button->text()=="AI captions panel")live=button;
-        QVERIFY(live);live->click();
-        // Wait for the caption job to actually start, not only the click.
-        QPushButton *cancel=nullptr;for(auto *button:panel.findChildren<QPushButton *>())if(button->text()=="Stop AI")cancel=button;
-        QVERIFY(cancel);QTRY_VERIFY_WITH_TIMEOUT(cancel->isEnabled(),3000);
-        QTRY_COMPARE_WITH_TIMEOUT(strip->text(),QString("Live captions \u00b7 listening on the current playback position"),3000);
-        QVERIFY(!strip->isHidden());
-        // Between phrases and while paused, the strip must NOT close and reopen.
-        player.state=MediaWidget::Paused;QTest::qWait(250);
-        QVERIFY(!strip->isHidden());
-        QCOMPARE(strip->text(),QString("Live captions \u00b7 listening on the current playback position"));
-        player.state=MediaWidget::Playing;QTest::qWait(250);QVERIFY(!strip->isHidden());
-        // Only an explicit stop releases the service and closes the strip.
-        player.stop();QTest::qWait(300);QVERIFY(strip->isHidden());
+        QComboBox *overlay=nullptr;for(auto *box:panel.findChildren<QComboBox*>())if(box->findData("compact")>=0)overlay=box;
+        QVERIFY(overlay);overlay->setCurrentIndex(overlay->findData("off"));
+        emit player.tihuluFileCaptionsRequested(); // shared Whisper transport entry
+        QCOMPARE(player.state,MediaWidget::Paused);
+        QTRY_VERIFY_WITH_TIMEOUT(panel.liveSrt().contains("[TR] fixture translation"),1700);
+        QCOMPARE(player.state,MediaWidget::Paused); // real reply must not shorten the configured hold
+        QCOMPARE(player.position,12300);
+        QVERIFY(strip->isHidden()); // overlay is not required for worker or SRT
+        QVERIFY(panel.liveSrt().contains("00:00:12,300 --> 00:00:20,300"));
+        QTRY_COMPARE_WITH_TIMEOUT(player.state,MediaWidget::Playing,3500);
+        QCOMPARE(reopened.count(),0);QCOMPARE(player.position,12300);
+        overlay->setCurrentIndex(overlay->findData("compact"));
+        QTRY_VERIFY(strip->text().contains("[TR] fixture translation"));
+        overlay->setCurrentIndex(overlay->findData("video"));
+        QTRY_VERIFY(player.nativeSubtitleActive && player.nativeSubtitleText.contains("[TR] fixture translation"));
+        QVERIFY(strip->isHidden());
+        overlay->setCurrentIndex(overlay->findData("off"));
+        QTRY_VERIFY(!player.nativeSubtitleActive && player.nativeSubtitleText.isEmpty());
+        overlay->setCurrentIndex(overlay->findData("video"));
+        QTRY_VERIFY(player.nativeSubtitleActive);
+        player.stop();QTRY_VERIFY(strip->isHidden());
+        QVERIFY(!player.nativeSubtitleActive && player.nativeSubtitleText.isEmpty());
+        QVERIFY(panel.liveSrt().contains("00:00:12,300")); // still exportable after Stop
     }
     void fileTypeSelectsTvOrRadioServiceAndCanBeOverridden() {
         QTemporaryDir dir;QFile audio(dir.filePath("song.wav"));QVERIFY(audio.open(QIODevice::WriteOnly));audio.write("fixture");audio.close();
@@ -135,6 +146,8 @@ private slots:
         player.state=MediaWidget::Playing;player.position=2000;
         QTRY_COMPARE(captions.text(),QString("first line\n… second line"));
         player.position=5000;QTRY_COMPARE(captions.text(),QString("second line"));
+        captions.setLyricOffset(3000);
+        QTRY_VERIFY(captions.text().startsWith("first line"));
         captions.setKaraoke(false);QTRY_COMPARE(captions.text(),QString("second line"));
     }
     void serviceArgumentsReachTheCaptionWindow() {
@@ -142,15 +155,20 @@ private slots:
         QFile audio(dir.filePath("song2.wav"));QVERIFY(audio.open(QIODevice::WriteOnly));audio.write("fixture");audio.close();
         MediaWidget player;TihuluMediaPanel panel(&player);player.show();panel.show();
         auto *source=panel.findChild<QComboBox *>("captionInputLanguage");QTRY_VERIFY_WITH_TIMEOUT(source->count()>1,3000);
-        auto *window=panel.findChildren<QSpinBox *>().value(0);QVERIFY(window);window->setValue(12);
+        auto *window=panel.findChild<QSpinBox *>("tihuluFileBuffer");QVERIFY(window);window->setValue(12);
         player.play(QUrl::fromLocalFile(audio.fileName()));
-        QPushButton *live=nullptr;for(auto *button:panel.findChildren<QPushButton *>())if(button->text()=="AI captions panel")live=button;
+        auto *reading=panel.findChild<QComboBox *>("tihuluFileReading");QVERIFY(reading);
+        reading->setCurrentIndex(reading->findData("relaxed"));
+        auto *speakers=panel.findChild<QComboBox *>("tihuluFileSpeakers");QVERIFY(speakers);
+        speakers->setCurrentIndex(speakers->findData("resemblyzer"));
+        QPushButton *live=nullptr;for(auto *button:panel.findChildren<QPushButton *>())if(button->objectName()=="tihuluStartFileCaptions")live=button;
         QVERIFY(live);live->click();
         QFile argv(dir.filePath("argv.txt"));
         QTRY_VERIFY_WITH_TIMEOUT(argv.exists(),3000);
         QVERIFY(argv.open(QIODevice::ReadOnly));const auto args=QString::fromUtf8(argv.readAll());
-        QVERIFY(args.contains("kaffeine-captions"));QVERIFY(args.contains("--file "));
+        QVERIFY(args.contains("media-captions"));QVERIFY(args.contains("--input "));QVERIFY(args.contains("--live"));
         QVERIFY(args.contains("--source "));QVERIFY(args.contains("--targets "));QVERIFY(args.contains("--window 12"));
+        QVERIFY(args.contains("--reading relaxed"));QVERIFY(args.contains("--speaker-provider resemblyzer"));
         // Seeking must not move the player or kill the caption service.
         player.position=20000;QTest::qWait(300);QCOMPARE(player.position,20000);
         QPushButton *cancel=nullptr;for(auto *button:panel.findChildren<QPushButton *>())if(button->text()=="Stop AI")cancel=button;

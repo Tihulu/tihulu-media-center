@@ -429,28 +429,9 @@ private:
             report(tr("XDG_RUNTIME_DIR is missing; cannot start the caption service."));
             return;
         }
-        // The button is in the shared transport bar, so it must open the
-        // caption service for whatever is actually playing. A local file gets
-        // its OWN service (kaffeine-captions-file), never the TV one: the
-        // owner reported the button always opening the TV-only Whisper panel.
-        const QString localMedia=player_->tihuluLocalMediaPath();
-        if(!localMedia.isEmpty() && QFileInfo(localMedia).isFile()) {
-            const QString fileName=runtime+QLatin1String("/tihulu-file-")+
-                QString::number(QCoreApplication::applicationPid())+QLatin1String(".sock");
-            const QString ctl=runtime+QLatin1String("/tihulu-captions-control-")+
-                QString::number(QCoreApplication::applicationPid())+
-                QLatin1String("-file.sock");
-            if(QFileInfo::exists(ctl)) {
-                if(QProcess::startDetached(QLatin1String("tihulu-tv-center"),
-                        {QLatin1String("kaffeine-captions-file"),QLatin1String("--socket"),fileName,QLatin1String("--show-only")}))
-                    return;
-            }
-            if(QProcess::startDetached(QLatin1String("tihulu-tv-center"),
-                    {QLatin1String("kaffeine-captions-file"),QLatin1String("--socket"),fileName,QLatin1String("--file"),localMedia})) {
-                report(tr("Opening live captions for this file."));
-                return;
-            }
-            report(tr("Could not open the file caption service."));
+        // Playback owns its position-driven worker; do not open the DVB controller.
+        if(!player_->tihuluLocalMediaPath().isEmpty()) {
+            emit player_->tihuluFileCaptionsRequested();
             return;
         }
         const QString name=runtime+QLatin1String("/tihulu-dvb-")+

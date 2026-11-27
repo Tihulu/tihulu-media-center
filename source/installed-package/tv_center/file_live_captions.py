@@ -9,27 +9,90 @@ import json
 import math
 import subprocess
 import sys
+from dataclasses import replace
+
 from .ai_settings import AISettings
+from .captions import _speaker_details
+from .lyrics_sync import LyricCue
 from .media_ai import (validate_local_media, _choose_model, _chunk_cues,
                        _translate_cues, _near_silent_pcm)
+from .speech_focus import ffmpeg_audio_filter
+
+
+READING_MODES = {"fast": (7, 2.7), "comfort": (10, 3.5), "relaxed": (14, 4.8)}
+
+
+def _reading_cues(cues, pcm, position, duration, detection, reading, speaker_provider):
+    words = detection.get("asr_words") or []
+    # Do not claim a specific speaker for a CPU transcript that has no
+    # word-level timing. A missing model or ambiguous cluster is non-fatal.
+    notes = []
+    details = {}
+    if speaker_provider != "off" and cues:
+        if words:
+            _speaker_details(pcm, cues[0].text, details, True, provider=speaker_provider)
+            if details.get("speaker_error"):
+                notes.append("Speaker detection unavailable: " + details["speaker_error"])
+        else:
+            notes.append("Speaker labels need a speech backend with word timestamps.")
+    if not cues or not words:
+        return cues, {}, notes
+    from kaffeine_next.word_cues import word_groups
+    maximum_words, maximum_span = READING_MODES[reading]
+    groups = word_groups({"source":"local_asr", "words":words,
+                          "speaker_turns":details.get("speaker_turns", [])},
+                         maximum_words=maximum_words, maximum_span=maximum_span)
+    if not groups:
+        return cues, {}, notes
+    paced, labels = [], {}
+    for start, end, item in groups:
+        if start >= duration:
+            continue
+        paced.append(LyricCue(position+start, position+min(end,duration),
+                              item["original"], "Whisper/CUDA", cues[0].language))
+        if item.get("speaker_label"):
+            labels[len(paced)] = item["speaker_label"]
+    return (paced, labels, notes) if paced else (cues, {}, notes)
+
+
+def _reading_end(cue, text, limit, mode):
+    """Extend reading into gaps, never past the next cue or decoded audio."""
+    if mode == "fast":
+        return min(cue.end, limit)
+    rate, minimum, maximum = (16, 1.8, 5) if mode == "comfort" else (12, 2.5, 7)
+    hold = min(maximum, max(minimum, .65 + len(text)/rate))
+    return min(limit, max(cue.end, cue.start+hold))
 
 
 def caption_window(media, position, *, source, targets, profile, backend,
-                   music=False, translations_only=False, window=8):
+                   music=False, translations_only=False, window=8, reading="fast",
+                   speaker_provider="off", speech_priority=False):
     if not math.isfinite(position) or not 0 <= position <= 21600:
         raise ValueError("Playback position outside the six-hour caption limit")
+    if not 2 <= window <= 20:
+        raise ValueError("Playback buffer must be 2–20 seconds")
+    focus_filter = ffmpeg_audio_filter(speech_priority=speech_priority,
+                                       music_transcription=music)
     decoded = subprocess.run([
         "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error",
-        "-ss", str(position), "-i", str(media), "-t", "8", "-map", "0:a:0",
-        "-vn", "-ac", "1", "-ar", "32000", "-f", "s16le", "pipe:1"],
+        "-ss", str(position), "-i", str(media), "-t", str(window), "-map", "0:a:0",
+        "-vn", "-ac", "1", "-ar", "32000", *focus_filter, "-f", "s16le", "pipe:1"],
         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=35, check=False)
     if decoded.returncode:
         raise RuntimeError("Cannot decode this local audio window")
     pcm = decoded.stdout
     duration = len(pcm) / 64000.
+    detection = {}
     cues = [] if _near_silent_pcm(pcm) else _chunk_cues(
         pcm, position=position, lang=source, profile=profile,
-        backend=backend, music=music)
+        backend=backend, music=music, detection=detection,
+        speech_priority=speech_priority)
+    if len(cues) == 1 and cues[0].provenance == "Whisper chunk / not word-aligned":
+        cues = [replace(cues[0], end=position+duration)]
+    labels, notes = {}, []
+    if reading != "fast" or speaker_provider != "off":
+        cues, labels, notes = _reading_cues(cues, pcm, position, duration,
+                                           detection, reading, speaker_provider)
     translated, warnings = _translate_cues(cues, targets, source)
     rows = []
     for i, cue in enumerate(cues, 1):
@@ -38,11 +101,16 @@ def caption_window(media, position, *, source, targets, profile, backend,
         text = translation if translations_only and translation else cue.text
         if translation and not translations_only:
             text += "\n" + translation
-        rows.append({"start": round(cue.start * 1000),
-                     "end": round(cue.end * 1000), "text": text})
+        if i in labels:
+            text = labels[i] + " " + text
+        limit = min(position+duration, cues[i].start if i < len(cues) else position+duration)
+        end = _reading_end(cue, text, limit, reading)
+        if round(end*1000) > round(cue.start*1000):
+            rows.append({"start": round(cue.start * 1000),
+                         "end": round(end * 1000), "text": text})
     return {"cues": rows, "end": round((position + duration) * 1000),
             "eof": duration < .1,
-            "warning": warnings[0]["warning"] if warnings else ""}
+            "warning": " · ".join(notes + [warnings[0]["warning"]] if warnings else notes)}
 
 
 def release_accelerator_cache():
@@ -92,7 +160,9 @@ def serve(options, input_stream=None, output_stream=None):
                 source=source, targets=targets, profile=profile,
                 backend=backend, music=options.music,
                 translations_only=options.translations_only,
-                window=options.window or 8)
+                window=options.window or 8, reading=options.reading,
+                speaker_provider=options.speaker_provider,
+                speech_priority=options.speech_priority)
         except (ValueError, KeyError, TypeError, OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
             result = {"error": str(exc)[:240]}
         result["revision"] = revision

@@ -18,6 +18,12 @@ public:
         bool handled=false;emit fileOpenRequested(url,&handled);if(handled)return;
         current=url;emit sourceOpened(url);state=Playing;position=0;
     }
+    bool nativeSubtitleActive=false;
+    QString nativeSubtitleText;
+    void tihuluShowFileSubtitle(bool active,const QString &text) {
+        nativeSubtitleActive=active;nativeSubtitleText=text;
+    }
+    QString tihuluLocalMediaPath() const {return current.toLocalFile();}
     void setSubtitle(const QUrl &url) {bool handled=false;emit subtitleOpened(url,&handled);}
     // Real Kaffeine mediawidget.h: play() replays the current media, pause is
     // the play/pause action, and setPosition() seeks in milliseconds.
@@ -26,6 +32,7 @@ public:
     void setPosition(int ms) {position=ms;emit positionSeeked(ms);}
 signals:
     void stopRequested();
+    void tihuluFileCaptionsRequested();
     void sourceOpened(const QUrl &url);
     void fileOpenRequested(const QUrl &url,bool *handled);
     void subtitleOpened(const QUrl &url,bool *handled);

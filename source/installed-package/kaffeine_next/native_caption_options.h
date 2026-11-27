@@ -86,9 +86,7 @@ public:
         }
         return out;
     }
-    bool appendArguments(QStringList &args) {
-        const QString model=model_->currentData().toString();
-        if(!ready_) {status_->setText(tr("Wait for the local catalog or press Refresh."));return false;}
+    bool appendLanguageArguments(QStringList &args) {
         for(int i=0;i<targets_->count();++i) {
             const auto *item=targets_->item(i);
             if(item->checkState()==Qt::Checked && !item->data(Qt::UserRole+1).toBool()) {
@@ -96,6 +94,14 @@ public:
                 return false;
             }
         }
+        args<<QStringLiteral("--source")<<source_->currentData().toString()
+            <<QStringLiteral("--targets")<<targets().join(QLatin1Char(','));
+        return true;
+    }
+    bool appendArguments(QStringList &args) {
+        const QString model=model_->currentData().toString();
+        if(!ready_) {status_->setText(tr("Wait for the local catalog or press Refresh."));return false;}
+        if(!appendLanguageArguments(args))return false;
         if(model==QStringLiteral("cpu-file")) {
             if(!QFileInfo(localModel_).isFile()) {status_->setText(tr("Choose an existing GGML model file."));return false;}
             args<<QStringLiteral("--whisper-file")<<localModel_;
@@ -103,9 +109,7 @@ public:
                    QStringLiteral("cuda_model_present"):QStringLiteral("speech_model_present")).toBool()) {
             status_->setText(tr("No local speech model found. Use an existing model file or select the installed asset folder."));return false;
         }
-        args<<QStringLiteral("--source")<<source_->currentData().toString()
-            <<QStringLiteral("--targets")<<targets().join(QLatin1Char(','))
-            <<QStringLiteral("--record-model")<<model<<QStringLiteral("--progress");
+        args<<QStringLiteral("--record-model")<<model<<QStringLiteral("--progress");
         return true;
     }
 private:

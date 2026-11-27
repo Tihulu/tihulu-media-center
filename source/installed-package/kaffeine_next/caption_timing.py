@@ -867,11 +867,6 @@ class KaffeineOSD:
         # Whisper, and whether one is in progress right now. The player uses
         # this to HOLD the video while the AI analyses an interval.
         self._backlog = {"queued": 0, "analysing": False}
-        # Buffer analysis state: the configured live audio window in seconds
-        # and whether at least one real window has been analysed already.
-        # The player uses this to FREEZE playback at the start (like live TV)
-        # until subtitles exist for the position where playback resumes.
-        self._buffer = {"seconds": 8, "ready": False}
         self.delay = runtime / f"tihulu-playback-delay-{pid}.txt"
         self.effective = runtime / f"tihulu-playback-effective-{pid}.txt"
         self.last_delay = 0
@@ -892,11 +887,6 @@ class KaffeineOSD:
         self._backlog = {"queued": max(0, int(queued)),
                          "analysing": bool(analysing)}
 
-    def set_buffer_state(self, seconds, ready):
-        """Report the live analysis window and whether it has been filled."""
-        self._buffer = {"seconds": max(2, min(60, int(seconds))),
-                        "ready": bool(ready)}
-
     def publish(self, text, config: CaptionConfig, ttl_ms=2000):
         config.validate()
         if not config.on_video or config.mode == "off":
@@ -907,8 +897,6 @@ class KaffeineOSD:
                "text_opacity":config.text_opacity,
                "text_color":config.text_color,
                "background_color":config.background_color,
-               "buffer_seconds":self._buffer["seconds"],
-               "buffer_ready":bool(self._buffer["ready"]),
                "enabled":bool(config.on_video and config.mode != "off"),
                "panel":bool(config.show_panel),
                "expires_ms":int(time.time()*1000) + min(max(int(ttl_ms),0),15000)}

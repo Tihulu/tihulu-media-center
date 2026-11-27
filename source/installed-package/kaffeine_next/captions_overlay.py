@@ -3984,16 +3984,6 @@ def main(argv=None):
                 translated.setText("")
             ipc.set_backlog(analysis_backlog["queued"],
                             analysis_backlog["analysing"])
-            # Buffer analysis state for the player's start hold: the live
-            # window length and whether one real window has already been
-            # analysed (a caption exists), which is what releases the freeze.
-            buffer_ready = bool(file_media and tap.file_last_end is not None
-                                and last_cue_shown_at)
-            try:
-                ipc.set_buffer_state(getattr(tap, "file_window", 8) or 8,
-                                     buffer_ready)
-            except (TypeError, ValueError):
-                pass
             ipc.publish(current_text,applied,ttl_ms=3000)
             last_published = now
         elif current_cue and now >= current_until + 1.0:

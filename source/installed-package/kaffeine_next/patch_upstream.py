@@ -103,6 +103,7 @@ private:
         aiPanel->setVisible(mode==MediaWidget::NormalMode);
     }
 	void setLocalFile(const QUrl &url) { aiPanel->setLocalFile(url); }
+    void leavePlayback() { aiPanel->leavePlayback(); }
     bool prepareLocalFileOpen(const QUrl &url) {
         return aiPanel->prepareLocalFileOpen(url);
     }
@@ -1560,18 +1561,28 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
            '''\tQString textSubtitlesOff;
 \t// AI live subtitle is a virtual, user-selectable DVB track in Kaffeine.
 \t// Broadcast Teletext/DVB tracks remain owned by their original providers.
+\tbool tihuluFileSubtitleActive = false;
 \tbool tihuluAiCaptionAvailable = false;
-\t// Hold-for-analysis state: we only resume a pause that WE caused.
-\tbool tihuluCaptionHeldUs_ = false;
-\tqint64 tihuluCaptionHoldStart_ = 0;
-\t// Buffer-analysis hold for offline files, one freeze per session.
-\tbool tihuluBufferHolding_ = false;
-\tqint64 tihuluBufferHoldStart_ = 0;
-\tqint64 tihuluBufferHoldPos_ = 0;
-\tbool tihuluBufferSessionDone_ = false;
 \tbool tihuluAiCaptionSelected = false;
 \tbool tihuluAiCaptionUserOverride = false;''')
+    change(mediah, '\tvoid setSubtitle(QUrl text);',
+           '\tvoid setSubtitle(QUrl text);\n'
+           '\tvoid tihuluShowFileSubtitle(bool active, const QString &text);')
     mediac = "src/mediawidget.cpp"
+    change(mediac, 'void MediaWidget::currentSubtitleChanged(int currentSubtitle)',
+           '''void MediaWidget::tihuluShowFileSubtitle(bool active, const QString &text)
+{
+\tif (!active && !tihuluFileSubtitleActive) return;
+\ttihuluFileSubtitleActive = active;
+\ttihuluCaptionWidget->hideCaption();
+\t// Render on VLC's video surface, not in a layout widget. Zero backing
+\t// opacity uses the text-only marquee rather than the caption logo.
+\tif (auto *vlc = qobject_cast<VlcMediaWidget *>(backend))
+\t\tvlc->setTihuluNativeCaption(active ? text : QString(),false,26,100,
+\t\t\tQLatin1String("#FFFFFF"),0);
+}
+
+void MediaWidget::currentSubtitleChanged(int currentSubtitle)''')
     change(mediac, '''void MediaWidget::currentSubtitleChanged(int currentSubtitle)
 {
 \tif (blockBackendUpdates)
@@ -1647,6 +1658,8 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t// Resist transient missing/partially written caption IPC files.
 \t\tQSharedPointer<qint64> lastValidMs(new qint64(0));
 \t\tconnect(captionPoll, &QTimer::timeout, this, [this, captionPath, lastValidMs]() {
+\t\t\t// File Playback drives the same renderer from its own media clock.
+\t\t\tif (tihuluFileSubtitleActive) return;
 \t\t\tauto clearCaption = [this]() {
 \t\t\t\ttihuluCaptionWidget->hideCaption();
 \t\t\t\tif (auto *vlc = qobject_cast<VlcMediaWidget *>(backend))
@@ -1692,7 +1705,7 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\tif (source->getType() != MediaSource::Dvb &&
 \t\t\t\tsource->getType() != MediaSource::Url) {
 \t\t\t\tclearCaption();
-\t\t\t\tsetAiAvailability(false);;tihuluBufferSessionDone_=false;tihuluBufferHolding_=false;tihuluBufferHoldStart_=0;tihuluBufferHoldPos_=0;
+\t\t\t\tsetAiAvailability(false);
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tconst qint64 now = QDateTime::currentMSecsSinceEpoch();
@@ -1700,7 +1713,7 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\tif (!file.exists() || !file.open(QIODevice::ReadOnly)) {
 \t\t\t\tif (now - *lastValidMs > 1000) {
 \t\t\t\t\tclearCaption();
-\t\t\t\t\tsetAiAvailability(false);;tihuluBufferSessionDone_=false;tihuluBufferHolding_=false;tihuluBufferHoldStart_=0;tihuluBufferHoldPos_=0;
+\t\t\t\t\tsetAiAvailability(false);
 \t\t\t\t}
 \t\t\t\treturn;
 \t\t\t}
@@ -1708,7 +1721,7 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\tif (bytes.size() > 16384) {
 \t\t\t\tif (now - *lastValidMs > 1000) {
 \t\t\t\t\tclearCaption();
-\t\t\t\t\tsetAiAvailability(false);;tihuluBufferSessionDone_=false;tihuluBufferHolding_=false;tihuluBufferHoldStart_=0;tihuluBufferHoldPos_=0;
+\t\t\t\t\tsetAiAvailability(false);
 \t\t\t\t}
 \t\t\t\treturn;
 \t\t\t}
@@ -1716,7 +1729,7 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\tif (!doc.isObject()) {
 \t\t\t\tif (now - *lastValidMs > 1000) {
 \t\t\t\t\tclearCaption();
-\t\t\t\t\tsetAiAvailability(false);;tihuluBufferSessionDone_=false;tihuluBufferHolding_=false;tihuluBufferHoldStart_=0;tihuluBufferHoldPos_=0;
+\t\t\t\t\tsetAiAvailability(false);
 \t\t\t\t}
 \t\t\t\treturn;
 \t\t\t}
@@ -1733,13 +1746,13 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\t\t// An explicit OFF remains immediate.
 \t\t\t\t*lastValidMs = 0;
 \t\t\t\tclearCaption();
-\t\t\t\tsetAiAvailability(false);;tihuluBufferSessionDone_=false;tihuluBufferHolding_=false;tihuluBufferHoldStart_=0;tihuluBufferHoldPos_=0;
+\t\t\t\tsetAiAvailability(false);
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tif (obj.value(QLatin1String("expires_ms")).toDouble(0)
 \t\t\t      + 1000 < static_cast<double>(now)) {
 \t\t\t\tclearCaption();
-\t\t\t\tsetAiAvailability(false);;tihuluBufferSessionDone_=false;tihuluBufferHolding_=false;tihuluBufferHoldStart_=0;tihuluBufferHoldPos_=0;
+\t\t\t\tsetAiAvailability(false);
 \t\t\t\treturn;
 \t\t\t}
 \t\t\t*lastValidMs = now;
@@ -1749,42 +1762,6 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\tif (!tihuluAiCaptionSelected) {
 \t\t\t\tclearCaption();
 \t\t\t\treturn;
-\t\t\t}
-\t\t\t// BUFFER ANALYSIS (offline files): freeze playback for the live
-\t\t\t// window the caption service is configured with, then resume at the
-\t\t\t// same position once that window has actually been analysed. This is
-\t\t\t// the same behaviour as live TV, where captions buffer before they are
-\t\t\t// readable, and it runs for EVERY entry point that started the service:
-\t\t\t// the panel button, the transport-bar Whisper button and the AI menu.
-\t\t\t// The hold is entered once per caption session and is always bounded.
-\t\t\tif(source->getType()!=MediaSource::Dvb) {
-\t\t\t\tconst bool ready=obj.value(QLatin1String("buffer_ready")).toBool();
-\t\t\t\tqint64 windowMs=obj.value(QLatin1String("buffer_seconds")).toInt(8)*1000;
-\t\t\t\twindowMs=qBound(qint64(2000),windowMs,qint64(60000));
-\t\t\t\tif(!tihuluBufferSessionDone_ && getPlaybackStatus()==MediaWidget::Playing) {
-\t\t\t\t\t// Freeze at the analysis position. The service keeps reading the
-\t\t\t\t\t// file while paused, so Whisper has real audio to work with.
-\t\t\t\t\ttihuluBufferHoldStart_=now;
-\t\t\t\t\ttihuluBufferHolding_=true;
-\t\t\t\t\ttihuluBufferHoldPos_=getPosition();
-\t\t\t\t\ttogglePause();
-\t\t\t\t}
-\t\t\t\tif(tihuluBufferHolding_) {
-\t\t\t\t\tconst bool timedOut=tihuluBufferHoldStart_>0 &&
-\t\t\t\t\t(now-tihuluBufferHoldStart_)>=windowMs;
-\t\t\t\t\tif(ready || timedOut) {
-\t\t\t\t\t\t// Resume from the frozen position: MediaSource::replay() is a
-\t\t\t\t\t\t// no-op for local files, so seek back explicitly.
-\t\t\t\t\t\ttihuluBufferHolding_=false;
-\t\t\t\t\t\ttihuluBufferHoldStart_=0;
-\t\t\t\t\t\ttihuluBufferSessionDone_=true;
-\t\t\t\t\t\tif(getPlaybackStatus()!=MediaWidget::Playing) {
-\t\t\t\t\t\t\tplay(source->getType()==MediaSource::Url ? source->getUrl() : QUrl());
-\t\t\t\t\t\t\tif(tihuluBufferHoldPos_>0)setPosition(tihuluBufferHoldPos_);
-\t\t\t\t\t\t\ttihuluBufferHoldPos_=0;
-\t\t\t\t\t\t}
-\t\t\t\t\t}
-\t\t\t\t}
 \t\t\t}
 \t\t\tconst QString text = obj.value(QLatin1String("text")).toString();
 \t\t\tconst QString renderMode = obj.value(QLatin1String("render_mode"))

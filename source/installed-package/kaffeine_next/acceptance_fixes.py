@@ -126,6 +126,7 @@ def transform(files):
     media = "src/mediawidget.cpp"
     replace("src/mediawidget.h", "signals:\n", "signals:\n"
             "\tvoid stopRequested();\n"
+            "\tvoid tihuluFileCaptionsRequested();\n"
             "\tvoid sourceOpened(const QUrl &url);\n"
             "\tvoid fileOpenRequested(const QUrl &url, bool *handled);\n"
             "\tvoid subtitleOpened(const QUrl &url, bool *handled);\n")
@@ -153,7 +154,7 @@ def transform(files):
     replace(main, '#include "tihulu_theme.h"',
             '#include "tihulu_theme.h"\n#include <QLocalSocket>\n'\
             + _caption_stop_helper.split('void MainWindow::activateTab')[0])
-    replace(main, '\tcurrentTabIndex = tabIndex;', '\t// Leaving television (radio has its own release path) stops the live caption\n\t// service so no Whisper/translator work stays idle on the GPU.\n\tif(currentTabIndex == DvbTabId && tabIndex != DvbTabId && !toRadio)\n\t\ttihuluStopCaptionService();\n\tcurrentTabIndex = tabIndex;')
+    replace(main, '\tcurrentTabIndex = tabIndex;', '\t// Leaving television (radio has its own release path) stops the live caption\n\t// service so no Whisper/translator work stays idle on the GPU.\n\tif(currentTabIndex == DvbTabId && tabIndex != DvbTabId && !toRadio)\n\t\ttihuluStopCaptionService();\n\tif (currentTabIndex == PlayerTabId && tabIndex != PlayerTabId)\n\t\tplayerTab->leavePlayback();\n\tcurrentTabIndex = tabIndex;')
 
     replace(main, '\tconnect(captionAction, &QAction::triggered, this, [this]() {',
             '\tauto *tvCaptionJob = new TihuluAiProcess(this);\n'
@@ -176,6 +177,9 @@ def transform(files):
     replace(main, '\t\tif (!QProcess::startDetached(QLatin1String("tihulu-tv-center"),\n'
             '\t\t\tQStringList() << QLatin1String("kaffeine-captions")\n'
             '\t\t\t\t<< QLatin1String("--socket") << name))',
+            '\t\tif (!mediaWidget->tihuluLocalMediaPath().isEmpty()) {\n'
+            '\t\t\temit mediaWidget->tihuluFileCaptionsRequested();\n'
+            '\t\t\treturn;\n\t\t}\n'
             '\t\tif(tvCaptionJob->state()!=QProcess::NotRunning) {\n'
             '\t\t\t// A short focus request uses the existing controller socket.\n'
             '\t\t\tQProcess::startDetached(QLatin1String("tihulu-tv-center"), {QLatin1String("kaffeine-captions"),QLatin1String("--socket"),name,QLatin1String("--show-only")});\n'

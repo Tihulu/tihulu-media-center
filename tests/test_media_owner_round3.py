@@ -56,15 +56,61 @@ class OfflineRegressions(unittest.TestCase):
     def test_live_window_keeps_real_timing_and_translation_failure_original(self):
         decoded = Mock(returncode=0, stdout=b"\x30\x01" * 256000)
         cues = [LyricCue(12.3, 14.1, "genuine original", "fixture", "de")]
-        with patch.object(file_live_captions.subprocess, "run", return_value=decoded), \
+        with patch.object(file_live_captions.subprocess, "run", return_value=decoded) as decode, \
              patch.object(file_live_captions, "_chunk_cues", return_value=cues) as asr, \
              patch.object(file_live_captions, "_translate_cues", return_value=({}, [{"warning":"No installed DE → TR route"}])):
             result = file_live_captions.caption_window(Path("fixture.wav"), 12, source="de",
-                targets=("tr",), profile={}, backend="cpu", translations_only=True)
+                targets=("tr",), profile={}, backend="cpu", translations_only=True, window=12)
         self.assertEqual(result["cues"], [{"start":12300,"end":14100,"text":"genuine original"}])
         self.assertEqual(result["end"], 20000)
         self.assertIn("DE → TR", result["warning"])
         self.assertEqual(asr.call_args.kwargs["position"], 12)
+        command=decode.call_args.args[0]
+        self.assertEqual(command[command.index("-t")+1], "12")
+
+    def test_reading_mode_keeps_speech_onsets_and_only_extends_into_gaps(self):
+        cues = [LyricCue(10.4, 10.8, "short speech", "fixture", "en"),
+                LyricCue(12.0, 12.3, "next speech", "fixture", "en")]
+        args = dict(source="en", targets=(), profile={}, backend="cpu")
+        decoded = Mock(returncode=0, stdout=b"\x30\x01" * 256000)
+        with patch.object(file_live_captions.subprocess,"run",return_value=decoded), \
+             patch.object(file_live_captions,"_chunk_cues",return_value=cues), \
+             patch.object(file_live_captions,"_translate_cues",return_value=({},[])):
+            fast = file_live_captions.caption_window(Path("fixture.wav"),10,**args)
+            relaxed = file_live_captions.caption_window(Path("fixture.wav"),10,reading="relaxed",**args)
+        self.assertEqual([cue["start"] for cue in relaxed["cues"]], [10400,12000])
+        self.assertEqual(fast["cues"][0]["end"],10800)
+        self.assertEqual(relaxed["cues"][0]["end"],12000)
+
+    def test_local_speaker_turns_and_translations_survive_file_timing(self):
+        def recognized(*args, **kwargs):
+            kwargs["detection"]["asr_words"] = [
+                {"start":.4,"end":.7,"text":"Hello."}, {"start":1.4,"end":1.8,"text":"World."}]
+            return [LyricCue(10.4, 11.8, "Hello. World.", "fixture", "en")]
+        def diarize(pcm, transcript, details, enabled, provider):
+            details["speaker_turns"] = [{"start":0.,"end":1.,"id":"SPEAKER_00"},
+                                        {"start":1.1,"end":3.,"id":"SPEAKER_01"}]
+        decoded = Mock(returncode=0, stdout=b"\x30\x01" * 256000)
+        with patch.object(file_live_captions.subprocess,"run",return_value=decoded), \
+             patch.object(file_live_captions,"_chunk_cues",side_effect=recognized), \
+             patch.object(file_live_captions,"_speaker_details",side_effect=diarize) as speakers, \
+             patch.object(file_live_captions,"_translate_cues",return_value=({1:"[TR] Merhaba"},[])):
+            result = file_live_captions.caption_window(Path("fixture.wav"),10, source="en",
+                targets=("tr",),profile={},backend="gpu",reading="comfort",speaker_provider="resemblyzer")
+        self.assertEqual(speakers.call_args.kwargs["provider"],"resemblyzer")
+        self.assertEqual([cue["start"] for cue in result["cues"]], [10400,11400])
+        self.assertIn("[Speaker 1 · clip] Hello.\n[TR] Merhaba",result["cues"][0]["text"])
+        self.assertIn("[Speaker 2 · clip] World.",result["cues"][1]["text"])
+
+    def test_selected_lrc_preserves_real_timing_without_online_lookup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            media=Path(tmp)/"song.flac";lyrics=Path(tmp)/"selected.lrc"
+            lyrics.write_text("[00:03.000]First lyric\n[00:06.500]Second lyric\n",encoding="utf-8")
+            with patch.object(media_ai,"lookup_synced_lyrics") as lookup:
+                cues, origin=media_ai._lyrics_for_file(media,{"duration":10},lyrics_file=lyrics)
+            lookup.assert_not_called()
+            self.assertEqual([cue.start for cue in cues], [3.,6.5])
+            self.assertEqual(origin["source"],"local LRC")
 
     def test_silence_does_not_invoke_asr(self):
         with patch.object(file_live_captions.subprocess, "run", return_value=Mock(returncode=0,stdout=b"\x00"*64000)), \
@@ -486,8 +532,7 @@ class FileCaptionService(unittest.TestCase):
         service when a local file is the source."""
         code = read("kaffeine_next/native_unified_recorder.h")
         self.assertIn("player_->tihuluLocalMediaPath()", code)
-        self.assertIn('QLatin1String("kaffeine-captions-file")', code)
-        self.assertIn('QLatin1String("/tihulu-file-")', code)
+        self.assertIn("emit player_->tihuluFileCaptionsRequested()", code)
         # The TV path must remain for DVB sources.
         self.assertIn('QLatin1String("kaffeine-captions")', code)
         # The player must expose the local media path for that decision.
@@ -522,49 +567,13 @@ class FileCaptionService(unittest.TestCase):
         # Focusing an already-running service still uses --show-only.
         self.assertIn('QLatin1String("--show-only")', body)
 
-    def test_playback_can_hold_while_the_ai_analyses_an_interval(self):
-        """Owner: even for a played file we should be able to freeze it for a
-        while so the subtitle AI can analyse the interval; that is what "live
-        subtitles for offline documents" means."""
-        # The service publishes the real analysis load.
-        timing = read("kaffeine_next/caption_timing.py")
-        self.assertIn('"queued"', timing)
-        self.assertIn('"analysing"', timing)
-        self.assertIn("def set_backlog", timing)
-        overlay = read("kaffeine_next/captions_overlay.py")
-        self.assertIn('analysis_backlog["queued"]', overlay)
-        self.assertIn("ipc.set_backlog(", overlay)
-        # The service publishes the analysis window and its readiness, so the
-        # player can freeze playback without guessing a timer.
-        self.assertIn('"buffer_seconds"', timing)
-        self.assertIn('"buffer_ready"', timing)
-        self.assertIn("def set_buffer_state", timing)
-        self.assertIn("ipc.set_buffer_state(", overlay)
-        # The patch ships the buffer hold and its state, and the hold is
-        # default-on for EVERY entry point that started the service.
-        patch = read("kaffeine_next/patch_upstream.py")
-        flat = patch.replace("\\t", "").replace("\\n", " ")
-        self.assertIn("bool tihuluBufferHolding_ = false;", flat)
-        self.assertIn("bool tihuluBufferSessionDone_ = false;", flat)
-        self.assertIn("tihuluBufferHoldPos_", flat)
-        # Driven by the published state, not by a hidden setting.
-        self.assertIn('obj.value(QLatin1String("buffer_ready")).toBool()', flat)
-        self.assertIn('obj.value(QLatin1String("buffer_seconds")).toInt(8)*1000', flat)
-        # The freeze is entered once per caption session, bounded by the
-        # window, and resumes at the frozen position.
-        self.assertIn("qBound(qint64(2000),windowMs,qint64(60000))", flat)
-        self.assertIn("if(tihuluBufferHoldPos_>0)setPosition(tihuluBufferHoldPos_);", flat)
-        # A finished session releases the state so the next one freezes again.
-        self.assertIn("tihuluBufferSessionDone_=false;", flat)
-        # It must never hold a LIVE DVB broadcast, and the hold must run
-        # before the render branch, which returns early for native captions.
-        self.assertIn("source->getType()!=MediaSource::Dvb) {",
-                      patch.replace("\\t", ""))
-        hold_at = patch.index("// BUFFER ANALYSIS")
-        text_at = patch.index('const QString text = obj.value(QLatin1String("text"))')
-        self.assertLess(hold_at, text_at,
-                        "the hold must run before the render branch")
-
+    def test_buffer_control_is_independent_of_the_overlay_and_shared_by_entry_points(self):
+        panel = read("kaffeine_next/native_media_panel.h")
+        self.assertIn("&MediaWidget::tihuluFileCaptionsRequested,this,[this](){startLive();}", panel)
+        self.assertIn("&QPushButton::clicked,this,[this](){startLive();}", panel)
+        self.assertIn("holdClock_.elapsed()>=windowMs_ && covered", panel)
+        self.assertNotIn("tihuluBufferHolding_", read("kaffeine_next/patch_upstream.py"))
+        self.assertIn("emit mediaWidget->tihuluFileCaptionsRequested()", read("kaffeine_next/acceptance_fixes.py"))
 
     def test_marq_is_enforced_as_an_spu_filter(self):
         """Owner's live log showed:
@@ -642,15 +651,11 @@ class FileCaptionService(unittest.TestCase):
         self.assertIn("Offline radio AI sidecar could not start · retrying",
                       code)
 
-    def test_panel_launches_the_file_caption_service_with_its_own_socket(self):
-        """The player opens kaffeine-captions-file on a file socket, never the
-        TV service name."""
+    def test_panel_launches_the_file_worker_not_the_tv_controller(self):
         code=read("kaffeine_next/native_media_panel.h")
-        self.assertIn('QStringLiteral("kaffeine-captions-file")',code)
-        self.assertIn('QStringLiteral("/tihulu-file-")',code)
-        self.assertNotIn('QStringLiteral("kaffeine-captions"),QStringLiteral("--socket")',
-                         code)
-        # Live TV captions keep their own untouched entry point.
+        self.assertIn('QStringLiteral("media-captions"),QStringLiteral("--input"),path_',code)
+        self.assertIn('if(live)args<<QStringLiteral("--live")',code)
+        self.assertNotIn('QStringLiteral("kaffeine-captions")',code)
         recorder=read("kaffeine_next/native_unified_recorder.h")
         self.assertIn('QLatin1String("kaffeine-captions"),',recorder)
         self.assertIn('QLatin1String("/tihulu-dvb-")',recorder)
@@ -875,7 +880,7 @@ if sys.argv[1]=='ai-file-languages':
  print(json.dumps({'speech_languages':[{'code':'en','label':'English'}], 'languages':[{'code':'tr','label':'Turkish','engines':['fixture']}], 'speech_model_present':True,'speech_model_selected':'synthetic'}))
 elif '--live' in sys.argv or '--file' in sys.argv:
  for line in sys.stdin:
-  q=json.loads(line);time.sleep(.65);p=q['position'];print(json.dumps({'revision':q['revision'],'end':(p+8)*1000,'cues':[{'start':p*1000,'end':(p+8)*1000,'text':'position '+str(int(p))}]}),flush=True)
+  q=json.loads(line);time.sleep(.65);p=q['position'];print(json.dumps({'revision':q['revision'],'end':(p+8)*1000,'cues':[{'start':p*1000,'end':(p+8)*1000,'text':'position '+str(int(p))+'\\n[TR] fixture translation'}]}),flush=True)
 else:
  time.sleep(30)
 ''')

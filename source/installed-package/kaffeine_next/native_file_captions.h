@@ -23,11 +23,7 @@ public:
         setObjectName(QStringLiteral("tihuluFileCaptionStrip"));
         setTextFormat(Qt::PlainText);setWordWrap(true);setAlignment(Qt::AlignCenter);
         // Readable in both Light and Dark appearances; no fixed dark rectangle.
-        const QPalette skin=palette();
-        setStyleSheet(QStringLiteral("QLabel{background:%1;color:%2;padding:10px;font-size:%3px;}")
-            .arg(skin.color(QPalette::Base).name(),
-                 skin.color(QPalette::Text).name(),
-                 QString::number(qBound(14,QFont().pointSize()*2,48))));
+        applyStyle();
         setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Minimum);
         player->layout()->addWidget(this);hide();
         connect(&clock_,&QTimer::timeout,this,[this](){updateCaption();});
@@ -41,10 +37,16 @@ public:
     }
     // A live caption session keeps the strip open even between phrases: it
     // closes only when playback is idle or a new file replaces it.
+    void setOutputVisible(bool visible) { if(outputVisible_!=visible) {outputVisible_=visible;updateCaption();} }
     void setSticky(bool sticky) { sticky_=sticky;updateCaption(); }
     void clearCues() { cues_.clear();updateCaption(); }
     // Karaoke: the active line plus the next line, like the radio karaoke panel.
-    void setKaraoke(bool karaoke) { karaoke_=karaoke;updateCaption(); }
+    void setKaraoke(bool karaoke) { if(karaoke_!=karaoke) {
+        karaoke_=karaoke;
+        setSizePolicy(QSizePolicy::Expanding,karaoke_?QSizePolicy::Expanding:QSizePolicy::Minimum);
+        clampHeight();applyStyle();
+    } updateCaption(); }
+    void setLyricOffset(int ms) { lyricOffset_=ms;updateCaption(); }
     bool loadSrt(const QString &path) {
         clearCues();QFile file(path);
         if(!file.open(QIODevice::ReadOnly) || file.size()>8*1024*1024)return false;
@@ -68,12 +70,24 @@ public:
         while(cues_.size()>300)cues_.removeFirst();
         updateCaption();
     }
-private:
-    void updateCaption() {
-        if(!sticky_ && player_->getPlaybackStatus()==MediaWidget::Idle) {setText(QString());hide();return;}
-        const qint64 now=player_->getPosition();QStringList lines;
+    QString activeText(qint64 now) const {
+        QStringList lines;
         for(const auto &cue:cues_)if(cue.start<=now && now<cue.end)lines<<cue.text;
-        QString text=lines.join(QLatin1Char('\n'));
+        return lines.join(QLatin1Char('\n'));
+    }
+private:
+    void applyStyle() {
+        const QPalette skin=palette();
+        setStyleSheet(QStringLiteral("QLabel{background:%1;color:%2;padding:10px;font-size:%3px;}")
+            .arg(karaoke_?QStringLiteral("#143f74"):skin.color(QPalette::Base).name(),
+                 karaoke_?QStringLiteral("#fff6cc"):skin.color(QPalette::Text).name(),
+                 QString::number(qBound(14,QFont().pointSize()*2,48))));
+    }
+    void updateCaption() {
+        if(!outputVisible_) {hide();return;}
+        if(!sticky_ && player_->getPlaybackStatus()==MediaWidget::Idle) {setText(QString());hide();return;}
+        const qint64 now=player_->getPosition()-(karaoke_?lyricOffset_:0);
+        QString text=activeText(now);
         if(karaoke_ && text.isEmpty()) {
             const auto next=std::find_if(cues_.begin(),cues_.end(),
                 [&now](const Cue &cue){return cue.start>now;});
@@ -87,14 +101,14 @@ private:
         if(text.isEmpty())text=sticky_?tr("Live captions \u00b7 listening on the current playback position"):QString();
         setText(text);setVisible(!text.isEmpty());
     }
-    MediaWidget *player_;QVector<Cue> cues_;QTimer clock_;bool sticky_=false,karaoke_=false;
+    MediaWidget *player_;QVector<Cue> cues_;QTimer clock_;bool sticky_=false,karaoke_=false,outputVisible_=true;int lyricOffset_=0;
 protected:
     // The panel may never cover a large part of the video; the owner reported
     // it taking half of the screen. Captions themselves also go into the video
     // with the same engine as live TV, so the panel is supplementary.
     void clampHeight() {
         if(!player_)return;
-        const int cap=qMax(56,player_->height()/4);
+        const int cap=karaoke_?QWIDGETSIZE_MAX:qMax(56,player_->height()/4);
         if(maximumHeight()!=cap)setMaximumHeight(cap);
     }
     void resizeEvent(QResizeEvent *event) override {

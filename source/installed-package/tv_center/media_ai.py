@@ -114,7 +114,8 @@ def _near_silent_pcm(pcm: bytes) -> bool:
 
 
 def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
-                backend: str, music:bool=False, detection:dict|None=None) -> list[LyricCue]:
+                backend: str, music:bool=False, detection:dict|None=None,
+                speech_priority:bool=False) -> list[LyricCue]:
     """Real GPU word cues; legacy CPU models use honest eight-second chunks."""
     text=""
     words=[]
@@ -123,9 +124,10 @@ def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
     if (backend=="gpu" and profile["speech"].get("gpu_engine") ==
             "faster_whisper_managed"):
         from .cuda_faster_whisper import transcribe_cuda_details
-        result=transcribe_cuda_details(
-            pcm,lang,str(profile["speech"]["gpu_model_path"]),
-            music_mode=music)
+        options={"music_mode":music}
+        if speech_priority:
+            options["speech_priority"]=True
+        result=transcribe_cuda_details(pcm,lang,str(profile["speech"]["gpu_model_path"]),**options)
         text=str(result.get("text") or "").strip()
         words=result.get("words") or []
         # Preserve only genuine GPU Whisper word timestamps for the
@@ -286,14 +288,19 @@ def _align_plain_lyrics_to_local_audio(lines, transcript_cues):
 
 
 def _lyrics_for_file(media:Path, meta:dict, *,
-                     fetch_lyrics:bool=False,artist:str="",track:str="",source:str="auto"):
-    local=local_lrc(media)
+                     fetch_lyrics:bool=False,artist:str="",track:str="",source:str="auto",
+                     lyrics_file=None):
+    local=Path(lyrics_file).expanduser() if lyrics_file else local_lrc(media)
     if local:
-        cues=parse_lrc(local.read_text(encoding="utf-8"),
+        if local.suffix.lower() != ".lrc" or not local.is_file() or local.stat().st_size > 2_000_000:
+            raise ValueError("Choose a readable .lrc file under 2 MB")
+        cues=parse_lrc(local.read_text(encoding="utf-8-sig"),
                        duration=meta.get("duration") or None,
                        provenance=f"local:{local.name}")
         if cues:
             return cues,{"source":"local LRC","path":str(local)}
+        if lyrics_file:
+            raise ValueError("The chosen LRC has no timed lines")
     if not fetch_lyrics:
         raise RuntimeError(
             "No synced local .lrc found. Explicitly choose --fetch-lyrics "
@@ -383,7 +390,7 @@ def _translate_cues(cues:list[LyricCue],targets,source,progress=None):
 def create_subtitles(filename, *, source="auto", targets=(),music=False,
                      lyrics=False,fetch_lyrics=False,artist="",track="",
                      output=None,overwrite=False,translations_only=False,
-                     record_model=None,whisper_file=None,progress=None):
+                     lyrics_file=None,record_model=None,whisper_file=None,progress=None):
     media=validate_local_media(filename)
     ai=AISettings()
     ai.configure_environment()
@@ -439,6 +446,10 @@ def main(args=None):
                         help="Transcribe singing as well as speech; accuracy varies")
     parser.add_argument("--lyrics",action="store_true",
                         help="Prefer time-coded .lrc by exact metadata, not ASR")
+    parser.add_argument("--lyrics-file",help="Use a user-selected local timed LRC file")
+    parser.add_argument("--reading",choices=("fast","comfort","relaxed"),default="fast")
+    parser.add_argument("--speaker-provider",choices=("off","resemblyzer","pyannote"),default="off")
+    parser.add_argument("--speech-priority",action="store_true")
     parser.add_argument("--fetch-lyrics",action="store_true",
                         help="Explicitly authorize keyless LRCLIB HTTPS request")
     parser.add_argument("--track",default="")
@@ -466,7 +477,7 @@ def main(args=None):
             music=options.music,lyrics=options.lyrics,
             fetch_lyrics=options.fetch_lyrics,artist=options.artist,
             track=options.track,output=options.output,
-            overwrite=options.overwrite,
+            lyrics_file=options.lyrics_file,overwrite=options.overwrite,
             translations_only=options.translations_only,
             record_model=options.record_model,whisper_file=options.whisper_file,
             progress=(lambda phase,pct: print("TIHULU_PROGRESS",phase,pct,flush=True))
