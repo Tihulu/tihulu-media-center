@@ -32,7 +32,7 @@ def caption_window(media, position, *, source, targets, profile, backend,
         translations_only=translations_only)
 
 def caption_pcm(pcm, position, *, source, targets, profile, backend,
-                music=False, translations_only=False):
+                music=False, translations_only=False, structured=False):
     """File audio is already 32 kHz mono PCM, not MPEG-TS."""
     if type(pcm) is not bytes or len(pcm)%2 or len(pcm)>20*64000:
         raise ValueError("Invalid bounded file PCM")
@@ -48,8 +48,11 @@ def caption_pcm(pcm, position, *, source, targets, profile, backend,
         text = translation if translations_only and translation else cue.text
         if translation and not translations_only:
             text += "\n" + translation
-        rows.append({"start": round(cue.start * 1000),
-                     "end": round(cue.end * 1000), "text": text})
+        row={"start": round(cue.start * 1000),
+             "end": round(cue.end * 1000), "text": text}
+        if structured:
+            row.update(original=cue.text,translation=translation)
+        rows.append(row)
     return {"cues": rows, "end": round((position + duration) * 1000),
             "eof": duration == 0,
             "warning": warnings[0]["warning"] if warnings else ""}
