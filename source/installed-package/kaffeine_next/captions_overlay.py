@@ -127,6 +127,7 @@ class CaptionTap:
     # touches an uninitialized attribute.
     file_media=None;file_position_state=None;file_window=8
     file_last_end=None;file_last_position=None
+    file_generation=0;file_key=None;file_eof=False
 
     def start_file(self, media, position_state, window=8, feed_only=False):
         """Run the SAME caption engine on a local file's audio.
@@ -143,6 +144,7 @@ class CaptionTap:
         self.file_window = max(2, min(20, int(window)))
         self.file_last_end = None
         self.file_last_position = None
+        self.file_generation=0;self.file_key=None;self.file_eof=False
         self.thread = threading.Thread(target=self._file_feeder,
             name="tihulu-file-caption-feeder", daemon=True)
         self.thread.start()
@@ -152,7 +154,8 @@ class CaptionTap:
             name="tihulu-file-caption-worker", daemon=True)
         self.worker.start()
 
-    def _read_file_position(self):
+    def _read_file_state(self):
+        import math
         try:
             raw = json.loads(Path(self.file_position_state).read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -160,56 +163,112 @@ class CaptionTap:
         if not isinstance(raw, dict) or raw.get("path") != self.file_media:
             return None
         position = raw.get("position_ms")
-        if type(position) not in (int, float) or position < 0:
+        if (type(position) not in (int, float) or not math.isfinite(position)
+                or not 0 <= position <= 21600000 or type(raw.get("playing")) is not bool):
             return None
-        return position, bool(raw.get("playing"))
+        # Older players do not supply a timeline identity; retain compatibility.
+        session=raw.get("session",0)
+        if type(session) is not int or session<0:
+            return None
+        return position, raw["playing"], session
+
+    def _read_file_position(self):
+        state=self._read_file_state()
+        return state[:2] if state is not None else None
 
     def _file_feeder(self):
         import subprocess
+        from .continuous_captions import CapturedClip
         while not self.stop.is_set():
-            state = self._read_file_position()
-            if state is None:
-                time.sleep(0.25)
+            state = self._read_file_state()
+            if state is None or not state[1]:
+                self.stop.wait(.2)
                 continue
-            position, playing = state
-            if not playing:
-                self.file_last_end = None
-                time.sleep(0.2)
-                continue
-            start = position / 1000.0
-            if self.file_last_position is not None and start < self.file_last_position - 2.0:
-                self.file_last_end = None          # seek backwards: resynchronize
-            self.file_last_position = start
-            if self.file_last_end is not None and start + self.file_window <= self.file_last_end:
-                time.sleep(0.15)
-                continue
+            position, _, session = state
+            now=position/1000.
             try:
                 options = dict(self.current_options())
             except (TypeError, ValueError):
-                time.sleep(0.2)
+                self.stop.wait(.2)
                 continue
-            if options.get("mode") == "off" or options.get("revision", 0) < 0:
-                time.sleep(0.2)
+            key=(session,options.get("revision",0),options.get("mode"))
+            if (key!=self.file_key or (self.file_last_position is not None and
+                    (now<self.file_last_position-.3 or now>self.file_last_position+2.))):
+                self.file_generation+=1
+                self.file_key=key
+                self.file_last_end=now
+                self.file_eof=False
+                self.work_queue.clear()
+            self.file_last_position=now
+            if options.get("mode") not in ("asr","auto") or self.file_eof:
+                self.stop.wait(.2)
                 continue
+            start=self.file_last_end
+            # Read contiguous audio, not overlapping windows from a moving
+            # playhead. One prefetched interval is enough while paused.
+            if (start>=now+self.file_window or
+                    self.work_queue.snapshot()["queued_clips"]>=1):
+                self.stop.wait(.1)
+                continue
+            generation=self.file_generation
+            options["file_generation"]=generation
+            options["file_session"]=session
             try:
                 decoded = subprocess.run([
                     "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error",
-                    "-ss", str(max(0.0, start)), "-i", self.file_media,
+                    "-ss", str(start), "-i", self.file_media,
                     "-t", str(self.file_window), "-map", "0:a:0", "-vn",
                     "-ac", "1", "-ar", "32000", "-f", "s16le", "pipe:1"],
                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                     timeout=40, check=False)
-            except (OSError, subprocess.SubprocessError):
-                time.sleep(0.5)
+            except (OSError, subprocess.SubprocessError) as exc:
+                self._note_warning("File audio decoding failed: "+str(exc)[:120])
+                self.stop.wait(.5)
                 continue
-            if decoded.returncode or len(decoded.stdout) < 6400:
-                time.sleep(0.4)
+            fresh=self._read_file_state()
+            if (fresh is None or not fresh[1] or fresh[2]!=session or
+                    abs(fresh[0]/1000.-now)>2. or self.stop.is_set()):
                 continue
-            self.file_last_end = start + self.file_window
-            from .continuous_captions import CapturedClip
-            if not self.work_queue.offer(CapturedClip(
-                    decoded.stdout, options, start, start + self.file_window)):
-                time.sleep(0.4)   # Whisper behind: never drop the queue order
+            if decoded.returncode or len(decoded.stdout)%2:
+                self._note_warning("Cannot decode this local audio window")
+                self.stop.wait(.5)
+                continue
+            end=start+len(decoded.stdout)/64000.
+            options["file_eof"]=len(decoded.stdout)<self.file_window*64000
+            # Even an empty EOF must reach the consumer as an observed
+            # terminal interval, not cause a permanent buffering loop.
+            if self.work_queue.offer(CapturedClip(decoded.stdout,options,start,end)):
+                self.file_last_end=end
+                self.file_eof=options["file_eof"]
+            else:
+                self.stop.wait(.2)
+
+    def _decode_file(self,clip,options):
+        from tv_center.ai_settings import AISettings
+        from tv_center.media_ai import _choose_model
+        from tv_center.file_live_captions import caption_pcm
+        from tv_center.language_codes import language_code
+        ai=AISettings()
+        ai.configure_environment()
+        if not ai.values["asr_enabled"]:
+            raise RuntimeError("Whisper disabled. Enable it in AI Model Market.")
+        source=options.get("source","auto")
+        if source!="auto":
+            source=language_code(source)
+        targets=tuple(options.get("targets",())) if options.get("translation_requested",False) else ()
+        if targets and ai.values.get("translation_model")=="deepl":
+            raise ValueError("Choose an offline translator for local file captions")
+        profile,backend=_choose_model(ai,"configured")
+        if backend=="remote":
+            raise RuntimeError("Local file captions require a local speech model")
+        result=caption_pcm(clip.data,clip.started,source=source,targets=targets,
+                           profile=profile,backend=backend,
+                           music=bool(options.get("music_transcription")),
+                           translations_only=False)
+        result.update(generation=options["file_generation"],session=options["file_session"],
+                      revision=options.get("revision",0),start=round(clip.started*1000),
+                      end=round(clip.ended*1000),eof=options["file_eof"])
+        self.events.put(("file_window",result),timeout=1.25)
 
     def start(self):
         if self.path.exists():
@@ -241,7 +300,8 @@ class CaptionTap:
             began = time.monotonic()
             with self._performance_lock:
                 self._active_clip_at=began
-            queue_wait = max(0.0,began-clip.ended)
+            file_clip="file_generation" in clip.options
+            queue_wait = 0.0 if file_clip else max(0.0,began-clip.ended)
             options=dict(clip.options)
             queue_state=self.work_queue.snapshot()
             # Speech and translations are more important than optional
@@ -276,9 +336,18 @@ class CaptionTap:
                 # subtitle worker for 10–30s PER target.
                 with live_translation_budget(
                         7.0 if options.get("live_priority",True) else 30.0):
-                    self._decode(clip.data, options, clip.started, clip.ended)
+                    if file_clip:
+                        self._decode_file(clip,options)
+                    else:
+                        self._decode(clip.data, options, clip.started, clip.ended)
             except Exception as error:
                 self._note_warning("Caption worker failed: "+str(error)[:120])
+                if file_clip:
+                    try:
+                        self.events.put_nowait(("file_window_error",dict(generation=options["file_generation"],
+                            session=options["file_session"],revision=options.get("revision",0),error=str(error)[:180])))
+                    except queue.Full:
+                        pass
             finally:
                 finished=time.monotonic()
                 with self._performance_lock:
@@ -287,7 +356,7 @@ class CaptionTap:
                     self._performance_samples.append({
                         "compute_ms":round(1000*(finished-began)),
                         "queue_wait_ms":round(1000*queue_wait),
-                        "total_latency_ms":round(1000*max(0,finished-clip.ended)),
+                        "total_latency_ms":round(1000*(finished-began if file_clip else max(0,finished-clip.ended))),
                         "clip_seconds":round(max(0,clip.ended-clip.started),2)})
 
     def _note_warning(self, message):
@@ -2275,7 +2344,7 @@ def main(argv=None):
     tools_layout.addWidget(lan_note)
     tools_layout.addStretch(1)
 
-    ipc = KaffeineOSD(pid, runtime=endpoint.parent)
+    ipc = KaffeineOSD(pid, runtime=endpoint.parent, service=service)
     events = queue.Queue(maxsize=32)
     control = CaptionServiceControl(endpoint.parent, pid, events, service)
     try:
@@ -3181,6 +3250,8 @@ def main(argv=None):
                        "cue queue discarded; retuning does NOT stop subtitles.")
 
     analysis_backlog = {"queued": 0, "analysing": False}
+    from .file_caption_timeline import FileCaptionTimeline
+    file_timeline=FileCaptionTimeline() if file_media else None
     def pump():
         nonlocal current_cue, current_text, current_until, last_published
         nonlocal applied, last_service_id, last_effective_check
@@ -3573,6 +3644,9 @@ def main(argv=None):
                 mode.setCurrentIndex(3)
                 page.setValue(int(data))
                 apply_settings()
+            elif kind in ("file_window","file_window_error") and file_timeline is not None:
+                if (data.get("generation")==tap.file_generation and data.get("revision")==applied.revision):
+                    file_timeline.accept(kind,data)
             elif kind == "caption":
                 if (data.get("revision") != applied.revision or
                         data.get("program_epoch") != tap.program_epoch):
@@ -3869,6 +3943,16 @@ def main(argv=None):
                         "Building a sentence from real Whisper audio…")
             elif kind == "warning":
                 status.setText(str(data))
+        if file_timeline is not None:
+            state=tap._read_file_state()
+            file_timeline.sync(tap.file_generation,applied.revision,state)
+            text,meta=file_timeline.snapshot(state,tap.file_window,service_running and applied.mode in ("asr","auto"),applied.offset_ms)
+            ipc.set_file_state(file_media,meta)
+            ipc.publish(text,applied,ttl_ms=1500)
+            original.setText(text or meta.get("file_error") or ("Preparing file captions…" if meta["file_active"] else "File captions paused."))
+            translated.clear()
+            caption_pipeline_health.setText("File audio analysed through %.2fs · %s"%(meta["file_ready_end_ms"]/1000.,meta.get("file_error") or ("ready" if meta["file_ready"] else "buffering")))
+            return
         cue = (cues.poll(now, applied.revision)
                if service_running and buffer_ready else None)
         if cue:
