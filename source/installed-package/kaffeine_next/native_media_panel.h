@@ -387,6 +387,26 @@ private:
         message_->setText(tr("Caption panel opened · every TV caption tool works on this file."));
     }
     void tickLive() {
+        // Auto-resume after timeout if captions haven't arrived yet
+        if(waitForAnalysis_) {
+            qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - analysisStartMs_;
+            if(elapsed >= analysisTimeoutMs_) {
+                waitForAnalysis_ = false;
+                if(player_->getPlaybackStatus()!=MediaWidget::Playing) {
+                    player_->play();
+                }
+            }
+        }
+                if(player_->getPlaybackStatus()!=MediaWidget::Playing) {
+                    player_->play();
+                }
+            }
+        }
+                if(player_->getPlaybackStatus()!=MediaWidget::Playing) {
+                    player_->play();
+                }
+            }
+        }
         if(player_->getPlaybackStatus()!=MediaWidget::Playing)return;
         const qint64 now=player_->getPosition();
         if(now<lastMs_-800 || now>lastMs_+2000) {++revision_;nextMs_=now;captions_->clearCues();}
@@ -433,6 +453,9 @@ private:
     bool isVideo_=true,tvMode_=true,isAudioRequest_=false;
     QTimer liveClock_;QString path_,srt_,exportPath_;QByteArray result_;
     bool cancelled_=false,internalStop_=false,resuming_=false,resumeAfter_=false,pending_=false;
+    bool waitForAnalysis_=false;
+    qint64 analysisStartMs_=0;
+    qint64 analysisTimeoutMs_=8000;
     bool openingCaptionWindow_=false;
     int revision_=0;qint64 nextMs_=0,lastMs_=0;
 };

@@ -172,14 +172,21 @@ class CaptionTap:
                 time.sleep(0.25)
                 continue
             position, playing = state
-            if not playing:
-                self.file_last_end = None
-                time.sleep(0.2)
-                continue
             start = position / 1000.0
             if self.file_last_position is not None and start < self.file_last_position - 2.0:
                 self.file_last_end = None          # seek backwards: resynchronize
             self.file_last_position = start
+            if not playing:
+                # PAUSE is the analysis window. The owner pauses the file, lets
+                # the buffer interval pass, and expects the captions to be
+                # ready when playback resumes. Feeding used to stop dead here
+                # and drop everything, so pausing bought nothing at all.
+                # Keep feeding real audio windows forward from the paused
+                # position: Whisper builds the caption buffer ahead of
+                # playback, and playback catches up to captions that already
+                # exist. A seek backwards while paused still resynchronizes.
+                if self.file_last_end is not None and self.file_last_end >= start:
+                    start = self.file_last_end     # continue the prefetch
             if self.file_last_end is not None and start + self.file_window <= self.file_last_end:
                 time.sleep(0.15)
                 continue
