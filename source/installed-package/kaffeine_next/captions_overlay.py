@@ -264,7 +264,7 @@ class CaptionTap:
         result=caption_pcm(clip.data,clip.started,source=source,targets=targets,
                            profile=profile,backend=backend,
                            music=bool(options.get("music_transcription")),
-                           translations_only=False)
+                           translations_only=False,structured=True)
         result.update(generation=options["file_generation"],session=options["file_session"],
                       revision=options.get("revision",0),start=round(clip.started*1000),
                       end=round(clip.ended*1000),eof=options["file_eof"])
@@ -3946,11 +3946,13 @@ def main(argv=None):
         if file_timeline is not None:
             state=tap._read_file_state()
             file_timeline.sync(tap.file_generation,applied.revision,state)
-            text,meta=file_timeline.snapshot(state,tap.file_window,service_running and applied.mode in ("asr","auto"),applied.offset_ms)
+            text,meta=file_timeline.snapshot(state,tap.file_window,service_running and applied.mode in ("asr","auto"),applied.offset_ms,show_original=applied.show_original,show_translation=applied.show_translation)
             ipc.set_file_state(file_media,meta)
             ipc.publish(text,applied,ttl_ms=1500)
             original.setText(text or meta.get("file_error") or ("Preparing file captions…" if meta["file_active"] else "File captions paused."))
             translated.clear()
+            if meta.get("file_warning"):
+                translation_health.setText(meta["file_warning"])
             caption_pipeline_health.setText("File audio analysed through %.2fs · %s"%(meta["file_ready_end_ms"]/1000.,meta.get("file_error") or ("ready" if meta["file_ready"] else "buffering")))
             return
         cue = (cues.poll(now, applied.revision)
