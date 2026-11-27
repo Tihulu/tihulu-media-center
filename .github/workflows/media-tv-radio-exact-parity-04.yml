@@ -1,0 +1,77 @@
+# MEDIA-TV-RADIO-EXACT-PARITY-04 is stacked ONLY onto safety PR #5.
+# Never install on the owner's machine, run tuners, or download AI models.
+name: MEDIA-TV-RADIO-EXACT-PARITY-04 pinned installed behavioral QA
+on:
+  pull_request:
+    branches: [agent/media-install-safety-p0-20261112]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  frozen-source-and-prior-safety:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Immutable frozen package, scripts and original safety tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          SNAPSHOT=7821769eb7aed576dd426ec18ffce3696d93a00d
+          git cat-file -e "$SNAPSHOT^{commit}"
+          git diff --exit-code "$SNAPSHOT" HEAD -- source/installed-package/
+          python3 -m py_compile tests/test_media_tv_radio_exact_parity_04.py
+          bash -n installer/media-stable-first.sh
+          python3 -m unittest discover -s tests -p 'test_stable_first_*.py' -v
+          python3 -m unittest discover -s tests -p 'test_media_install_safety_p0.py' -v
+  disposable-installed-behavior:
+    needs: frozen-source-and-prior-safety
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Provision temporary native Qt/KDE, decoder and headless runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git ca-certificates cmake g++ make pkg-config extra-cmake-modules \
+            qtbase5-dev libqt5x11extras5-dev libkf5coreaddons-dev \
+            libkf5dbusaddons-dev libkf5i18n-dev libkf5kio-dev \
+            libkf5solid-dev libkf5widgetsaddons-dev libkf5windowsystem-dev \
+            libkf5xmlgui-dev libvlc-dev libx11-dev libxss-dev libdvbv5-dev \
+            libudev-dev libqt5sql5-sqlite vlc python3 python3-pyqt5 \
+            ffmpeg mpv dvb-tools psmisc xvfb xauth dbus-x11 shellcheck
+      - name: Pinned clean install and installed behavioral regression tests
+        shell: bash
+        env:
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/media-tv-radio-parity-04-home"
+          export XDG_CONFIG_HOME="$HOME/.config"
+          export XDG_DATA_HOME="$HOME/.local/share"
+          export XDG_CACHE_HOME="$HOME/.cache"
+          export XDG_STATE_HOME="$HOME/.local/state"
+          mkdir -p "$HOME"
+          trap 'bash installer/media-stable-first.sh --uninstall || true' EXIT
+          bash installer/media-stable-first.sh --check --no-ai
+          bash installer/media-stable-first.sh --install --no-ai
+          app="$HOME/.local/opt/tihulu-media-stable"
+          export TIHULU_MEDIA_QA_RELEASE
+          TIHULU_MEDIA_QA_RELEASE="$(readlink "$app/current")"
+          test -x "$TIHULU_MEDIA_QA_RELEASE/native/bin/kaffeine"
+          dbus-run-session -- xvfb-run -a /usr/bin/python3 -m unittest discover \
+            -s tests -p 'test_media_exact_runtime_acceptance.py' -v
+          dbus-run-session -- xvfb-run -a /usr/bin/python3 -m unittest discover \
+            -s tests -p 'test_media_tv_radio_exact_parity_04.py' -v
+          bash installer/media-stable-first.sh --uninstall
+          test ! -e "$TIHULU_MEDIA_QA_RELEASE"
+          echo "PASS: disposable installed native source/Python fixture QA"
+          echo "HOLD: hardware DVB/DAB, real live Whisper inference and full native playback UX"

@@ -1,0 +1,12 @@
+PUBLIC SOURCE REVIEW — check before any publication
+
+This is a curated text-source extract from a PRIVATE archive.
+No model files, recordings, personal settings or compiled binaries selected.
+Review all source files (including untracked local source) for hidden secrets,
+private addresses, copyright issues and incidental user data before push.
+
+Suspected credential patterns detected: 0
+(none)
+
+Skipped file summary (first 80 entries only):
+(none)

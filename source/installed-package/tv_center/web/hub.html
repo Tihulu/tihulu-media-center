@@ -1,0 +1,84 @@
+<!doctype html><html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="referrer" content="no-referrer"><meta name="theme-color" content="#0b1725">
+<title>TIHULU Media Center — Remote Hub</title><link rel="stylesheet" href="/style.css">
+</head><body><div class="shell">
+<header><div><div class="eyebrow">TIHULU / PRIVATE REMOTE HUB</div><h1>Media Center <span>Remote</span></h1>
+<p>Approved files · actual DAB services · host controls · captions · images</p></div>
+<div><div class="state" id="connection">NOT PAIRED</div><button id="logout" class="secondary" hidden>Unpair this device</button></div></header>
+<section class="panel" id="login"><h2>Pair with your host</h2>
+<p>Open TIHULU AI → Start paired remote media hub on your computer.
+The eight-digit code belongs to this hub; the TV caption-sharing PIN is separate.
+Access through a private authenticated HTTPS relay (for example Tailscale Serve).</p>
+<div class="control-inline"><label>8-digit pairing PIN<input id="pin" type="password" inputmode="numeric"
+maxlength="8" autocomplete="one-time-code" placeholder="••••••••"></label>
+<button id="pair">Pair device</button></div><p id="pair-status" role="status"></p>
+</section>
+<main id="hub-main" hidden>
+<section class="hero">
+<div class="eyebrow">PLAYBACK ROUTING</div><h2 id="now-playing">No remote stream selected</h2>
+<div class="control-inline"><label>Output device
+<select id="target"><option value="phone">Phone / tablet</option>
+<option value="host">Computer only (leave phone stream running if any)</option>
+<option value="both">Phone + computer</option></select></label>
+<label>Source library
+<select id="source-type"><option value="file">Shared video / music files</option>
+<option value="dab">Verified live DAB+ radio</option>
+<option value="image">Shared image / artwork</option></select></label>
+</div>
+<div class="actions wrap"><button id="catalog-refresh">Refresh real sources</button>
+<button id="stop-stream" class="secondary">Stop shared phone stream</button></div>
+<p id="capabilities">Native DVB retransmission and arbitrary desktop screen capture are not supported by this hub.</p>
+<div class="source-catalog" id="catalog" role="list"></div>
+<div class="video" id="video-box">
+<div class="video-stage" id="fullscreen-stage">
+<video id="player" controls playsinline preload="none"></video>
+<img id="picture" alt="Approved shared image or current real DAB slideshow" hidden>
+<div id="fullscreen-captions" class="fullscreen-captions">
+<div id="overlay-original" class="caption-original"></div>
+<div id="overlay-translated" class="caption-translation"></div></div>
+</div>
+<div class="actions video-actions">
+<button id="fullscreen">Fullscreen with subtitles</button>
+<button id="refresh-slide" class="secondary" disabled>Refresh DAB slideshow</button>
+</div><p id="playback-state" role="status">No shared HLS stream.</p>
+</div>
+<section class="captions"><div class="eyebrow">ACTUAL RADIO SPEECH / TRANSLATIONS</div>
+<p id="original">Waiting for real captions from native radio.</p>
+<p id="translated" class="translated"></p>
+<p id="caption-source" class="muted"></p></section>
+<section class="panel"><h2>Phone caption synchronization</h2>
+<div class="control-inline"><label>Subtitle delay mode<select id="sync-mode">
+<option value="mobile">Phone HLS playback estimate</option>
+<option value="host">Host audio cache + subtitle offset</option>
+<option value="manual">Manual phone-only delay</option></select></label>
+<label>Correction ±20 seconds<input id="offset" type="number" value="0" min="-20" max="20" step="0.25"></label></div>
+<div class="control-inline"><label>Subtitle track<select id="subtitle-track">
+<option value="both">Original and translations</option><option value="translation">Translations</option>
+<option value="original">Original</option><option value="off">Off</option></select></label>
+<label>Background opacity<input id="caption-opacity" type="range" value="70" min="0" max="100"></label></div>
+<p id="sync-state" class="muted">Host audio and remote HLS do not share a verified presentation clock. No made-up sub-second sync is claimed.</p>
+<p class="muted">Supported fullscreen browsers retain the overlay. iOS native fullscreen uses a dynamic WebVTT subtitle track;
+this is not permanent burned-in video.</p>
+</section></section>
+<aside><section class="panel"><h2>Computer playback control</h2>
+<div class="actions wrap"><button data-cmd="Play">Play</button>
+<button data-cmd="Pause">Pause</button><button data-cmd="Stop">Stop</button>
+<button data-cmd="Previous">Previous</button><button data-cmd="Next">Next</button></div>
+<div class="control-inline"><label>Computer volume <input type="range" id="volume" min="0" max="100" value="60"></label>
+<button id="set-volume">Apply</button></div>
+<div class="control-inline"><label>Native TV channel <input id="tvchannel" placeholder="Channel name or number" maxlength="90"></label>
+<button id="tune-tv">Tune TV on computer</button></div>
+<p>These commands reach the existing player over D-Bus. The remote hub does not
+take ownership of the DVB tuner or stream its native TV picture.</p>
+<p id="command-state" role="status"></p>
+</section>
+<section class="panel"><h2>Remote status</h2><p id="status">Waiting for host.</p>
+<p id="source-info" class="muted">The remote HLS encoder is shared by paired devices; selecting a different stream changes it for everyone.</p>
+</section>
+<section class="panel"><h2>What can be viewed?</h2>
+<p>Verified DAB streams, their real slideshow images, user-approved local media,
+and current native radio ASR/translation when the host AI worker is running.</p>
+<p>Live DVB-T2 picture uses the separate native caption-service phone stream; Blu-ray/DVD DRM and arbitrary screen mirroring are not available.</p></section></aside></main>
+<footer>PRIVATE OPT-IN FILES · VERIFIED DAB RECEIVER · NO PUBLIC PORT · NO CLOUD UPLOAD</footer>
+</div><script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script><script src="/hub.js"></script></body></html>

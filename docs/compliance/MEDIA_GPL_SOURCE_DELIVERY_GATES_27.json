@@ -1,0 +1,125 @@
+{
+  "schema": "MEDIA-GPL-SOURCE-DELIVERY-27 / PLANNING ONLY / NOT LEGAL APPROVAL",
+  "pinned_pr22": "77f46af46335b3c91286c327780d657ebe7f0bf4",
+  "frozen_source": "7821769eb7aed576dd426ec18ffce3696d93a00d",
+  "frozen_selected_tree": "c572e6eccc5118c5130b1b5827af2f643633c26d",
+  "kaffeine_upstream": "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c",
+  "source_candidate_file_baseline": 492,
+  "source_candidate_origin": "PR20 disposable candidate inventory (352 modified KDE, 133 selected sources, 2 scripts, 3 legal, 1 patch, 1 manifest); NOT shipped or legally complete source",
+  "installed_notice_technical_observation": "PR20 and PR21 real disposable new releases 3/3 pinned PR16 files; provisional LICENSE/NOTICE rights NOT accepted",
+  "proposed_delivery": "Owner-approved channel only: archive complete same-build KDE Kaffeine modified source+133 selected source+patches+build/install scripts+generated inputs+notices next to exact binary; versioned binary/source hashes in one independently authenticated manifest; owner-approved download proof and retention; written offer only if counsel approves.",
+  "model_policy": "NO MODEL WEIGHTS OR UNVERIFIED ASSETS IN RELEASE",
+  "model_exclusions": [
+    "nllb-600m",
+    "audeering-voice",
+    "argos-packs",
+    "whisper-ggml",
+    "faster-whisper-turbo",
+    "madlad-400",
+    "qwen-aligner",
+    "resemblyzer",
+    "ast-audioset"
+  ],
+  "gates": {
+    "complete_corresponding_source_delivery": "HOLD",
+    "third_party_rights": "HOLD",
+    "final_dependency_sbom": "HOLD",
+    "commercial_model_rights": "HOLD",
+    "build_binary_provenance": "HOLD",
+    "full_security": "HOLD",
+    "owner_release_approval": "HOLD",
+    "public_release": "HOLD",
+    "real_receiver_acceptance": "NOT_RUN",
+    "real_inference": "NOT_RUN"
+  },
+  "blockers": [
+    {
+      "id": "GPL27-01",
+      "priority": "P0",
+      "status": "HOLD",
+      "detail": "No same-transaction complete GPL matching source archive or source-offer/delivery bound to any real shipped binary"
+    },
+    {
+      "id": "LIC27-02",
+      "priority": "P0",
+      "status": "HOLD",
+      "detail": "PR16 root LICENSE is scope-only and NOTICE is preliminary; KDE and all third-party license/rightsholder notices remain unverified"
+    },
+    {
+      "id": "MODEL27-03",
+      "priority": "P0",
+      "status": "HOLD",
+      "detail": "NLLB CC-BY-NC-4.0 and audEERING CC-BY-NC-SA-4.0 impose noncommercial restrictions; none bundled; other weights/Argos packs unverified"
+    },
+    {
+      "id": "SBOM27-04",
+      "priority": "P1",
+      "status": "HOLD",
+      "detail": "No complete exact target ELF DT_NEEDED/dlopen/plugins codecs/Qt KF5 libVLC FFmpeg/PyQt plus recursive Python wheels, CUDA and copyright graph"
+    },
+    {
+      "id": "ATTR27-05",
+      "priority": "P1",
+      "status": "HOLD",
+      "detail": "All 133 selected files have license/copyright NOASSERTION; 110 previously lacked explicit SPDX header, with icons/lyrics/original art/third-party corpora unresolved"
+    },
+    {
+      "id": "BUILD27-06",
+      "priority": "P1",
+      "status": "HOLD",
+      "detail": "No immutable independently authenticated build input/toolchain/CMakeCache/flags record or binary reproducibility; previous disposable ELF digests differ"
+    },
+    {
+      "id": "SEC27-07",
+      "priority": "P1",
+      "status": "HOLD",
+      "detail": "Agent04 PR22 crash checkpoint scoped PASS does not close SEC11-03 same-UID namespace/parent/mount races or real power-loss"
+    }
+  ],
+  "owner_decisions": [
+    {
+      "id": "OWNER27-01",
+      "topic": "Whether to distribute; audience, platform, geography, commercial versus noncommercial purpose",
+      "status": "OWNER_REQUIRED",
+      "answer": "UNDECIDED"
+    },
+    {
+      "id": "OWNER27-02",
+      "topic": "Source and binary distribution channel, exact formats, immutable access, retention and independent retrieval evidence",
+      "status": "OWNER_REQUIRED",
+      "answer": "UNDECIDED"
+    },
+    {
+      "id": "OWNER27-03",
+      "topic": "Original TIHULU code/icons/UI/lyrics authorship, consent, license grant and missing attributions",
+      "status": "OWNER_REQUIRED",
+      "answer": "UNDECIDED"
+    },
+    {
+      "id": "OWNER27-04",
+      "topic": "Commission qualified license review for KDE GPL, Qt/LGPL/GPL, dependency and copyright requirements",
+      "status": "OWNER_REQUIRED",
+      "answer": "UNDECIDED"
+    },
+    {
+      "id": "OWNER27-05",
+      "topic": "Maintain zero bundling of unverified/NC models; select independently cleared alternatives or obtain separate rights before any business use",
+      "status": "OWNER_REQUIRED",
+      "answer": "UNDECIDED"
+    },
+    {
+      "id": "OWNER27-06",
+      "topic": "Pin toolchains/dependency locks and approve real artifact pair+signing/provenance and SBOM preparation",
+      "status": "OWNER_REQUIRED",
+      "answer": "UNDECIDED"
+    },
+    {
+      "id": "OWNER27-07",
+      "topic": "Authorize independent review, real RF/AI/owner-binary parity tests, full security acceptance and explicit final release decision",
+      "status": "OWNER_REQUIRED",
+      "answer": "UNDECIDED"
+    }
+  ],
+  "no_merge_install_release": true,
+  "status": "PUBLIC RELEASE HOLD"
+}

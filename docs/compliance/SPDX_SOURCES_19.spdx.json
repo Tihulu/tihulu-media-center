@@ -1,0 +1,2432 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "TIHULU Media Center selected source: preliminary source-only SPDX inventory 19",
+  "documentNamespace": "https://github.com/Tihulu/tihulu-media-center/spdxdocs/media-license-artifacts-19/2f5699eeb47505468bf3327be4dbdd89fed3dff1",
+  "creationInfo": {
+    "creators": [
+      "Tool: TIHULU-MEDIA-AGENT05-LICENSE-INVENTORY-19"
+    ],
+    "created": "2026-11-12T22:13:00Z",
+    "comment": "Read-only pinned tree-derived inventory, not a legal approval; all per-file licenses NOASSERTION"
+  },
+  "documentComment": "Source-only inventory from audited PR #11 exact SHA. Optional downloaded model weights and runtime system binaries are excluded. No redistribution approval.",
+  "packages": [
+    {
+      "name": "TIHULU Media Center selected installed-package source snapshot",
+      "SPDXID": "SPDXRef-Selected-Source-Package",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": true,
+      "versionInfo": "7821769eb7aed576dd426ec18ffce3696d93a00d",
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "primaryPackagePurpose": "SOURCE",
+      "sourceInfo": "133 selected Git blobs from source/installed-package/, frozen source selection only; NOT a compiled release"
+    }
+  ],
+  "files": [
+    {
+      "fileName": "./source/installed-package/kaffeine_next/__init__.py",
+      "SPDXID": "SPDXRef-SelectedFile-001",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:315c06b689cfbb83f9f205d1140ecf5058e2aa02 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/AI_LIVE_PERFORMANCE_AND_LANGUAGES.md",
+      "SPDXID": "SPDXRef-SelectedFile-002",
+      "fileTypes": [
+        "DOCUMENTATION"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:828f7a30e577fffaa2a7231013646862584ed3a7 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/assets/tihulu-media-center.svg",
+      "SPDXID": "SPDXRef-SelectedFile-003",
+      "fileTypes": [
+        "IMAGE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:b419e433a4bfbef3cd757ae2976cbf4310ae9490 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/caption_control.py",
+      "SPDXID": "SPDXRef-SelectedFile-004",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:e2921c53353ad02819f6ac1f5f515485c94204b2 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/caption_timing.py",
+      "SPDXID": "SPDXRef-SelectedFile-005",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:d6c77a7cec408abeea9142dae25b4c43a1cb676d (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/captions_overlay.py",
+      "SPDXID": "SPDXRef-SelectedFile-006",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:2fb624c963703bc63d90d0b23b306dc9864a9fec (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/continuous_captions.py",
+      "SPDXID": "SPDXRef-SelectedFile-007",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:78a4105339c7152c3f9db3e9d993613d87d9362f (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/diagnostics.py",
+      "SPDXID": "SPDXRef-SelectedFile-008",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:ed926b1524f20d9aa2356af92e2a931c96779bd0 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/dvb_diagnostics.sh",
+      "SPDXID": "SPDXRef-SelectedFile-009",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:b42ab72ace8f6e9a8d2a5a14436b0a58cdc4e2b3 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/HARDWARE_PANEL.md",
+      "SPDXID": "SPDXRef-SelectedFile-010",
+      "fileTypes": [
+        "DOCUMENTATION"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:c482bffbb095f80e4462f6c7d191f8701c06d689 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/install_welle.sh",
+      "SPDXID": "SPDXRef-SelectedFile-011",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:44c79231154dfd649db8324e0ccf9e74ef3e0300 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/install.sh",
+      "SPDXID": "SPDXRef-SelectedFile-012",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:7eb12290feae60bc3f588cf831153f71c21e3771 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/live_srt.py",
+      "SPDXID": "SPDXRef-SelectedFile-013",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:ea7fecebf2ca82f3cf61525027467c8ef77ad48b (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/mobile.py",
+      "SPDXID": "SPDXRef-SelectedFile-014",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:82cf5bf9c9e3c1f66c1f0b94fd8b412db43a8a3d (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/mpegts.py",
+      "SPDXID": "SPDXRef-SelectedFile-015",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:42d97caef6fe111db930629007dc1de65dd45bc3 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/native_hardware_tab.h",
+      "SPDXID": "SPDXRef-SelectedFile-016",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:07dfe167e19a8691d8fb7a2893b7efaa37bb78f6 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/native_media_panel.h",
+      "SPDXID": "SPDXRef-SelectedFile-017",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:49e15f95ce82096d4e6f7817bb1a70264a1da637 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/native_radio_tab.h",
+      "SPDXID": "SPDXRef-SelectedFile-018",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:f9c8f7053f3bbb231ab99492c205d3c6902b44a5 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/native_unified_recorder.h",
+      "SPDXID": "SPDXRef-SelectedFile-019",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:36b84f9486d48e73745eccd075ba9da8a06a0010 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/native_web_tv_dialog.h",
+      "SPDXID": "SPDXRef-SelectedFile-020",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:d447e0161e7bceb2a87df5b2f34bd0bda50ac964 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/patch_upstream.py",
+      "SPDXID": "SPDXRef-SelectedFile-021",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:e5de236e7c8fde637ea8d3264c6abd52a3d1d351 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/RADIO_UX_SYNC_REVIEW.md",
+      "SPDXID": "SPDXRef-SelectedFile-022",
+      "fileTypes": [
+        "DOCUMENTATION"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:6b9c63a818cda99628740bf21a2ca75afc1b8b46 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/README.md",
+      "SPDXID": "SPDXRef-SelectedFile-023",
+      "fileTypes": [
+        "DOCUMENTATION"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:33f9224d48e3a01d2f9acec864f02eda4eee6031 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/REMOTE_MEDIA_HUB.md",
+      "SPDXID": "SPDXRef-SelectedFile-024",
+      "fileTypes": [
+        "DOCUMENTATION"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:086958395d28de0d17a0abcd9ea96b226856e2bb (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/subtitle_tracks.py",
+      "SPDXID": "SPDXRef-SelectedFile-025",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:06026044214cc186596268948dca8a63e064ae2b (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/teletext_match.py",
+      "SPDXID": "SPDXRef-SelectedFile-026",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:f70b6a6fe511d75d73eed3190d900b3512f2bb72 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/track_preferences.py",
+      "SPDXID": "SPDXRef-SelectedFile-027",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:625f81d78dec3c4ffdca29b03d2203da8a481065 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/transport_health.py",
+      "SPDXID": "SPDXRef-SelectedFile-028",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:ef30307978dae3442c9a4dbb7b1f26112caeecbc (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/TROUBLESHOOTING_2026-11-08.md",
+      "SPDXID": "SPDXRef-SelectedFile-029",
+      "fileTypes": [
+        "DOCUMENTATION"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:8b7475f3e66cb88c31536af338ececa69b349272 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/ts_capture_integrity.py",
+      "SPDXID": "SPDXRef-SelectedFile-030",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:e6f28600da6d0a324dfb814f1eb28b4042c99e76 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/TV_CAPTION_CHANNEL_TRANSITIONS.md",
+      "SPDXID": "SPDXRef-SelectedFile-031",
+      "fileTypes": [
+        "DOCUMENTATION"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:a4b69bc39930f8b218bd776238f727ec6f7fe859 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/tv_tune_state.py",
+      "SPDXID": "SPDXRef-SelectedFile-032",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:8fd1280803d1c55ce554a15a8864ae7f7ffe7321 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/UNIFIED_RECORDING.md",
+      "SPDXID": "SPDXRef-SelectedFile-033",
+      "fileTypes": [
+        "DOCUMENTATION"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:0148a549864a271974e1a7de5a451b208f0c4186 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/kaffeine_next/word_cues.py",
+      "SPDXID": "SPDXRef-SelectedFile-034",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:b6faf90187b3ebdea5a5e4d6fae9f221ad71d3f0 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/__init__.py",
+      "SPDXID": "SPDXRef-SelectedFile-035",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:85271337427e11985ce2aa13ce3f26dbfd032f6f (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/__main__.py",
+      "SPDXID": "SPDXRef-SelectedFile-036",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:aedc65a8d36ff24b163b851b1bc9e21ebea5ef0d (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/capabilities.py",
+      "SPDXID": "SPDXRef-SelectedFile-037",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:dd335c99dcd59df0ef37aa287ec854bc6be3b4b1 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/compute.py",
+      "SPDXID": "SPDXRef-SelectedFile-038",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:d1db4fc8d9e81627e3eef660d29d3dc02ea2edc1 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/conflicts.py",
+      "SPDXID": "SPDXRef-SelectedFile-039",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:86140946be7862710fa772e6b68f0be699865234 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/core.py",
+      "SPDXID": "SPDXRef-SelectedFile-040",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:3e13a5bca174d78b646981e46472e683a1474d4b (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/dab_bridge.py",
+      "SPDXID": "SPDXRef-SelectedFile-041",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:fa4aeb204333668f753f64608c1724b30a37258a (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/dvb_hardware.py",
+      "SPDXID": "SPDXRef-SelectedFile-042",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:50debb7425c9925ad0c41e5e9daf3f7901350496 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/fm_audio.py",
+      "SPDXID": "SPDXRef-SelectedFile-043",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:dcb82845d5d254462de4d370205d4b613e0b2c50 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/fm_rds.py",
+      "SPDXID": "SPDXRef-SelectedFile-044",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:954515c32e4ea3c7ca8543516579cc189847653e (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/fm_survey.py",
+      "SPDXID": "SPDXRef-SelectedFile-045",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:f63ee2cbb39e5697a1f7f1673b6c167da918abdf (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/http_app.py",
+      "SPDXID": "SPDXRef-SelectedFile-046",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:1364105e5410fa0801e0941856eda02a4ba9cf68 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/live_fm.py",
+      "SPDXID": "SPDXRef-SelectedFile-047",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:971158c59267f68cb4a90871fe78d6360acf740d (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/live_tv.py",
+      "SPDXID": "SPDXRef-SelectedFile-048",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:adaf7252852d63c590a8585001c6fe53d969bd9c (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/media.py",
+      "SPDXID": "SPDXRef-SelectedFile-049",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:f68884f2118a46a8825988f02d59f958dc72c192 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/postprocess.py",
+      "SPDXID": "SPDXRef-SelectedFile-050",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:cd00553c6c3c6790305c9691fdb584433a3a48a9 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/receivers.py",
+      "SPDXID": "SPDXRef-SelectedFile-051",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:11f246444b2ccefc6f33ff4d0ca3af7629703c9c (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/scan_catalog.py",
+      "SPDXID": "SPDXRef-SelectedFile-052",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:15afae1c3356bc732da92c7d117069e02ff10f1f (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/speech.py",
+      "SPDXID": "SPDXRef-SelectedFile-053",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:672ac7a9dff1bcff0a975a1120bc357a3a88f94e (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/textcenter/transcripts.py",
+      "SPDXID": "SPDXRef-SelectedFile-054",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:d41c635c90ec38c3eb42d77e29d98a3b078a91d6 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/__init__.py",
+      "SPDXID": "SPDXRef-SelectedFile-055",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:aaf61724c292ed763ca18cc9db207c3984cc4339 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/__main__.py",
+      "SPDXID": "SPDXRef-SelectedFile-056",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:4181bc92390b0ff8c8d3b00869cbcc620401f8bf (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/ai_diagnostics.py",
+      "SPDXID": "SPDXRef-SelectedFile-057",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:2aad2072d7c64e41a615180136a62aa8e512914b (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/ai_profiles.py",
+      "SPDXID": "SPDXRef-SelectedFile-058",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:892b95b751710fc802d3fe993db0c13ca2c0fb3d (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/ai_provision.py",
+      "SPDXID": "SPDXRef-SelectedFile-059",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:eac1bef163df6e7fe1a9303f85fc6a8bdacf1454 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/ai_settings.py",
+      "SPDXID": "SPDXRef-SelectedFile-060",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:1f181f37e9d45a17d2057174027896a588f169e0 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/argos_generation.py",
+      "SPDXID": "SPDXRef-SelectedFile-061",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:5143851b988d3ff8eed66b5817e4502042938fb6 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/argos_market_bridge.py",
+      "SPDXID": "SPDXRef-SelectedFile-062",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:04280e0b4eeebc9f0439b3e8435251cc4caf8cfb (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/asr_quality.py",
+      "SPDXID": "SPDXRef-SelectedFile-063",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:a74f8b89aab2edb0c000ea290c8efb488ed3fcc0 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/audio_classifiers.py",
+      "SPDXID": "SPDXRef-SelectedFile-064",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:ba837ebc403b7cc15886c1ef08786a7e719bc747 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/bridge.py",
+      "SPDXID": "SPDXRef-SelectedFile-065",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:86466d671ca41098f675177dce0d273f312c7074 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/captions.py",
+      "SPDXID": "SPDXRef-SelectedFile-066",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:2e0714110832c6cfe7521563cbb5dfa964295968 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/channel_prefs.py",
+      "SPDXID": "SPDXRef-SelectedFile-067",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:8bb2b3a8730b33ae24d06d9087f6d885e92102df (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/channels_ui.py",
+      "SPDXID": "SPDXRef-SelectedFile-068",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:7adfb93aafd1e97165fa98dc2dc4b1778fdcacfb (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/core.py",
+      "SPDXID": "SPDXRef-SelectedFile-069",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:9983747f3f8e828c69db4b778712676784f69c6c (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/cuda_faster_whisper.py",
+      "SPDXID": "SPDXRef-SelectedFile-070",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:a033bf1b96a117bdd79a1cca9b463c2f4e9e556d (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/deepl_api.py",
+      "SPDXID": "SPDXRef-SelectedFile-071",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:f746aec66ca165e1bdf24814139f23ec6f1792fc (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/desktop.py",
+      "SPDXID": "SPDXRef-SelectedFile-072",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:e868052f31cd92d0a59ea62c183f43e29ef7bc4e (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/direct_de_tr.py",
+      "SPDXID": "SPDXRef-SelectedFile-073",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:6d4b3dd6d08976745db3b63b6d1e18517a6e9833 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/docs/AI_MODES_REMOTE_GPU.md",
+      "SPDXID": "SPDXRef-SelectedFile-074",
+      "fileTypes": [
+        "DOCUMENTATION"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:bb5f92be57f6cab66da127442aa5928de39fed29 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/docs/OVERLAPPING_SPEAKERS_SOUND_LABELS.md",
+      "SPDXID": "SPDXRef-SelectedFile-075",
+      "fileTypes": [
+        "DOCUMENTATION"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:513f5f1e9c4688bc619de57fc695443aa371d789 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/docs/SATELLITE_PI5_DISH.md",
+      "SPDXID": "SPDXRef-SelectedFile-076",
+      "fileTypes": [
+        "DOCUMENTATION"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:c1f14bb17f14d254d0630c24af0c4b79535967b3 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/free_speakers.py",
+      "SPDXID": "SPDXRef-SelectedFile-077",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:59b4caf1b6d8228d0a0720fe12cf7d652e22d76c (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/hardware_market.py",
+      "SPDXID": "SPDXRef-SelectedFile-078",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:f51d0afc13737e4c6b317745f385eeae308c762d (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/hardware_status.py",
+      "SPDXID": "SPDXRef-SelectedFile-079",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:1a23fd61145b75083e4f4239be5367cdf83332c2 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/install.sh",
+      "SPDXID": "SPDXRef-SelectedFile-080",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:deaabd5548676195a8ed861268b41d322abb4db8 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/installed_languages.py",
+      "SPDXID": "SPDXRef-SelectedFile-081",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:5e4cf65e09573542ba4c3e5a60e9876f596efcd6 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/lan.py",
+      "SPDXID": "SPDXRef-SelectedFile-082",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:f4bf774212abf5b215874ec9949a462a47c3f0e6 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/language_codes.py",
+      "SPDXID": "SPDXRef-SelectedFile-083",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:d58cea32272eda7a63d6b991aa63b437db5ea736 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/lyrics_sync.py",
+      "SPDXID": "SPDXRef-SelectedFile-084",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:ee6d6c7147f4c3d403c8be43773a5b39562eed1b (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/media_ai.py",
+      "SPDXID": "SPDXRef-SelectedFile-085",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:f3194e772bfe2dbe8cde488707dea4291924ecf8 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/media_ui.py",
+      "SPDXID": "SPDXRef-SelectedFile-086",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:428b683db0de1429164dedc8641fd344c9c5205e (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/model_market.py",
+      "SPDXID": "SPDXRef-SelectedFile-087",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:1b190c3bf94face53dc222305cc860f4970d3b8d (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/online_models.py",
+      "SPDXID": "SPDXRef-SelectedFile-088",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:0cbce3cf3f2243b49c3b02e898141a875785a852 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/overlap_separation.py",
+      "SPDXID": "SPDXRef-SelectedFile-089",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:2bf23f83bc28adedf7c94c464aa536bed38ccbdd (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/packaging/build-deb.sh",
+      "SPDXID": "SPDXRef-SelectedFile-090",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:c73b0a95e650d3f25273b101c03f933dd06fd9b1 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/performance_lab.py",
+      "SPDXID": "SPDXRef-SelectedFile-091",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:780b1151e8c8e307fdc9bf920a07da3dbac80dda (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/pi_hailo.py",
+      "SPDXID": "SPDXRef-SelectedFile-092",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:a059f40eba6da369019fb518e1ceeedc1814be88 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/qwen_forced_aligner.py",
+      "SPDXID": "SPDXRef-SelectedFile-093",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:b1e9c1a3236396a075bf60f00decb41a6d63a647 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/radio_ai.py",
+      "SPDXID": "SPDXRef-SelectedFile-094",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:3a66a85401f1c5db08cd9fc83387c9aaf1664085 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/radio_capture.py",
+      "SPDXID": "SPDXRef-SelectedFile-095",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:3721df419a15a9a2aeb856b05d46b7634aa665d4 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/radio_dls_metadata.py",
+      "SPDXID": "SPDXRef-SelectedFile-096",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:deba924cc3875c24ba8c54a00304984db3761dad (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/radio_karaoke_router.py",
+      "SPDXID": "SPDXRef-SelectedFile-097",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:69efdf8a11feeefb31f88ad67691c0fb0149e0a5 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/radio_language.py",
+      "SPDXID": "SPDXRef-SelectedFile-098",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:86c6e2ca8a59f8452bd83c7ef882db1ee141dda4 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/radio_translation_status.py",
+      "SPDXID": "SPDXRef-SelectedFile-099",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:af3f2e0fbf5620eb9fab5736c6ee7f9ed4ed3e1d (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/README.md",
+      "SPDXID": "SPDXRef-SelectedFile-100",
+      "fileTypes": [
+        "DOCUMENTATION"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:7842729b336caee90d9cc43fd81de34e63c47b67 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/remote_controls.py",
+      "SPDXID": "SPDXRef-SelectedFile-101",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:6da1c9191c59ce626ee81b9e250e374450ba36ed (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/remote_gpu_server.py",
+      "SPDXID": "SPDXRef-SelectedFile-102",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:e5356fdc674292a2a7e525ce7d15def5bef6fa44 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/remote_gpu.py",
+      "SPDXID": "SPDXRef-SelectedFile-103",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:587d9fe72e702e38bf6756fe9ece5bf3b71945a9 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/remote_hub.py",
+      "SPDXID": "SPDXRef-SelectedFile-104",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:4b3636d63d455ca8758c02d4d8096b7cba2be1ef (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/runtime.py",
+      "SPDXID": "SPDXRef-SelectedFile-105",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:45431fed569221da8ebb6615a3d6436a26f4d76c (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/satellite.py",
+      "SPDXID": "SPDXRef-SelectedFile-106",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:43303bc563fe2d2f7844b8fd6d0380b1ce4ab0f7 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/scan_ui.py",
+      "SPDXID": "SPDXRef-SelectedFile-107",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:3562923e485db694b10e859fcb6ffd12f5de3e3c (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/scanner.py",
+      "SPDXID": "SPDXRef-SelectedFile-108",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:6aca8cb4485ecdac386117a0afac6e9a7a6b7d2e (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/sentence_joiner.py",
+      "SPDXID": "SPDXRef-SelectedFile-109",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:ace3577c41175b46bae83e956b3b5b69526093f4 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/settings_ui.py",
+      "SPDXID": "SPDXRef-SelectedFile-110",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:4f786cf42145f35e79339ad485fb7f89f73f6d6a (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/sound_event_captions.py",
+      "SPDXID": "SPDXRef-SelectedFile-111",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:20bc3864a158b3cfa98af1d140fd7ef6e881e105 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/speaker_market.py",
+      "SPDXID": "SPDXRef-SelectedFile-112",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:28446fafd1e0f3fbf8da36269d8d849caa348cc7 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/speech_focus.py",
+      "SPDXID": "SPDXRef-SelectedFile-113",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:b04c9a5ec826844ea80ee20b5535b0132170d517 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/streaming.py",
+      "SPDXID": "SPDXRef-SelectedFile-114",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:af534935da2a678c6518700a52d25d7f25d7a8ed (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/translation_failover.py",
+      "SPDXID": "SPDXRef-SelectedFile-115",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:fc70e51037a05cb458172ed941520b569b49b14a (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/translation_madlad.py",
+      "SPDXID": "SPDXRef-SelectedFile-116",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:7e74a2185ddeb434099fe1eedc571c35a089905f (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/translation_market.py",
+      "SPDXID": "SPDXRef-SelectedFile-117",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:3476f1bb43941bf27182cd91aba5a7b0dcbed5ee (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/translation_service.py",
+      "SPDXID": "SPDXRef-SelectedFile-118",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:52eab6edb1b803358194fa72cab1d9580651c961 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/translation_worker.py",
+      "SPDXID": "SPDXRef-SelectedFile-119",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:75a56cf837d1b956d76dd87e6bf29b392f90c41b (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/ts.py",
+      "SPDXID": "SPDXRef-SelectedFile-120",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:2011fde4d04a51c1093477373e8a0f65cdf37359 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/web_control.py",
+      "SPDXID": "SPDXRef-SelectedFile-121",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:ed1d6e3f277528e94325489d1afed847ff6d02fe (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/web_desktop.py",
+      "SPDXID": "SPDXRef-SelectedFile-122",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:0d4a7c893a98a113b1c430821681bf584635614a (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/web/app.js",
+      "SPDXID": "SPDXRef-SelectedFile-123",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:6b44c9c50a276d6f4746428fb00b5669a2d96c8e (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/web/browser-ai-ui.js",
+      "SPDXID": "SPDXRef-SelectedFile-124",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:70a0c5a64f206d1ec8e0941a0cafd3345652b238 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/web/browser-ai-worker.js",
+      "SPDXID": "SPDXRef-SelectedFile-125",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:59a778bd22f8de995aec7958af713e0aa5dc9998 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/web/hub.html",
+      "SPDXID": "SPDXRef-SelectedFile-126",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:19130ce8f0ab0c1b04cf88019f1d2e5fbc12a8a0 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/web/hub.js",
+      "SPDXID": "SPDXRef-SelectedFile-127",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:e38aa7f804d0354da9bb6ea1d9f1289c496af3df (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/web/index.html",
+      "SPDXID": "SPDXRef-SelectedFile-128",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:37efcadf4d8555b7dd16ba510becb00b1094f1a4 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/web/mobile.html",
+      "SPDXID": "SPDXRef-SelectedFile-129",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:83ec88ecf2c749f7293a1fd8662287754ceffd97 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/web/mobile.js",
+      "SPDXID": "SPDXRef-SelectedFile-130",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:de63bb04a45812d7a756de5168b5a2e2096ff3eb (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/web/style.css",
+      "SPDXID": "SPDXRef-SelectedFile-131",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:a7abf4ba69f2fc184dcf30cb847368180c4de8f4 (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/web/web-controls.js",
+      "SPDXID": "SPDXRef-SelectedFile-132",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:c4aac736eb1dd8824ecb73125b6b7c564ad53f1d (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    },
+    {
+      "fileName": "./source/installed-package/tv_center/whisper_engine.py",
+      "SPDXID": "SPDXRef-SelectedFile-133",
+      "fileTypes": [
+        "SOURCE"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileComment": "git-blob-oid:ed17175492dfd0dbc3f0a5d636b1f36bc58de36f (Git object ID, not standalone SHA-1 checksum; no per-file license determination)"
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Selected-Source-Package",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-001",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-002",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-003",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-004",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-005",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-006",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-007",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-008",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-009",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-010",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-011",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-012",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-013",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-014",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-015",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-016",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-017",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-018",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-019",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-020",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-021",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-022",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-023",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-024",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-025",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-026",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-027",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-028",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-029",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-030",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-031",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-032",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-033",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-034",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-035",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-036",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-037",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-038",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-039",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-040",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-041",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-042",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-043",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-044",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-045",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-046",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-047",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-048",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-049",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-050",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-051",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-052",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-053",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-054",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-055",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-056",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-057",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-058",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-059",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-060",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-061",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-062",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-063",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-064",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-065",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-066",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-067",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-068",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-069",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-070",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-071",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-072",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-073",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-074",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-075",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-076",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-077",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-078",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-079",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-080",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-081",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-082",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-083",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-084",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-085",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-086",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-087",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-088",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-089",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-090",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-091",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-092",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-093",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-094",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-095",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-096",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-097",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-098",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-099",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-100",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-101",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-102",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-103",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-104",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-105",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-106",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-107",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-108",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-109",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-110",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-111",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-112",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-113",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-114",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-115",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-116",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-117",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-118",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-119",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-120",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-121",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-122",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-123",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-124",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-125",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-126",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-127",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-128",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-129",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-130",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-131",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-132",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Selected-Source-Package",
+      "relatedSpdxElement": "SPDXRef-SelectedFile-133",
+      "relationshipType": "CONTAINS"
+    }
+  ]
+}

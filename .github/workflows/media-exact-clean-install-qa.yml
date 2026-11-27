@@ -1,0 +1,97 @@
+name: Media exact clean-install QA 02 (Draft, no devices)
+on:
+  pull_request:
+    branches: [qa/installer-tv-radio-parity-2026-11-12]
+    paths:
+      - 'tests/test_media_exact_runtime_acceptance.py'
+      - 'docs/MEDIA_EXACT_CLEAN_INSTALL_QA_02.md'
+      - '.github/workflows/media-exact-clean-install-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unchanged-existing-tests:
+    name: Unchanged source / TV / Radio tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run ALL existing stable-first tests unmodified
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_stable_first_*.py' -v
+          bash -n installer/media-stable-first.sh
+          bash installer/media-stable-first.sh --dry-run --no-ai
+      - name: Scope disclaimer
+        run: echo 'Source/synthetic QA is not installed or RF/AI inference acceptance'
+  disposable-native-reinstall:
+    name: Disposable native install, import, GUI, repeat, rollback
+    needs: unchanged-existing-tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: CI runner system dependencies (NOT owner machine)
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git ca-certificates cmake g++ make pkg-config extra-cmake-modules \
+            qtbase5-dev libqt5x11extras5-dev libkf5coreaddons-dev \
+            libkf5dbusaddons-dev libkf5i18n-dev libkf5kio-dev libkf5solid-dev \
+            libkf5widgetsaddons-dev libkf5windowsystem-dev libkf5xmlgui-dev \
+            libvlc-dev libx11-dev libxss-dev libdvbv5-dev libudev-dev \
+            libqt5sql5-sqlite vlc python3 python3-pyqt5 \
+            ffmpeg mpv dvb-tools psmisc xvfb xauth dbus-x11
+      - name: Install, run actual entrypoints, reinstall and roll back in private HOME
+        run: |
+          set -euo pipefail
+          # All writes are to this CI runner's disposable home, never user HOME.
+          export HOME="$RUNNER_TEMP/media-exact-qa-home"
+          export XDG_CONFIG_HOME="$HOME/.config"
+          export XDG_DATA_HOME="$HOME/.local/share"
+          export XDG_CACHE_HOME="$HOME/.cache"
+          export XDG_STATE_HOME="$HOME/.local/state"
+          export PYTHONDONTWRITEBYTECODE=1
+          mkdir -p "$HOME/.config/tihulu-tv-center" \
+                   "$HOME/.local/share/tihulu-tv-center" \
+                   "$HOME/Recordings"
+          printf '%s\n' 'private-owner-ai-settings-placeholder' > "$HOME/.config/tihulu-tv-center/private-owner-sentinel"
+          printf '%s\n' 'private-owner-channel-placeholder' > "$HOME/.local/share/tihulu-tv-center/private-owner-channel-sentinel"
+          printf '%s\n' 'private-owner-recording-placeholder' > "$HOME/Recordings/private-owner-recording-sentinel"
+          bash installer/media-stable-first.sh --check --no-ai
+          bash installer/media-stable-first.sh --install --no-ai
+          app="$HOME/.local/opt/tihulu-media-stable"
+          first="$(readlink "$app/current")"
+          test -d "$first"
+          export TIHULU_MEDIA_QA_RELEASE="$first"
+          dbus-run-session -- xvfb-run -a /usr/bin/python3 -m unittest discover -s tests \
+            -p 'test_media_exact_runtime_acceptance.py' -v
+          # Check all owner-content placeholders survived first install/runtime.
+          grep -Fxq private-owner-ai-settings-placeholder "$HOME/.config/tihulu-tv-center/private-owner-sentinel"
+          grep -Fxq private-owner-channel-placeholder "$HOME/.local/share/tihulu-tv-center/private-owner-channel-sentinel"
+          grep -Fxq private-owner-recording-placeholder "$HOME/Recordings/private-owner-recording-sentinel"
+          # Repeat INSTALL: new complete release, owned previous/current pointers.
+          bash installer/media-stable-first.sh --install --no-ai
+          second="$(readlink "$app/current")"
+          test "$second" != "$first"
+          test "$second" = "$(readlink "$app/current")"
+          test "$first" = "$(readlink "$app/previous")"
+          export TIHULU_MEDIA_QA_RELEASE="$second"
+          dbus-run-session -- xvfb-run -a /usr/bin/python3 -m unittest discover -s tests \
+            -p 'test_media_exact_runtime_acceptance.py' -v
+          # Owned rollback must restore first executable and not delete either release.
+          bash installer/media-stable-first.sh --rollback
+          test "$first" = "$(readlink "$app/current")"
+          test "$second" = "$(readlink "$app/previous")"
+          test -x "$first/native/bin/kaffeine"
+          test -x "$second/native/bin/kaffeine"
+          dbus-run-session -- xvfb-run -a "$HOME/.local/bin/tihulu-media-stable" --version
+          grep -Fxq private-owner-ai-settings-placeholder "$HOME/.config/tihulu-tv-center/private-owner-sentinel"
+          grep -Fxq private-owner-channel-placeholder "$HOME/.local/share/tihulu-tv-center/private-owner-channel-sentinel"
+          grep -Fxq private-owner-recording-placeholder "$HOME/Recordings/private-owner-recording-sentinel"
+          echo 'PASS: disposable Ubuntu native build, launcher, source bytes, repeat install, rollback, sentinel preservation'
+          echo 'HOLD: no uninstall mode; legacy QSettings collision; no hardware / model inference / owner binary parity'

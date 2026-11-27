@@ -1,0 +1,69 @@
+TIHULU Media Center — preliminary third-party notices (NOT FINAL)
+==================================================================
+
+Compliance artifact draft: Agent 05 / MEDIA-LICENSE-COMPLIANCE-ARTIFACTS-19.
+Source baseline: 2f5699eeb47505468bf3327be4dbdd89fed3dff1; immutable installed snapshot 7821769eb7aed576dd426ec18ffce3696d93a00d.
+These references do not substitute for copying every required copyright
+notice and license text into an actual distribution package.
+
+1. KDE Kaffeine v2.0.19 — upstream git commit
+   e7ea15b86dafed3b20b151cbcb080578ab8e2d5c
+   https://github.com/KDE/kaffeine
+   Pinned upstream COPYING: GNU GPL version 2 text (copied into
+   LICENSES/GPL-2.0-only.txt). File-specific GPL-2.0-or-later notices
+   and exact corresponding source, including TIHULU modifications and
+   build/install instructions, must accompany distributed executables.
+   Native dependency and linked-component terms remain unverified.
+
+2. TIHULU Kaffeine patch layer — source/installed-package/kaffeine_next/
+   Several files declare SPDX-License-Identifier: GPL-2.0-or-later.
+   Authorship and untagged-file provenance are NOT fully cleared.
+
+3. welle.io / welle-cli — optional user-invoked build, not bundled as a
+   binary by the selected preview installer.
+   Pinned revision 512558d1f8ac4c524d3c63e97510ea36c1bd7a70
+   https://github.com/AlbrechtL/welle.io
+   GPLv2-family; inspect exact file notices, patched source and linking
+   before distributing the altered welle-cli binary.
+
+4. whisper.cpp — optional source build (MIT)
+   https://github.com/ggml-org/whisper.cpp
+   Model weights are distinct from engine code and require separate proof.
+
+5. Faster-Whisper and CTranslate2 — optional user-managed runtime
+   https://github.com/SYSTRAN/faster-whisper
+   https://github.com/OpenNMT/CTranslate2
+   Engine and converted-checkpoint provenance must be inventoried separately.
+
+6. Argos Translate — optional language packages (code MIT/CC0 as applicable)
+   https://github.com/argosopentech/argos-translate
+   Maintainer model statement:
+   https://github.com/argosopentech/argos-translate/issues/533#issuecomment-5160080718
+   Exact .argosmodel dependencies, Stanza weights, training sources and
+   commercial redistribution provenance remain unchecked.
+
+7. NLLB (Meta) — optional model CC-BY-NC-4.0, NONCOMMERCIAL
+   https://huggingface.co/facebook/nllb-200-distilled-600M
+   No commercial redistribution or commercial use is approved.
+
+8. audEERING voice model — optional CC-BY-NC-SA-4.0, NONCOMMERCIAL
+   https://huggingface.co/audeering/wav2vec2-large-robust-6-ft-age-gender
+   ShareAlike and attribution apply as specified by the model's license.
+
+9. MADLAD-400 / Qwen3 ForcedAligner / Resemblyzer / AST AudioSet —
+   Optional; see machine-readable model matrix for claimed upstream
+   licenses, current evidence tier and unresolved provenance.
+
+10. PyQt5, KDE Frameworks/Qt5, libVLC, VLC, FFmpeg, libdvbv5, DVB tools,
+    Python wheels, installed codecs and fonts — exact package versions,
+    distribution terms, linkage and source obligations must be taken from
+    the actual artifact/OS image, NOT guessed from a build manifest.
+
+11. Original TIHULU SVG icon (assets/tihulu-media-center.svg) — origin,
+    creator(s), trademark position and redistributable license NOT verified.
+
+12. Lyric services LRCLIB / lyrics.ovh: API availability grants no blanket
+    permission to redistribute, archive or rehost copyrighted lyrics.
+
+No model files, private data, OS libraries or compiled applications are
+included in these compliance-only changes. This notice is not legal advice.

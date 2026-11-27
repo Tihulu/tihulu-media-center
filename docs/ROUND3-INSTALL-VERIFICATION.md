@@ -1,0 +1,68 @@
+# Round-3 release verification (isolated install)
+
+Verified on 22 November 2026 with the version installer, in a disposable HOME:
+
+```
+TIHULU_REPO_URL=<local mirror> bash versions/v1.1-round3/install.sh --install --no-ai
+```
+
+## Result
+
+- Installer exit code `0`; release staged and selected atomically at
+  `~/.local/opt/tihulu-media-stable/releases/r2-<snapshot>-<timestamp>`.
+- `SOURCE-PROVENANCE.txt` records the **round-3 snapshot** and KDE Kaffeine
+  `v2.0.19` (`e7ea15b86dafed3b20b151cbcb080578ab8e2d5c`).
+- No AI models were downloaded; no owner installation, settings, recordings,
+  channels, tuner or service was touched.
+- Clean-environment GUI start (Xvfb, no AI models, no sound server): the
+  application started and stayed alive, `0` fatal loader errors.
+  `PulseAudio connection refused` is expected without a session sound server.
+
+## Safety gates exercised (they correctly refused and were then fixed)
+
+- Owner-writable-only managed directories (`0700`-style release root).
+- Legal notices must be regular, single-link, `0644`, not group/other-writable.
+- Pinned snapshot: the pinned commit is verified when present; a shallow tag
+  clone installs the release commit it checked out, and records it in
+  `SOURCE-PROVENANCE.txt`.
+- Installer single-mode rule is preserved by the per-version wrappers.
+
+## Still open
+
+- GitHub push / Draft PR (blocked by the local environment's permission policy).
+- CI AppDir/AppImage artifact verification once the branch is pushed.
+
+## v1.0-stable-baseline (rollback path)
+
+`versions/v1.0-stable-baseline/install.sh --install --no-ai` in a second
+disposable HOME: exit `0`, release `r2-<snapshot>` selected, provenance records
+the baseline snapshot and Kaffeine `v2.0.19`. Clean-environment GUI start
+(Xvfb, no AI, no sound server): started and stayed alive, `0` fatal errors.
+
+Both versions therefore install from their own tag, in isolation, without
+downloading AI models or touching the owner's installation.
+
+## CI verification (GitHub Actions, 23 Nov 2026)
+
+Run `45113610350` on `fix/media-acceptance-round3-parked` — **success**:
+
+- `Syntax, installer dry-run, source guard` — success
+- `Build portable AppDir and headless smoke` — success
+  - AppDir built and verified (AppRun, native binary, Python companion,
+    desktop entry in the AppDir root plus `.DirIcon`)
+  - headless no-AI startup smoke — success
+  - **single-file AppImage built (required step)** — success
+- Artifact `tihulu-media-center-portable` — 5,679,564 bytes:
+  - `tihulu-media-center.AppImage` 2,894,328 bytes (ELF static-pie)
+  - `tihulu-media-center.AppDir.tar` 3,267,527 bytes
+
+Independent check of the downloaded artifact:
+
+- `--appimage-extract` succeeds; the image contains `AppRun`,
+  `tihulu-media-center.desktop`, `.DirIcon`, and `usr/bin/kaffeine`
+  (2,770,312 bytes — the same round-3 build).
+- `tihulu-media-center.AppImage --help` in a clean Xvfb environment with no AI
+  models: exit 0, no fatal loader errors.
+
+The AppImage therefore matches the tag-installed build; portability beyond this
+machine (real tuner, audio server, GPU) still requires owner acceptance.

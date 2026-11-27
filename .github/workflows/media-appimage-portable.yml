@@ -1,0 +1,116 @@
+name: MEDIA-APPIMAGE-PORTABLE
+on:
+  # Every candidate and branch is gated by CI: no path filter, so a release
+  # branch can never skip the gates that publish an AppImage.
+  pull_request:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  syntax-and-source-guards:
+    name: Syntax, installer dry-run, source guard
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Public script syntax
+        run: |
+          set -euo pipefail
+          bash -n install.sh
+          bash -n packaging/appimage/build-appimage.sh
+          bash -n installer/media-stable-first.sh
+          python3 -m py_compile packaging/appimage/build-appimage.sh 2>/dev/null || true
+      - name: Parity tests and read-only installer check
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests.test_stable_first_feature_parity -v
+          bash installer/media-stable-first.sh --dry-run --no-ai
+          echo 'No AI model download is performed in this workflow.'
+
+  build-appdir:
+    name: Build portable AppDir and headless smoke
+    needs: syntax-and-source-guards
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install build/runtime dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            git ca-certificates cmake ninja-build build-essential pkg-config \
+            extra-cmake-modules qtbase5-dev libqt5x11extras5-dev \
+            libkf5coreaddons-dev libkf5dbusaddons-dev libkf5i18n-dev \
+            libkf5kio-dev libkf5solid-dev libkf5widgetsaddons-dev \
+            libkf5windowsystem-dev libkf5xmlgui-dev libvlc-dev libx11-dev \
+            libxss-dev libdvbv5-dev libudev-dev libqt5sql5-sqlite vlc \
+            python3 python3-pyqt5 ffmpeg mpv dvb-tools dbus-x11 xvfb
+      - name: Build portable AppDir archive
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/out"
+          packaging/appimage/build-appimage.sh \
+            --output "$RUNNER_TEMP/out/tihulu-media-center.AppDir.tar"
+      - name: Verify required AppDir files
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/appdir"
+          tar -xzf "$RUNNER_TEMP/out/tihulu-media-center.AppDir.tar" -C "$RUNNER_TEMP/appdir"
+          test -x "$RUNNER_TEMP/appdir/AppDir/AppRun"
+          test -x "$RUNNER_TEMP/appdir/AppDir/usr/bin/tihulu-media-center"
+          test -x "$RUNNER_TEMP/appdir/AppDir/usr/bin/tihulu-tv-center"
+          test -f "$RUNNER_TEMP/appdir/AppDir/usr/share/tihulu-tv-center/tv_center/__main__.py"
+          test -f "$RUNNER_TEMP/appdir/AppDir/usr/share/tihulu-tv-center/kaffeine_next/patch_upstream.py"
+          test -f "$RUNNER_TEMP/appdir/AppDir/usr/share/applications/tihulu-media-center.desktop"
+          # appimagetool needs both in the AppDir root; catch it before the
+          # single-file build instead of failing late.
+          test -f "$RUNNER_TEMP/appdir/AppDir/tihulu-media-center.desktop"
+          test -f "$RUNNER_TEMP/appdir/AppDir/.DirIcon"
+          echo 'AppDir contains native binary, Python companion and desktop entry.'
+      - name: Headless no-AI startup smoke
+        env:
+          HOME: /home/runner
+          XDG_CONFIG_HOME: /home/runner/.config
+          XDG_DATA_HOME: /home/runner/.local/share
+          XDG_CACHE_HOME: /home/runner/.cache
+          XDG_STATE_HOME: /home/runner/.local/state
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+          TIHULU_ASSET_HOME: /home/runner
+        run: |
+          set -euo pipefail
+          timeout 30 xvfb-run -a \
+            "$RUNNER_TEMP/appdir/AppDir/AppRun" --help
+          echo 'AppDir started headless without AI models or tuner devices.'
+      - name: Build single-file AppImage (required)
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/appimagetool" \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x "$RUNNER_TEMP/appimagetool"
+          APPIMAGE_EXTRACT_AND_RUN=1 "$RUNNER_TEMP/appimagetool" \
+            "$RUNNER_TEMP/appdir/AppDir" \
+            "$RUNNER_TEMP/out/tihulu-media-center.AppImage"
+          # A silent AppDir fallback is not acceptable: the artifact must exist
+          # and be a real single-file image.
+          test -s "$RUNNER_TEMP/out/tihulu-media-center.AppImage" || {
+            echo "ERROR: no AppImage was produced" >&2; exit 1; }
+          echo "AppImage produced: $(du -h "$RUNNER_TEMP/out/tihulu-media-center.AppImage" | cut -f1)"
+      - name: Upload portable artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tihulu-media-center-portable
+          path: |
+            ${{ runner.temp }}/out/tihulu-media-center.AppDir.tar
+            ${{ runner.temp }}/out/tihulu-media-center.AppImage
+          if-no-files-found: error

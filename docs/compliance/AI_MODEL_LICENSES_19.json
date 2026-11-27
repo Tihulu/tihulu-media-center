@@ -1,0 +1,120 @@
+{
+  "schema": "TIHULU optional model license and provenance ledger 19 / PRELIMINARY",
+  "baseline_commit": "2f5699eeb47505468bf3327be4dbdd89fed3dff1",
+  "note": "Declared licenses are component-level source claims, not verified commercial permissions. All models are optional downloads, none are included in this Git tree. Licenses/third-party dependencies must be examined at exact downloaded revision.",
+  "models": [
+    {
+      "id": "whisper-ggml",
+      "name": "Whisper GGML weights (tiny/small)",
+      "source_path": "source/installed-package/tv_center/model_market.py",
+      "origin": "https://huggingface.co/ggerganov/whisper.cpp",
+      "declared_license": "NOASSERTION",
+      "evidence": "Source model URL only; confirm individual checkpoint model card and original OpenAI license",
+      "revision": "catalog / file sha256; no single frozen upstream git revision",
+      "acquisition": "optional user-requested download",
+      "commercial": "unverified",
+      "bundled": false
+    },
+    {
+      "id": "faster-whisper-turbo",
+      "name": "Faster-Whisper Large-v3 Turbo converted weights",
+      "source_path": "source/installed-package/tv_center/cuda_faster_whisper.py",
+      "origin": "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo",
+      "declared_license": "NOASSERTION",
+      "evidence": "Converted model provenance/license requires exact-card inspection; MIT engine license does not decide model license",
+      "revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+      "acquisition": "optional user-requested download",
+      "commercial": "unverified",
+      "bundled": false
+    },
+    {
+      "id": "argos-packs",
+      "name": "Argos .argosmodel language packs",
+      "source_path": "source/installed-package/tv_center/argos_market_bridge.py",
+      "origin": "https://github.com/argosopentech/argos-translate/issues/533#issuecomment-5160080718",
+      "declared_license": "NOASSERTION",
+      "evidence": "Argos maintainer states model binaries MIT/CC0; each exact pack plus embedded Stanza/corpora provenance unverified",
+      "revision": "catalog driven / variable",
+      "acquisition": "optional user-requested download",
+      "commercial": "unverified at package granularity",
+      "bundled": false
+    },
+    {
+      "id": "nllb-600m",
+      "name": "Meta NLLB-200 distilled 600M",
+      "source_path": "source/installed-package/tv_center/translation_market.py",
+      "origin": "https://huggingface.co/facebook/nllb-200-distilled-600M",
+      "declared_license": "CC-BY-NC-4.0",
+      "evidence": "Hugging Face official model card explicitly lists cc-by-nc-4.0",
+      "revision": "a3e77be725cf30383f1faeb8d2f0b0ea98ac554e",
+      "acquisition": "optional user-requested download",
+      "commercial": "commercial use prohibited by stated noncommercial license without separate permission",
+      "bundled": false,
+      "noncommercial": true,
+      "redistribution": "HOLD"
+    },
+    {
+      "id": "madlad-400",
+      "name": "Google MADLAD-400 3B MT",
+      "source_path": "source/installed-package/tv_center/translation_madlad.py",
+      "origin": "https://huggingface.co/google/madlad400-3b-mt",
+      "declared_license": "Apache-2.0",
+      "evidence": "Frozen source claims Apache-2.0; independently verify exact model card/revision and artifacts before distribution",
+      "revision": "main (floating)",
+      "acquisition": "optional user-requested download",
+      "commercial": "unverified package clearance",
+      "bundled": false
+    },
+    {
+      "id": "qwen-aligner",
+      "name": "Qwen3 ForcedAligner 0.6B",
+      "source_path": "source/installed-package/tv_center/qwen_forced_aligner.py",
+      "origin": "https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B",
+      "declared_license": "Apache-2.0",
+      "evidence": "Frozen source claims Apache-2.0; independently verify exact revision and package before distribution",
+      "revision": "not immutable in source",
+      "acquisition": "optional user-requested download",
+      "commercial": "unverified package clearance",
+      "bundled": false
+    },
+    {
+      "id": "resemblyzer",
+      "name": "Resemblyzer 0.1.4 bundled voice encoder weights",
+      "source_path": "source/installed-package/tv_center/free_speakers.py",
+      "origin": "https://github.com/resemble-ai/Resemblyzer/blob/master/LICENSE",
+      "declared_license": "Apache-2.0",
+      "evidence": "GitHub upstream Resemblyzer license inspected; verify transitive wheel and pretrained weight origins",
+      "revision": "pip 0.1.4; dependencies unpinned",
+      "acquisition": "optional user-requested pip wheel install",
+      "commercial": "conditional pending wheel inspection",
+      "bundled": false
+    },
+    {
+      "id": "ast-audioset",
+      "name": "MIT AST AudioSet sound label model",
+      "source_path": "source/installed-package/tv_center/audio_classifiers.py",
+      "origin": "https://huggingface.co/MIT/ast-finetuned-audioset-10-10-0.4593",
+      "declared_license": "BSD-3-Clause",
+      "evidence": "Frozen source states BSD-3-Clause; verify pinned checkpoint and all training/asset notices",
+      "revision": "f826b80 (short pinned prefix)",
+      "acquisition": "optional user-requested download",
+      "commercial": "unverified package clearance",
+      "bundled": false
+    },
+    {
+      "id": "audeering-voice",
+      "name": "audEERING wav2vec2 age/gender voice classifier",
+      "source_path": "source/installed-package/tv_center/audio_classifiers.py",
+      "origin": "https://huggingface.co/audeering/wav2vec2-large-robust-6-ft-age-gender/blob/main/LICENSE",
+      "declared_license": "CC-BY-NC-SA-4.0",
+      "evidence": "Explicit model LICENSE and Hugging Face card show CC-BY-NC-SA-4.0",
+      "revision": "a681b72 (short pinned prefix)",
+      "acquisition": "optional user-requested download after NC acknowledgement",
+      "commercial": "commercial use prohibited by stated noncommercial license without separate permission",
+      "bundled": false,
+      "noncommercial": true,
+      "redistribution": "HOLD"
+    }
+  ],
+  "release_decision": "HOLD"
+}

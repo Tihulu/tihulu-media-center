@@ -1,0 +1,31 @@
+TIHULU Media Center — preliminary license scope notice
+========================================================
+
+This file is NOT a blanket license grant and does NOT authorize release.
+The frozen snapshot contains files from multiple authors, repositories,
+versions and licenses. Do not assume all of its contents are GPL, MIT,
+Apache-2.0, public domain or redistributable simply because this source
+repository is visible on GitHub.
+
+KDE Kaffeine is a GPL-covered upstream component. TIHULU's explicitly
+SPDX-marked GPL-2.0-or-later modifications must retain their relevant
+notices and satisfy GPL requirements when distributed. A verbatim copy of
+the GNU GPL version 2 license text as found in the pinned upstream Kaffeine
+COPYING file is provided at LICENSES/GPL-2.0-only.txt. The copy of the
+GPLv2 license text does NOT silently relicense unrelated files. For
+GPL-2.0-or-later declarations, version 2 or a later published GPL version
+may be applicable under the original copyright owner's actual grant.
+
+The 133 selected source files are conservatively inventoried in
+docs/compliance/SPDX_SOURCES_19.spdx.json with licenseConcluded=NOASSERTION
+until individually verified. Other historical worktrees are NOT the
+selected install payload. See NOTICE and docs/compliance/MEDIA_LICENSE_COMPLIANCE_19.md
+for component provenance and identified restrictions.
+
+Optional AI model downloads are separately licensed. In particular, the
+NLLB-200 distilled 600M checkpoint is CC-BY-NC-4.0, and the audEERING
+voice classifier is CC-BY-NC-SA-4.0. No commercial distribution/use
+permission is asserted by this repository.
+
+PUBLIC RELEASE, MERGE, INSTALLER PUBLICATION AND COMMERCIAL REDISTRIBUTION:
+HOLD pending independent legal, dependency, artifact and owner review.

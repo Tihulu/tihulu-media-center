@@ -1,0 +1,173 @@
+name: MEDIA-FINAL-INSTALLER-P1-HARDENING-08 exact-head regression and native acceptance
+on:
+  pull_request:
+    branches: [integration/media-final-combined-p0-20261112]
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  combined-source-security-ai:
+    name: Exact source identity, original QA, rollback security and AI fixtures
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact combined SHA, frozen source and original branch file identities
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          SNAPSHOT=7821769eb7aed576dd426ec18ffce3696d93a00d
+          SAFETY=e772a7bde546de178339dfce4592b9a9ee743218
+          SECURITY=a63535040edbcfc83e8032124fa3834e1fd60d44
+          TV=5ef0bdc0ccd8ce9d7d5519b2c016f9e7936814ce
+          AI=145d48bc4ecf0cc1a22b2c0915529bdac115ccf4
+          for commit in "$SNAPSHOT" "$SAFETY" "$SECURITY" "$TV" "$AI"; do
+            git cat-file -e "$commit^{commit}"
+          done
+          git merge-base --is-ancestor "$SAFETY" HEAD
+          git merge-base --is-ancestor "$SECURITY" HEAD
+          # Confirm P1 changes are strictly installer/safety/workflow/tests only.
+          BASE=122baf10621cd7a166844f7d6ca6dc6671963863
+          git merge-base --is-ancestor "$BASE" HEAD
+          git diff --exit-code "$BASE" HEAD -- source/installed-package/ \
+            tests/test_stable_first_contract.py tests/test_media_install_safety_p0.py \
+            tests/test_media_ai_runtime_parity_05.py tests/test_media_tv_radio_exact_parity_04.py \
+            tests/test_media_exact_runtime_acceptance.py
+          git diff --exit-code "$SNAPSHOT" HEAD -- source/installed-package/
+          git diff --exit-code "$TV" HEAD --             .github/workflows/media-tv-radio-exact-parity-04.yml             docs/MEDIA_TV_RADIO_EXACT_PARITY_QA_04.md             tests/test_media_tv_radio_exact_parity_04.py
+          git diff --exit-code "$AI" HEAD --             .github/workflows/media-ai-runtime-parity-05.yml             docs/MEDIA_AI_RUNTIME_PARITY_05.md             installer/media-ai-compat.py             tests/test_media_ai_runtime_parity_05.py
+          echo "FROZEN IDENTITY AND EXACT COPIED FILES PASS: $(git rev-parse HEAD)"
+      - name: Keep every original test and run all added security/AI source tests
+        run: |
+          set -euo pipefail
+          export PYTHONDONTWRITEBYTECODE=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+          bash -n installer/media-stable-first.sh
+          shellcheck installer/media-stable-first.sh
+          python3 -m py_compile installer/preview_safety.py installer/media-ai-compat.py             tests/test_media_install_safety_p0.py tests/test_media_tv_radio_exact_parity_04.py             tests/test_media_ai_runtime_parity_05.py tests/test_media_installer_p1_hardening_08.py
+          python3 -m unittest discover -s tests -p 'test_stable_first_*.py' -v
+          python3 -m unittest discover -s tests -p 'test_media_install_safety_p0.py' -v
+          python3 -m unittest discover -s tests -p 'test_media_ai_runtime_parity_05.py' -v
+          python3 -m unittest discover -s tests -p 'test_media_installer_p1_hardening_08.py' -v
+          bash installer/media-stable-first.sh --dry-run --no-ai
+          echo 'PASS: unchanged original source/security and explicit AI compatibility tests'
+          echo 'HOLD: synthetic checks alone are not runtime, device or model inference evidence'
+
+  combined-native-runtime:
+    name: Two clean native installs, TV/Radio/Lyrics, AI, rollback and uninstall
+    needs: combined-source-security-ai
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install disposable Ubuntu-only native and test dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends             git ca-certificates cmake g++ make pkg-config extra-cmake-modules             qtbase5-dev libqt5x11extras5-dev libkf5coreaddons-dev             libkf5dbusaddons-dev libkf5i18n-dev libkf5kio-dev             libkf5solid-dev libkf5widgetsaddons-dev libkf5windowsystem-dev             libkf5xmlgui-dev libvlc-dev libx11-dev libxss-dev libdvbv5-dev             libudev-dev libqt5sql5-sqlite vlc python3 python3-pyqt5             ffmpeg mpv dvb-tools psmisc xvfb xauth dbus-x11 shellcheck
+      - name: Install twice, test production behavior with synthetic inputs, AI opt-in and preserve private sentinels
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          export HOME="$RUNNER_TEMP/media-combined-p0-owner-fixture"
+          export XDG_CONFIG_HOME="$HOME/.config"
+          export XDG_DATA_HOME="$HOME/.local/share"
+          export XDG_CACHE_HOME="$HOME/.cache"
+          export XDG_STATE_HOME="$HOME/.local/state"
+          mkdir -p "$HOME/.config/tihulu-tv-center" "$HOME/.config/TIHULU"                    "$HOME/.local/share/tihulu-tv-center" "$HOME/Recordings"                    "$HOME/fixture-ssd"
+          printf 'OWNER-AI-KEEP\n' > "$HOME/.config/tihulu-tv-center/ai-settings.json"
+          printf 'OWNER-RADIO-KEEP\n' > "$HOME/.config/TIHULU/KaffeineRadio.conf"
+          printf 'OWNER-APPEARANCE-KEEP\n' > "$HOME/.config/TIHULU/KaffeineCaptionAppearance.conf"
+          printf 'OWNER-CHANNEL-KEEP\n' > "$HOME/.local/share/tihulu-tv-center/private-channel"
+          printf 'OWNER-RECORDING-KEEP\n' > "$HOME/Recordings/private.wav"
+          trap 'bash installer/media-stable-first.sh --uninstall || true' EXIT
+          bash installer/media-stable-first.sh --check --no-ai
+          bash installer/media-stable-first.sh --install --no-ai
+          app="$HOME/.local/opt/tihulu-media-stable"
+          first="$(readlink "$app/current")"
+          test -x "$first/native/bin/kaffeine"
+          export TIHULU_MEDIA_QA_RELEASE="$first"
+          dbus-run-session -- xvfb-run -a /usr/bin/python3 -m unittest discover             -s tests -p 'test_media_exact_runtime_acceptance.py' -v
+          # These fixtures start Qt directly: use the private preview profile just like the installed launcher.
+          env HOME="$app/preview-home" XDG_CONFIG_HOME="$app/preview-home/.config" XDG_DATA_HOME="$app/preview-home/.local/share" XDG_CACHE_HOME="$app/preview-home/.cache" XDG_STATE_HOME="$app/preview-home/.local/state" dbus-run-session -- xvfb-run -a /usr/bin/python3 -m unittest discover -s tests -p 'test_media_tv_radio_exact_parity_04.py' -v
+          # Fail immediately if an unisolated GUI fixture touched the owner's settings.
+          grep -Fxq OWNER-APPEARANCE-KEEP "$HOME/.config/TIHULU/KaffeineCaptionAppearance.conf"
+
+          # A synthetic file is ONLY a metadata/permission fixture, not a model.
+          head -c 2048 /dev/zero > "$HOME/fixture-ssd/ggml-test.bin"
+          python3 installer/media-ai-compat.py             --model-path "$HOME/fixture-ssd/ggml-test.bin" --model-dir "$HOME/fixture-ssd"
+          test ! -e "$app/preview-home/.config/tihulu-tv-center/ai-settings.json"
+          python3 installer/media-ai-compat.py             --model-path "$HOME/fixture-ssd/ggml-test.bin" --model-dir "$HOME/fixture-ssd"             --apply --confirm-preview-only
+          PREVIEW="$app/preview-home" RELEASE="$first"           HOME="$app/preview-home" XDG_CONFIG_HOME="$app/preview-home/.config"           PYTHONPATH="$first/py" /usr/bin/python3 - <<'PY'
+          import os
+          from pathlib import Path
+          from tv_center.ai_settings import AISettings
+          from tv_center.runtime import AIRuntime
+          from tv_center.cuda_faster_whisper import FasterWhisperCUDA
+          from tv_center.qwen_forced_aligner import QwenForcedAlignerMarket
+          from tv_center.translation_service import NLLBService
+          from tv_center.translation_market import TranslationModelMarket
+          from tv_center.translation_madlad import MadladMarket
+          preview = Path(os.environ["PREVIEW"])
+          current = AISettings()
+          assert Path.home() == preview
+          assert current.path == preview / ".config/tihulu-tv-center/ai-settings.json"
+          assert not current.values["asr_enabled"]
+          assert not current.values["translation_enabled"]
+          assert current.values["active_profile"] == ""
+          assert current.values["model_dir"].endswith("fixture-ssd")
+          assert not AIRuntime().status()["installed"]
+          assert not FasterWhisperCUDA().installed()
+          assert not QwenForcedAlignerMarket().installed()
+          assert not TranslationModelMarket().status()["installed"]
+          assert not MadladMarket().status()["installed"]
+          try:
+              NLLBService()._start()
+          except RuntimeError as exc:
+              assert "missing" in str(exc).lower()
+          else:
+              raise AssertionError("Missing NLLB runtime incorrectly started")
+          PY
+
+          bash installer/media-stable-first.sh --install --no-ai
+          second="$(readlink "$app/current")"
+          test "$first" != "$second"
+          test "$first" = "$(readlink "$app/previous")"
+          export TIHULU_MEDIA_QA_RELEASE="$second"
+          dbus-run-session -- xvfb-run -a /usr/bin/python3 -m unittest discover             -s tests -p 'test_media_exact_runtime_acceptance.py' -v
+          # These fixtures start Qt directly: use the private preview profile just like the installed launcher.
+          env HOME="$app/preview-home" XDG_CONFIG_HOME="$app/preview-home/.config" XDG_DATA_HOME="$app/preview-home/.local/share" XDG_CACHE_HOME="$app/preview-home/.cache" XDG_STATE_HOME="$app/preview-home/.local/state" dbus-run-session -- xvfb-run -a /usr/bin/python3 -m unittest discover -s tests -p 'test_media_tv_radio_exact_parity_04.py' -v
+          # Fail immediately if an unisolated GUI fixture touched the owner's settings.
+          grep -Fxq OWNER-APPEARANCE-KEEP "$HOME/.config/TIHULU/KaffeineCaptionAppearance.conf"
+          bash installer/media-stable-first.sh --rollback
+          test "$first" = "$(readlink "$app/current")"
+          test "$second" = "$(readlink "$app/previous")"
+          bash installer/media-stable-first.sh --uninstall
+          bash installer/media-stable-first.sh --uninstall
+          test ! -e "$first" && test ! -e "$second"
+          test ! -L "$app/current"
+          test ! -e "$HOME/.local/bin/tihulu-media-stable"
+          test ! -e "$HOME/.local/share/applications/tihulu-media-stable.desktop"
+          test -f "$app/.media-preview-owner-v1"
+          test -f "$app/preview-home/.config/tihulu-tv-center/ai-settings.json"
+          grep -Fxq OWNER-AI-KEEP "$HOME/.config/tihulu-tv-center/ai-settings.json"
+          grep -Fxq OWNER-RADIO-KEEP "$HOME/.config/TIHULU/KaffeineRadio.conf"
+          grep -Fxq OWNER-APPEARANCE-KEEP "$HOME/.config/TIHULU/KaffeineCaptionAppearance.conf"
+          grep -Fxq OWNER-CHANNEL-KEEP "$HOME/.local/share/tihulu-tv-center/private-channel"
+          grep -Fxq OWNER-RECORDING-KEEP "$HOME/Recordings/private.wav"
+          cmp "$HOME/fixture-ssd/ggml-test.bin" <(head -c 2048 /dev/zero)
+          echo "PASS: exact combined HEAD $EXPECTED_HEAD; two native builds/installs, all installed TV/Radio/Lyrics QA, AI preview metadata, rollback and uninstall"
+          echo 'HOLD: no actual RF/Teletext/broadcast, model inference, CUDA, acoustics, original binary, live desktop or licensing acceptance'

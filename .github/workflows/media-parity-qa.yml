@@ -1,0 +1,25 @@
+name: Media TV-Radio parity QA (Draft only)
+on:
+  pull_request:
+    branches: [agent/media-stable-first-01]
+    paths:
+      - 'tests/test_stable_first_feature_parity.py'
+      - 'docs/MEDIA_EXACT_PARITY_ACCEPTANCE.md'
+      - '.github/workflows/media-parity-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  frozen-feature-parity:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Isolated QA checkout (no devices or models)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Test frozen source and TV/Radio synthetic contracts
+        run: |
+          python3 -m unittest discover -s tests -p 'test_stable_first_feature_parity.py' -v
+      - name: Mark scope accurately
+        run: |
+          echo 'SOURCE/SYNTHETIC QA ONLY: no tuner, hardware, AI inference, installed binary or user settings verified.'

@@ -1,0 +1,71 @@
+name: MEDIA-R2-CRASH-RECOVERY-26 exact-head SIGKILL QA
+on:
+  pull_request:
+    branches: [security/media-notice20-p2-01-generation-v2-20261113]
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  r2-exact-head-crash-recovery:
+    name: R2 actual SIGKILL, journal corruption and read-only hold
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact HEAD and immutable PR21 security implementation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          FROZEN=fe91a918b38482c02db7e78c510c05ad15e7d128
+          git merge-base --is-ancestor "$FROZEN" HEAD
+          git diff --exit-code "$FROZEN" HEAD -- \
+            installer source LICENSE NOTICE LICENSES tests/test_media_notice20_p2_generation_25.py
+          python3 - <<'PY'
+          import subprocess
+          frozen="fe91a918b38482c02db7e78c510c05ad15e7d128"
+          allowed={
+              "tests/test_media_r2_crash_recovery_26.py",
+              ".github/workflows/media-r2-crash-recovery-26.yml",
+              "docs/compliance/MEDIA_R2_CRASH_RECOVERY_QA_26.md",
+          }
+          changed=set(subprocess.check_output(
+              ["git","diff","--name-only",frozen,"HEAD"],text=True).splitlines())
+          assert changed <= allowed and {
+              "tests/test_media_r2_crash_recovery_26.py",
+              ".github/workflows/media-r2-crash-recovery-26.yml",
+          } <= changed, changed
+          print("Frozen PR21 exact base and scoped path identity PASS",changed)
+          PY
+      - name: Real process SIGKILL/restart on r2 with no hardware or models
+        shell: bash
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          python3 -m py_compile installer/preview_safety.py \
+            tests/test_media_r2_crash_recovery_26.py
+          python3 -m unittest discover -s tests \
+            -p 'test_media_r2_crash_recovery_26.py' -v
+          echo "P2-QA25-01: 13 actual r2 crash/recovery and malformed-journal cases PASS"
+      - name: Re-run all 22 current generation-v2 downgrade cases
+        shell: bash
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests \
+            -p 'test_media_notice20_p2_generation_25.py' -v
+          echo "NOTICE20-P2: current-head 22 regression cases PASS"
+          echo "SEC11-03/real power loss/GPL/physical RF/models/public release: HOLD"

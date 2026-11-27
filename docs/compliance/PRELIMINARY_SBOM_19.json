@@ -1,0 +1,280 @@
+{
+  "schema": "TIHULU preliminary dependency inventory 19 — NOT a complete CycloneDX or installed SBOM",
+  "baseline_commit": "2f5699eeb47505468bf3327be4dbdd89fed3dff1",
+  "package_source": "source/installed-package/ (133 selected blobs)",
+  "completeness": "INCOMPLETE — no resolved wheels, sonames, ELF needed, package hashes, active installed OS packages, model artifacts, fonts or full copyright clearances",
+  "method": "Static manifests, imports, installer metadata and documented optional routes; NO installation, downloads or model runs",
+  "components": [
+    {
+      "id": "SBOM19-001",
+      "name": "KDE Kaffeine v2.0.19",
+      "distribution_role": "source-build",
+      "version_or_range": "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c",
+      "reported_license": "GPL-2.0-or-later",
+      "origin": "KDE/kaffeine",
+      "missing_evidence": "corresponding-source packaging HOLD"
+    },
+    {
+      "id": "SBOM19-002",
+      "name": "welle-cli",
+      "distribution_role": "optional-source-build",
+      "version_or_range": "512558d1f8ac4c524d3c63e97510ea36c1bd7a70",
+      "reported_license": "GPL-2.0-or-later",
+      "origin": "AlbrechtL/welle.io",
+      "missing_evidence": "exact license files/linkage HOLD"
+    },
+    {
+      "id": "SBOM19-003",
+      "name": "Qt5 / Qtbase / QtX11Extras",
+      "distribution_role": "distro-native",
+      "version_or_range": "distribution-controlled",
+      "reported_license": "NOASSERTION",
+      "origin": "apt",
+      "missing_evidence": "linkage/variant-specific license HOLD"
+    },
+    {
+      "id": "SBOM19-004",
+      "name": "KDE Frameworks KF5 / KIO / Solid",
+      "distribution_role": "distro-native",
+      "version_or_range": "distribution-controlled",
+      "reported_license": "NOASSERTION",
+      "origin": "apt",
+      "missing_evidence": "exact package licensing HOLD"
+    },
+    {
+      "id": "SBOM19-005",
+      "name": "libVLC / VLC",
+      "distribution_role": "distro-native",
+      "version_or_range": "distribution-controlled",
+      "reported_license": "NOASSERTION",
+      "origin": "apt",
+      "missing_evidence": "linkage/codec dependencies HOLD"
+    },
+    {
+      "id": "SBOM19-006",
+      "name": "libdvbv5 / dvb-tools",
+      "distribution_role": "distro-native",
+      "version_or_range": "distribution-controlled",
+      "reported_license": "NOASSERTION",
+      "origin": "apt",
+      "missing_evidence": "exact package licensing HOLD"
+    },
+    {
+      "id": "SBOM19-007",
+      "name": "ffmpeg / codecs",
+      "distribution_role": "distro-native",
+      "version_or_range": "distribution-controlled",
+      "reported_license": "NOASSERTION",
+      "origin": "apt",
+      "missing_evidence": "build flags and codec license HOLD"
+    },
+    {
+      "id": "SBOM19-008",
+      "name": "mpv",
+      "distribution_role": "distro-native",
+      "version_or_range": "distribution-controlled",
+      "reported_license": "NOASSERTION",
+      "origin": "apt",
+      "missing_evidence": "exact package licensing HOLD"
+    },
+    {
+      "id": "SBOM19-009",
+      "name": "PyQt5",
+      "distribution_role": "distro-python",
+      "version_or_range": "distribution-controlled",
+      "reported_license": "NOASSERTION",
+      "origin": "apt",
+      "missing_evidence": "GPL/commercial terms must be verified for final linkage"
+    },
+    {
+      "id": "SBOM19-010",
+      "name": "python3 / venv / pip",
+      "distribution_role": "distro-python",
+      "version_or_range": "distribution-controlled",
+      "reported_license": "NOASSERTION",
+      "origin": "apt",
+      "missing_evidence": "wheel and OS packages not enumerated"
+    },
+    {
+      "id": "SBOM19-011",
+      "name": "whisper.cpp",
+      "distribution_role": "optional-source-build",
+      "version_or_range": "v1.9.5 (prefix d1be6fd)",
+      "reported_license": "MIT",
+      "origin": "ggml-org/whisper.cpp",
+      "missing_evidence": "verify transitive build deps and models"
+    },
+    {
+      "id": "SBOM19-012",
+      "name": "argostranslate",
+      "distribution_role": "optional-pip",
+      "version_or_range": "[1.10,2)",
+      "reported_license": "NOASSERTION",
+      "origin": "PyPI",
+      "missing_evidence": "exact distribution license/wheels HOLD"
+    },
+    {
+      "id": "SBOM19-013",
+      "name": "faster-whisper",
+      "distribution_role": "optional-pip",
+      "version_or_range": "[1.2,2)",
+      "reported_license": "NOASSERTION",
+      "origin": "PyPI",
+      "missing_evidence": "exact wheel license and model separately"
+    },
+    {
+      "id": "SBOM19-014",
+      "name": "ctranslate2",
+      "distribution_role": "optional-pip",
+      "version_or_range": "[4.6.3,5)",
+      "reported_license": "NOASSERTION",
+      "origin": "PyPI",
+      "missing_evidence": "exact CUDA/native linkage HOLD"
+    },
+    {
+      "id": "SBOM19-015",
+      "name": "torch",
+      "distribution_role": "optional-pip",
+      "version_or_range": ">=2.7,<3 (context dependent)",
+      "reported_license": "NOASSERTION",
+      "origin": "PyPI/PyTorch",
+      "missing_evidence": "CUDA/CPU wheels and deps unresolved"
+    },
+    {
+      "id": "SBOM19-016",
+      "name": "transformers",
+      "distribution_role": "optional-pip",
+      "version_or_range": "[4.44,5)",
+      "reported_license": "NOASSERTION",
+      "origin": "PyPI",
+      "missing_evidence": "exact transitive versions unresolved"
+    },
+    {
+      "id": "SBOM19-017",
+      "name": "huggingface_hub",
+      "distribution_role": "optional-pip",
+      "version_or_range": "[0.28,1) and other ranges",
+      "reported_license": "NOASSERTION",
+      "origin": "PyPI",
+      "missing_evidence": "exact resolution unresolved"
+    },
+    {
+      "id": "SBOM19-018",
+      "name": "safetensors",
+      "distribution_role": "optional-pip",
+      "version_or_range": ">=0.4",
+      "reported_license": "NOASSERTION",
+      "origin": "PyPI",
+      "missing_evidence": "exact resolution unresolved"
+    },
+    {
+      "id": "SBOM19-019",
+      "name": "sentencepiece",
+      "distribution_role": "optional-pip",
+      "version_or_range": "unconstrained",
+      "reported_license": "NOASSERTION",
+      "origin": "PyPI",
+      "missing_evidence": "exact resolution unresolved"
+    },
+    {
+      "id": "SBOM19-020",
+      "name": "numpy / scipy / librosa",
+      "distribution_role": "optional-pip",
+      "version_or_range": "ranges vary",
+      "reported_license": "NOASSERTION",
+      "origin": "PyPI",
+      "missing_evidence": "exact resolution unresolved"
+    },
+    {
+      "id": "SBOM19-021",
+      "name": "Resemblyzer",
+      "distribution_role": "optional-pip",
+      "version_or_range": "0.1.4",
+      "reported_license": "Apache-2.0",
+      "origin": "resemble-ai/Resemblyzer",
+      "missing_evidence": "wheel embeds weights; inspect exact wheel"
+    },
+    {
+      "id": "SBOM19-022",
+      "name": "qwen-asr",
+      "distribution_role": "optional-pip",
+      "version_or_range": "unconstrained",
+      "reported_license": "NOASSERTION",
+      "origin": "PyPI",
+      "missing_evidence": "exact model/runtime terms HOLD"
+    },
+    {
+      "id": "SBOM19-023",
+      "name": "MIT AST AudioSet weights",
+      "distribution_role": "optional-model",
+      "version_or_range": "f826b80 prefix",
+      "reported_license": "BSD-3-Clause",
+      "origin": "Hugging Face",
+      "missing_evidence": "recheck checkpoint license"
+    },
+    {
+      "id": "SBOM19-024",
+      "name": "audEERING voice weights",
+      "distribution_role": "optional-model",
+      "version_or_range": "a681b72 prefix",
+      "reported_license": "CC-BY-NC-SA-4.0",
+      "origin": "Hugging Face",
+      "missing_evidence": "NONCOMMERCIAL HOLD"
+    },
+    {
+      "id": "SBOM19-025",
+      "name": "NLLB-200 600M weights",
+      "distribution_role": "optional-model",
+      "version_or_range": "a3e77be725cf30383f1faeb8d2f0b0ea98ac554e",
+      "reported_license": "CC-BY-NC-4.0",
+      "origin": "Hugging Face",
+      "missing_evidence": "NONCOMMERCIAL HOLD"
+    },
+    {
+      "id": "SBOM19-026",
+      "name": "MADLAD-400 3B weights",
+      "distribution_role": "optional-model",
+      "version_or_range": "main (floating)",
+      "reported_license": "Apache-2.0",
+      "origin": "Hugging Face",
+      "missing_evidence": "recheck exact revision/license"
+    },
+    {
+      "id": "SBOM19-027",
+      "name": "Qwen3 ForcedAligner weights",
+      "distribution_role": "optional-model",
+      "version_or_range": "unfrozen",
+      "reported_license": "Apache-2.0",
+      "origin": "Hugging Face",
+      "missing_evidence": "recheck exact revision/license"
+    },
+    {
+      "id": "SBOM19-028",
+      "name": "Whisper GGML weights",
+      "distribution_role": "optional-model",
+      "version_or_range": "fixed file SHA256 / catalog",
+      "reported_license": "NOASSERTION",
+      "origin": "Hugging Face",
+      "missing_evidence": "model permission separate"
+    },
+    {
+      "id": "SBOM19-029",
+      "name": "Faster-Whisper Turbo weights",
+      "distribution_role": "optional-model",
+      "version_or_range": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+      "reported_license": "NOASSERTION",
+      "origin": "Hugging Face",
+      "missing_evidence": "converted model provenance"
+    },
+    {
+      "id": "SBOM19-030",
+      "name": "Argos .argosmodel packs",
+      "distribution_role": "optional-model",
+      "version_or_range": "catalog per pair",
+      "reported_license": "NOASSERTION",
+      "origin": "Argos",
+      "missing_evidence": "exact pack / Stanza / corpora review"
+    }
+  ],
+  "release_decision": "HOLD"
+}
