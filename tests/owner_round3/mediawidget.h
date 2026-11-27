@@ -13,6 +13,8 @@ public:
     PlaybackStatus state=Idle;int position=0;QUrl current;
     PlaybackStatus getPlaybackStatus() const {return state;}
     int getPosition() const {return position;}
+    void beginFileCaptionHold() {}
+    void cancelFileCaptionHold() {}
     void stop() {emit stopRequested();state=Idle;}
     void play(const QUrl &url) {
         bool handled=false;emit fileOpenRequested(url,&handled);if(handled)return;
