@@ -1,0 +1,46 @@
+name: File caption clock and native buffer evidence
+on:
+  pull_request:
+    branches: [fix/media-acceptance-round3-parked]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  file-clock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Install disposable test dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg python3-pyqt5
+      - name: File clock and actual PCM regression tests (mocked AI)
+        run: |
+          export HOME="$RUNNER_TEMP/home"
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/runtime"
+          mkdir -p "$HOME" "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          export QT_QPA_PLATFORM=offscreen PYTHONDONTWRITEBYTECODE=1
+          /usr/bin/python3 -m compileall -q source/installed-package/kaffeine_next source/installed-package/tv_center
+          /usr/bin/python3 -m unittest discover -s tests -p 'test_file_caption_clock.py' -v
+  native-compile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Install disposable native build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y git ca-certificates cmake g++ make pkg-config extra-cmake-modules qtbase5-dev libqt5x11extras5-dev libkf5coreaddons-dev libkf5dbusaddons-dev libkf5i18n-dev libkf5kio-dev libkf5solid-dev libkf5widgetsaddons-dev libkf5windowsystem-dev libkf5xmlgui-dev libvlc-dev libx11-dev libxss-dev libdvbv5-dev libudev-dev libqt5sql5-sqlite
+      - name: Transform exact pinned upstream and compile without installation
+        run: |
+          git clone --depth 1 --branch v2.0.19 https://github.com/KDE/kaffeine.git "$RUNNER_TEMP/upstream"
+          test "$(git -C "$RUNNER_TEMP/upstream" rev-parse HEAD)" = e7ea15b86dafed3b20b151cbcb080578ab8e2d5c
+          /usr/bin/python3 source/installed-package/kaffeine_next/patch_upstream.py "$RUNNER_TEMP/upstream"
+          cmake -S "$RUNNER_TEMP/upstream" -B "$RUNNER_TEMP/build" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake --build "$RUNNER_TEMP/build" --parallel 2
