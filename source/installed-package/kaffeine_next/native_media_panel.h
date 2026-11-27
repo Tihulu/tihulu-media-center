@@ -397,16 +397,6 @@ private:
                 }
             }
         }
-                if(player_->getPlaybackStatus()!=MediaWidget::Playing) {
-                    player_->play();
-                }
-            }
-        }
-                if(player_->getPlaybackStatus()!=MediaWidget::Playing) {
-                    player_->play();
-                }
-            }
-        }
         if(player_->getPlaybackStatus()!=MediaWidget::Playing)return;
         const qint64 now=player_->getPosition();
         if(now<lastMs_-800 || now>lastMs_+2000) {++revision_;nextMs_=now;captions_->clearCues();}

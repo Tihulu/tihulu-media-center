@@ -71,9 +71,13 @@ else
   [[ "$ACTUAL_REV" == "$UPSTREAM_REV" ]] ||
     { echo "ERROR: pinned Kaffeine revision mismatch: $ACTUAL_REV" >&2; exit 1; }
   python3 "$SOURCE/kaffeine_next/patch_upstream.py" "$UPSTREAM" >/dev/null
+  # Use system Qt to avoid anaconda3 Qt conflicts
+  export PATH="/usr/bin:/bin:/usr/sbin:/sbin"
+  export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig"
   cmake -S "$UPSTREAM" -B "$WORK/build" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
-    -DCMAKE_INSTALL_PREFIX="$APPDIR/usr" >/dev/null
+    -DCMAKE_INSTALL_PREFIX="$APPDIR/usr" \
+    -DQt5_DIR=/usr/lib/x86_64-linux-gnu/cmake/Qt5 >/dev/null
   cmake --build "$WORK/build" --parallel "$(nproc)" >/dev/null
   cmake --install "$WORK/build" >/dev/null
   [[ -x "$APPDIR/usr/bin/kaffeine" ]] ||
