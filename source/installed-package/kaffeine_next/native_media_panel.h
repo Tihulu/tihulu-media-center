@@ -382,9 +382,9 @@ private:
         }
         if(liveWindow_)args<<QStringLiteral("--window")<<QString::number(liveWindow_->value());
         captions_->setSticky(true);
-        live_.start(QStringLiteral("tihulu-tv-center"),args);
-        if(!live_.waitForStarted(900)) {captions_->setSticky(false);message_->setText(tr("Caption service could not start."));return;}
         player_->beginFileCaptionHold();
+        live_.start(QStringLiteral("tihulu-tv-center"),args);
+        if(!live_.waitForStarted(900)) {player_->cancelFileCaptionHold();captions_->setSticky(false);message_->setText(tr("Caption service could not start."));return;}
         cancel_->setEnabled(true);
         message_->setText(tr("Caption panel opened · buffering synchronized file subtitles."));
     }
