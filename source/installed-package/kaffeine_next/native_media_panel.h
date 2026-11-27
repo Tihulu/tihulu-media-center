@@ -66,7 +66,10 @@ public:
         serviceMode_->addItem(tr("Radio caption service (all settings)"),QStringLiteral("radio"));
         serviceMode_->setToolTip(tr("File type decides the default. TV and Radio use their own saved languages, models and tools."));
         liveWindow_=new QSpinBox(this);liveWindow_->setRange(2,20);liveWindow_->setSuffix(tr(" s"));
-        liveWindow_->setValue(8);liveWindow_->setToolTip(tr("Live audio window used by the local speech model. Larger = more context, slower first caption."));
+        liveWindow_->setValue(8);liveWindow_->setToolTip(tr("Buffer analysis window. When AI captions start, "
+            "playback pauses for this many seconds while the speech model analyses that "
+            "much audio, then resumes from the same position with subtitles already "
+            "synchronized. Larger = more context, slower first caption."));
         externalPlayer_=new QCheckBox(tr("Play local files with mpv"),this);
         QSettings playerPrefs(QStringLiteral("TIHULU"),QStringLiteral("MediaPlayer"));
         externalPlayer_->setChecked(playerPrefs.value(QStringLiteral("externalPlayerMpv"),false).toBool() &&

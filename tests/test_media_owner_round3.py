@@ -534,32 +534,37 @@ class FileCaptionService(unittest.TestCase):
         overlay = read("kaffeine_next/captions_overlay.py")
         self.assertIn('analysis_backlog["queued"]', overlay)
         self.assertIn("ipc.set_backlog(", overlay)
-        # The patch ships the hold logic and its state.
+        # The service publishes the analysis window and its readiness, so the
+        # player can freeze playback without guessing a timer.
+        self.assertIn('"buffer_seconds"', timing)
+        self.assertIn('"buffer_ready"', timing)
+        self.assertIn("def set_buffer_state", timing)
+        self.assertIn("ipc.set_buffer_state(", overlay)
+        # The patch ships the buffer hold and its state, and the hold is
+        # default-on for EVERY entry point that started the service.
         patch = read("kaffeine_next/patch_upstream.py")
-        self.assertIn("bool tihuluCaptionHeldUs_ = false;",
-                      patch.replace("\\t", ""))
-        self.assertIn("Hold for AI analysis: while real audio windows are still queued",
-                      patch.replace("\\t", " "))
-        self.assertIn('QStringLiteral("CaptionHold")', patch)
-        # The hold must be bounded and must not resume a user pause.
-        self.assertIn("90000", patch)
-        self.assertIn("getPlaybackStatus()==MediaWidget::Playing",
-                      patch.replace("\\t", ""))
-        # It must never hold a LIVE DVB broadcast, and it must run for BOTH
-        # render modes: the native path returns early, so a block placed after
-        # it would never execute.
+        flat = patch.replace("\\t", "").replace("\\n", " ")
+        self.assertIn("bool tihuluBufferHolding_ = false;", flat)
+        self.assertIn("bool tihuluBufferSessionDone_ = false;", flat)
+        self.assertIn("tihuluBufferHoldPos_", flat)
+        # Driven by the published state, not by a hidden setting.
+        self.assertIn('obj.value(QLatin1String("buffer_ready")).toBool()', flat)
+        self.assertIn('obj.value(QLatin1String("buffer_seconds")).toInt(8)*1000', flat)
+        # The freeze is entered once per caption session, bounded by the
+        # window, and resumes at the frozen position.
+        self.assertIn("qBound(qint64(2000),windowMs,qint64(60000))", flat)
+        self.assertIn("if(tihuluBufferHoldPos_>0)setPosition(tihuluBufferHoldPos_);", flat)
+        # A finished session releases the state so the next one freezes again.
+        self.assertIn("tihuluBufferSessionDone_=false;", flat)
+        # It must never hold a LIVE DVB broadcast, and the hold must run
+        # before the render branch, which returns early for native captions.
         self.assertIn("source->getType()!=MediaSource::Dvb) {",
                       patch.replace("\\t", ""))
-        self.assertIn('QLatin1String("queued")).toInt(0)',
-                      patch.replace("\\t", ""))
-        hold_start = patch.index("// Hold for AI analysis")
-        self.assertLess(hold_start, patch.index('const QString text ='),
+        hold_at = patch.index("// BUFFER ANALYSIS")
+        text_at = patch.index('const QString text = obj.value(QLatin1String("text"))')
+        self.assertLess(hold_at, text_at,
                         "the hold must run before the render branch")
-        # The owner can turn it on from the file panel.
-        panel = read("kaffeine_next/native_media_panel.h")
-        self.assertIn('tr("Hold for AI analysis")', panel)
-        self.assertIn('QStringLiteral("CaptionHold")', panel)
-        self.assertIn('saved.setValue(QStringLiteral("enabled"),value)', panel)
+
 
     def test_marq_is_enforced_as_an_spu_filter(self):
         """Owner's live log showed:

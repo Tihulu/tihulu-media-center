@@ -1564,6 +1564,11 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t// Hold-for-analysis state: we only resume a pause that WE caused.
 \tbool tihuluCaptionHeldUs_ = false;
 \tqint64 tihuluCaptionHoldStart_ = 0;
+\t// Buffer-analysis hold for offline files, one freeze per session.
+\tbool tihuluBufferHolding_ = false;
+\tqint64 tihuluBufferHoldStart_ = 0;
+\tqint64 tihuluBufferHoldPos_ = 0;
+\tbool tihuluBufferSessionDone_ = false;
 \tbool tihuluAiCaptionSelected = false;
 \tbool tihuluAiCaptionUserOverride = false;''')
     mediac = "src/mediawidget.cpp"
@@ -1687,7 +1692,7 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\tif (source->getType() != MediaSource::Dvb &&
 \t\t\t\tsource->getType() != MediaSource::Url) {
 \t\t\t\tclearCaption();
-\t\t\t\tsetAiAvailability(false);
+\t\t\t\tsetAiAvailability(false);;tihuluBufferSessionDone_=false;tihuluBufferHolding_=false;tihuluBufferHoldStart_=0;tihuluBufferHoldPos_=0;
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tconst qint64 now = QDateTime::currentMSecsSinceEpoch();
@@ -1695,7 +1700,7 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\tif (!file.exists() || !file.open(QIODevice::ReadOnly)) {
 \t\t\t\tif (now - *lastValidMs > 1000) {
 \t\t\t\t\tclearCaption();
-\t\t\t\t\tsetAiAvailability(false);
+\t\t\t\t\tsetAiAvailability(false);;tihuluBufferSessionDone_=false;tihuluBufferHolding_=false;tihuluBufferHoldStart_=0;tihuluBufferHoldPos_=0;
 \t\t\t\t}
 \t\t\t\treturn;
 \t\t\t}
@@ -1703,7 +1708,7 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\tif (bytes.size() > 16384) {
 \t\t\t\tif (now - *lastValidMs > 1000) {
 \t\t\t\t\tclearCaption();
-\t\t\t\t\tsetAiAvailability(false);
+\t\t\t\t\tsetAiAvailability(false);;tihuluBufferSessionDone_=false;tihuluBufferHolding_=false;tihuluBufferHoldStart_=0;tihuluBufferHoldPos_=0;
 \t\t\t\t}
 \t\t\t\treturn;
 \t\t\t}
@@ -1711,7 +1716,7 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\tif (!doc.isObject()) {
 \t\t\t\tif (now - *lastValidMs > 1000) {
 \t\t\t\t\tclearCaption();
-\t\t\t\t\tsetAiAvailability(false);
+\t\t\t\t\tsetAiAvailability(false);;tihuluBufferSessionDone_=false;tihuluBufferHolding_=false;tihuluBufferHoldStart_=0;tihuluBufferHoldPos_=0;
 \t\t\t\t}
 \t\t\t\treturn;
 \t\t\t}
@@ -1728,13 +1733,13 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\t\t// An explicit OFF remains immediate.
 \t\t\t\t*lastValidMs = 0;
 \t\t\t\tclearCaption();
-\t\t\t\tsetAiAvailability(false);
+\t\t\t\tsetAiAvailability(false);;tihuluBufferSessionDone_=false;tihuluBufferHolding_=false;tihuluBufferHoldStart_=0;tihuluBufferHoldPos_=0;
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tif (obj.value(QLatin1String("expires_ms")).toDouble(0)
 \t\t\t      + 1000 < static_cast<double>(now)) {
 \t\t\t\tclearCaption();
-\t\t\t\tsetAiAvailability(false);
+\t\t\t\tsetAiAvailability(false);;tihuluBufferSessionDone_=false;tihuluBufferHolding_=false;tihuluBufferHoldStart_=0;tihuluBufferHoldPos_=0;
 \t\t\t\treturn;
 \t\t\t}
 \t\t\t*lastValidMs = now;
@@ -1745,37 +1750,39 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\t\tclearCaption();
 \t\t\t\treturn;
 \t\t\t}
-\t\t\t// Hold for AI analysis: while real audio windows are still queued
-\t\t\t// for Whisper, or one is being analysed right now, playback is
-\t\t\t// held so the AI can finish the interval. The hold is bounded, so
-\t\t\t// a stalled worker can never freeze the video.
-\t\t\t{
-\t\t\t\tQSettings hold(QStringLiteral("TIHULU"),QStringLiteral("CaptionHold"));
-\t\t\t\tif(hold.value(QStringLiteral("enabled"),false).toBool() &&
-\t\t\t\tsource->getType()!=MediaSource::Dvb) {
-\t\t\t\t\t// Live DVB is never held: pausing the broadcast would
-\t\t\t\t\t// lose real-time content instead of buying accuracy.
-\t\t\t\t\tconst qint64 maxHold=hold.value(QStringLiteral("maxHoldMs"),90000).toLongLong();
-\t\t\t\t\tconst int queued=obj.value(QLatin1String("queued")).toInt(0);
-\t\t\t\t\tconst bool analysing=obj.value(QLatin1String("analysing")).toBool();
-\t\t\t\t\tconst bool behind=queued>0 || analysing;
-\t\t\t\t\tif(behind) {
-\t\t\t\t\t\tif(tihuluCaptionHoldStart_<=0) tihuluCaptionHoldStart_=now;
-\t\t\t\t\t\tif(getPlaybackStatus()==MediaWidget::Playing) {
-\t\t\t\t\t\t\ttogglePause();
-\t\t\t\t\t\t\ttihuluCaptionHeldUs_=true;
+\t\t\t// BUFFER ANALYSIS (offline files): freeze playback for the live
+\t\t\t// window the caption service is configured with, then resume at the
+\t\t\t// same position once that window has actually been analysed. This is
+\t\t\t// the same behaviour as live TV, where captions buffer before they are
+\t\t\t// readable, and it runs for EVERY entry point that started the service:
+\t\t\t// the panel button, the transport-bar Whisper button and the AI menu.
+\t\t\t// The hold is entered once per caption session and is always bounded.
+\t\t\tif(source->getType()!=MediaSource::Dvb) {
+\t\t\t\tconst bool ready=obj.value(QLatin1String("buffer_ready")).toBool();
+\t\t\t\tqint64 windowMs=obj.value(QLatin1String("buffer_seconds")).toInt(8)*1000;
+\t\t\t\twindowMs=qBound(qint64(2000),windowMs,qint64(60000));
+\t\t\t\tif(!tihuluBufferSessionDone_ && getPlaybackStatus()==MediaWidget::Playing) {
+\t\t\t\t\t// Freeze at the analysis position. The service keeps reading the
+\t\t\t\t\t// file while paused, so Whisper has real audio to work with.
+\t\t\t\t\ttihuluBufferHoldStart_=now;
+\t\t\t\t\ttihuluBufferHolding_=true;
+\t\t\t\t\ttihuluBufferHoldPos_=getPosition();
+\t\t\t\t\ttogglePause();
+\t\t\t\t}
+\t\t\t\tif(tihuluBufferHolding_) {
+\t\t\t\t\tconst bool timedOut=tihuluBufferHoldStart_>0 &&
+\t\t\t\t\t(now-tihuluBufferHoldStart_)>=windowMs;
+\t\t\t\t\tif(ready || timedOut) {
+\t\t\t\t\t\t// Resume from the frozen position: MediaSource::replay() is a
+\t\t\t\t\t\t// no-op for local files, so seek back explicitly.
+\t\t\t\t\t\ttihuluBufferHolding_=false;
+\t\t\t\t\t\ttihuluBufferHoldStart_=0;
+\t\t\t\t\t\ttihuluBufferSessionDone_=true;
+\t\t\t\t\t\tif(getPlaybackStatus()!=MediaWidget::Playing) {
+\t\t\t\t\t\t\tplay(source->getType()==MediaSource::Url ? source->getUrl() : QUrl());
+\t\t\t\t\t\t\tif(tihuluBufferHoldPos_>0)setPosition(tihuluBufferHoldPos_);
+\t\t\t\t\t\t\ttihuluBufferHoldPos_=0;
 \t\t\t\t\t\t}
-\t\t\t\t\t\tif(tihuluCaptionHoldStart_>0 && now-tihuluCaptionHoldStart_>maxHold) {
-\t\t\t\t\t\t\tif(tihuluCaptionHeldUs_ && getPlaybackStatus()==MediaWidget::Paused)
-\t\t\t\t\t\t\t\ttogglePause();
-\t\t\t\t\t\t\ttihuluCaptionHeldUs_=false;
-\t\t\t\t\t\t\ttihuluCaptionHoldStart_=0;
-\t\t\t\t\t\t}
-\t\t\t\t\t} else {
-\t\t\t\t\t\ttihuluCaptionHoldStart_=0;
-\t\t\t\t\t\tif(tihuluCaptionHeldUs_ && getPlaybackStatus()==MediaWidget::Paused)
-\t\t\t\t\t\t\ttogglePause();
-\t\t\t\t\t\ttihuluCaptionHeldUs_=false;
 \t\t\t\t\t}
 \t\t\t\t}
 \t\t\t}
