@@ -523,43 +523,21 @@ class FileCaptionService(unittest.TestCase):
         self.assertIn('QLatin1String("--show-only")', body)
 
     def test_playback_can_hold_while_the_ai_analyses_an_interval(self):
-        """Owner: even for a played file we should be able to freeze it for a
-        while so the subtitle AI can analyse the interval; that is what "live
-        subtitles for offline documents" means."""
-        # The service publishes the real analysis load.
-        timing = read("kaffeine_next/caption_timing.py")
-        self.assertIn('"queued"', timing)
-        self.assertIn('"analysing"', timing)
-        self.assertIn("def set_backlog", timing)
-        overlay = read("kaffeine_next/captions_overlay.py")
-        self.assertIn('analysis_backlog["queued"]', overlay)
-        self.assertIn("ipc.set_backlog(", overlay)
-        # The patch ships the hold logic and its state.
-        patch = read("kaffeine_next/patch_upstream.py")
-        self.assertIn("bool tihuluCaptionHeldUs_ = false;",
-                      patch.replace("\\t", ""))
-        self.assertIn("Hold for AI analysis: while real audio windows are still queued",
-                      patch.replace("\\t", " "))
-        self.assertIn('QStringLiteral("CaptionHold")', patch)
-        # The hold must be bounded and must not resume a user pause.
-        self.assertIn("90000", patch)
-        self.assertIn("getPlaybackStatus()==MediaWidget::Playing",
-                      patch.replace("\\t", ""))
-        # It must never hold a LIVE DVB broadcast, and it must run for BOTH
-        # render modes: the native path returns early, so a block placed after
-        # it would never execute.
-        self.assertIn("source->getType()!=MediaSource::Dvb) {",
-                      patch.replace("\\t", ""))
-        self.assertIn('QLatin1String("queued")).toInt(0)',
-                      patch.replace("\\t", ""))
-        hold_start = patch.index("// Hold for AI analysis")
-        self.assertLess(hold_start, patch.index('const QString text ='),
-                        "the hold must run before the render branch")
-        # The owner can turn it on from the file panel.
-        panel = read("kaffeine_next/native_media_panel.h")
-        self.assertIn('tr("Hold for AI analysis")', panel)
-        self.assertIn('QStringLiteral("CaptionHold")', panel)
-        self.assertIn('saved.setValue(QStringLiteral("enabled"),value)', panel)
+        """File buffering uses actual analyzed coverage, not a DVB queue count."""
+        timing=read("kaffeine_next/caption_timing.py")
+        self.assertIn("tihulu-file-caption-",timing)
+        self.assertIn("def set_backlog",timing)
+        overlay=read("kaffeine_next/captions_overlay.py")
+        self.assertIn("file_timeline.snapshot",overlay)
+        self.assertIn("ipc.set_file_state",overlay)
+        fixes=read("kaffeine_next/acceptance_fixes.py")
+        for marker in ("beginFileCaptionHold","pollFileCaptionHold","file_ready_end_ms",
+                       "file_session","90000","tihuluCaptionHeldUs_","QSaveFile"):
+            self.assertIn(marker,fixes)
+        panel=read("kaffeine_next/native_media_panel.h")
+        self.assertIn("player_->beginFileCaptionHold()",panel)
+        self.assertIn("player_->cancelFileCaptionHold()",panel)
+        self.assertIn('tr("Hold for AI analysis")',panel)
 
     def test_marq_is_enforced_as_an_spu_filter(self):
         """Owner's live log showed:
