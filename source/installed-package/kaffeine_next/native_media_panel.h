@@ -393,7 +393,7 @@ private:
             if(elapsed >= analysisTimeoutMs_) {
                 waitForAnalysis_ = false;
                 if(player_->getPlaybackStatus()!=MediaWidget::Playing) {
-                    player_->play();
+                    player_->play(QUrl::fromLocalFile(path_));
                 }
             }
         }
