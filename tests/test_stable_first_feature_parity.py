@@ -252,11 +252,19 @@ class ModelAndLocalMediaParity(unittest.TestCase):
         src = read(LOCAL_MEDIA)
         # The option was reworded and the panel now selects the caption service by
         # media type (video -> TV, audio -> Radio); the gate is unchanged.
+        # The language preset is only that: a preset. Every caption setting,
+        # including appearance, lives in the one shared caption window.
         self.assertIn("Transcribe before opening a file", src)
         self.assertIn('"transcribeBeforeOpen"', src)
         self.assertIn("prepareLocalFileOpen", src)
-        self.assertIn("TV caption service", src)
-        self.assertIn("Radio caption service", src)
+        self.assertIn("TV language preset", src)
+        self.assertIn("Radio language preset", src)
+        self.assertIn("kaffeine-captions-file", src)
+        self.assertIn('"--show-only")', src.replace('QStringLiteral("--show-only")', '"--show-only")'))
+        # No second settings system in the panel.
+        for duplicate in ("tihuluFileReading", "tihuluFileSpeakers",
+                          "CaptionOverlay"):
+            self.assertNotIn(duplicate, src)
 
 
 if __name__ == "__main__":
