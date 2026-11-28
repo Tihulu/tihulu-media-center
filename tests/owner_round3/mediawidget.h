@@ -18,11 +18,22 @@ public:
         bool handled=false;emit fileOpenRequested(url,&handled);if(handled)return;
         current=url;emit sourceOpened(url);state=Playing;position=0;
     }
-    bool nativeSubtitleActive=false;
-    QString nativeSubtitleText;
-    void tihuluShowFileSubtitle(bool active,const QString &text) {
-        nativeSubtitleActive=active;nativeSubtitleText=text;
+    MediaWidget::PlaybackStatus reportedPlaybackStatus() const {return state;}
+    // The player performs the buffer-analysis freeze. This stub mirrors the
+    // contract the panel relies on: enabling the hold freezes Playing
+    // playback at its current position, and disabling it resumes from there.
+    // MediaSource::replay() is a no-op for local files, so the position is
+    // restored with an explicit seek in the real player.
+    bool holdEnabled=true;
+    void tihuluSetFileCaptionHold(bool enabled) {
+        if(enabled) {
+            if(state==Playing) {state=Paused;heldByCaptionHold=true;}
+        } else if(heldByCaptionHold && state==Paused) {
+            state=Playing;heldByCaptionHold=false;
+        }
+        holdEnabled=enabled;
     }
+    bool heldByCaptionHold=false;
     QString tihuluLocalMediaPath() const {return current.toLocalFile();}
     void setSubtitle(const QUrl &url) {bool handled=false;emit subtitleOpened(url,&handled);}
     // Real Kaffeine mediawidget.h: play() replays the current media, pause is

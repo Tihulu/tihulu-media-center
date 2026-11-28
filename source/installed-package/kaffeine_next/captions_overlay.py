@@ -3984,6 +3984,15 @@ def main(argv=None):
                 translated.setText("")
             ipc.set_backlog(analysis_backlog["queued"],
                             analysis_backlog["analysing"])
+            # The player's start-of-playback freeze needs the real window and
+            # whether one window has already been analysed.
+            try:
+                ipc.set_buffer_state(
+                    file_window if str(file_window).isdigit() else 8,
+                    bool(file_media and tap.file_last_end is not None
+                         and last_cue_shown_at))
+            except (TypeError, ValueError):
+                pass
             ipc.publish(current_text,applied,ttl_ms=3000)
             last_published = now
         elif current_cue and now >= current_until + 1.0:

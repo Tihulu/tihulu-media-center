@@ -83,37 +83,37 @@ private slots:
         QTest::qWait(400);QCOMPARE(player.state,MediaWidget::Idle);QVERIFY(run->isEnabled());
         QVERIFY(!QFile::exists(dir.filePath("drop.srt")));
     }
-    void liveBufferHoldsAndSrtUsesTheFrozenMediaPosition() {
-        QTemporaryDir dir;QFile file(dir.filePath("stay.mkv"));QVERIFY(file.open(QIODevice::WriteOnly));file.write("fixture");file.close();
+    void captionOptionsOpensTheSharedCaptionWindowForTheFile() {
+        QTemporaryDir dir;qputenv("TIHULU_TEST_WORK",dir.path().toUtf8());
+        QFile video(dir.filePath("clip.mkv"));QVERIFY(video.open(QIODevice::WriteOnly));video.write("fixture");video.close();
         MediaWidget player;TihuluMediaPanel panel(&player);player.show();panel.show();
         auto *source=panel.findChild<QComboBox *>("captionInputLanguage");QTRY_VERIFY_WITH_TIMEOUT(source->count()>1,3000);
-        auto *window=panel.findChild<QSpinBox *>("tihuluFileBuffer");QVERIFY(window);window->setValue(2);
-        player.play(QUrl::fromLocalFile(file.fileName()));player.position=12300;
-        QSignalSpy reopened(&player,&MediaWidget::sourceOpened);
-        QLabel *strip=player.findChild<QLabel *>("tihuluFileCaptionStrip");QVERIFY(strip);
-        QComboBox *overlay=nullptr;for(auto *box:panel.findChildren<QComboBox*>())if(box->findData("compact")>=0)overlay=box;
-        QVERIFY(overlay);overlay->setCurrentIndex(overlay->findData("off"));
-        emit player.tihuluFileCaptionsRequested(); // shared Whisper transport entry
-        QCOMPARE(player.state,MediaWidget::Paused);
-        QTRY_VERIFY_WITH_TIMEOUT(panel.liveSrt().contains("[TR] fixture translation"),1700);
-        QCOMPARE(player.state,MediaWidget::Paused); // real reply must not shorten the configured hold
-        QCOMPARE(player.position,12300);
-        QVERIFY(strip->isHidden()); // overlay is not required for worker or SRT
-        QVERIFY(panel.liveSrt().contains("00:00:12,300 --> 00:00:20,300"));
-        QTRY_COMPARE_WITH_TIMEOUT(player.state,MediaWidget::Playing,3500);
-        QCOMPARE(reopened.count(),0);QCOMPARE(player.position,12300);
-        overlay->setCurrentIndex(overlay->findData("compact"));
-        QTRY_VERIFY(strip->text().contains("[TR] fixture translation"));
-        overlay->setCurrentIndex(overlay->findData("video"));
-        QTRY_VERIFY(player.nativeSubtitleActive && player.nativeSubtitleText.contains("[TR] fixture translation"));
-        QVERIFY(strip->isHidden());
-        overlay->setCurrentIndex(overlay->findData("off"));
-        QTRY_VERIFY(!player.nativeSubtitleActive && player.nativeSubtitleText.isEmpty());
-        overlay->setCurrentIndex(overlay->findData("video"));
-        QTRY_VERIFY(player.nativeSubtitleActive);
-        player.stop();QTRY_VERIFY(strip->isHidden());
-        QVERIFY(!player.nativeSubtitleActive && player.nativeSubtitleText.isEmpty());
-        QVERIFY(panel.liveSrt().contains("00:00:12,300")); // still exportable after Stop
+        auto *buffer=panel.findChild<QSpinBox *>("tihuluFileBuffer");QVERIFY(buffer);buffer->setValue(5);
+        player.play(QUrl::fromLocalFile(video.fileName()));
+        QPushButton *live=nullptr;for(auto *b:panel.findChildren<QPushButton *>())if(b->objectName()=="tihuluStartFileCaptions")live=b;
+        QVERIFY(live);live->click();
+        QFile argv(dir.filePath("argv.txt"));
+        QTRY_VERIFY_WITH_TIMEOUT(argv.exists(),3000);
+        QVERIFY(argv.open(QIODevice::ReadOnly));const auto args=QString::fromUtf8(argv.readAll());
+        QVERIFY(args.contains("kaffeine-captions-file"));
+        QVERIFY(args.contains("--file "));QVERIFY(args.contains("--window 5"));
+        // No second settings system: reading/appearance live in the window.
+        QVERIFY(!panel.findChild<QComboBox *>("tihuluFileReading"));
+        QVERIFY(!panel.findChild<QComboBox *>("tihuluFileSpeakers"));
+    }
+    void bufferHoldFreezesPlaybackUntilTheServiceHasAnalysedAWindow() {
+        QTemporaryDir dir;QFile video(dir.filePath("clip2.mkv"));QVERIFY(video.open(QIODevice::WriteOnly));video.write("fixture");video.close();
+        MediaWidget player;TihuluMediaPanel panel(&player);player.show();panel.show();
+        auto *source=panel.findChild<QComboBox *>("captionInputLanguage");QTRY_VERIFY_WITH_TIMEOUT(source->count()>1,3000);
+        player.play(QUrl::fromLocalFile(video.fileName()));player.position=4200;
+        // The player, not the panel, performs the freeze: every entry point
+        // that opened the caption window gets the same behaviour.
+        player.tihuluSetFileCaptionHold(true);
+        QCOMPARE(player.reportedPlaybackStatus(),MediaWidget::Paused);
+        QCOMPARE(player.position,4200);            // nothing re-opened
+        player.tihuluSetFileCaptionHold(false);     // service stopped
+        QTRY_COMPARE_WITH_TIMEOUT(player.reportedPlaybackStatus(),MediaWidget::Playing,2000);
+        QCOMPARE(player.position,4200);
     }
     void fileTypeSelectsTvOrRadioServiceAndCanBeOverridden() {
         QTemporaryDir dir;QFile audio(dir.filePath("song.wav"));QVERIFY(audio.open(QIODevice::WriteOnly));audio.write("fixture");audio.close();
@@ -155,21 +155,20 @@ private slots:
         QFile audio(dir.filePath("song2.wav"));QVERIFY(audio.open(QIODevice::WriteOnly));audio.write("fixture");audio.close();
         MediaWidget player;TihuluMediaPanel panel(&player);player.show();panel.show();
         auto *source=panel.findChild<QComboBox *>("captionInputLanguage");QTRY_VERIFY_WITH_TIMEOUT(source->count()>1,3000);
-        auto *window=panel.findChild<QSpinBox *>("tihuluFileBuffer");QVERIFY(window);window->setValue(12);
+        auto *buffer=panel.findChild<QSpinBox *>("tihuluFileBuffer");QVERIFY(buffer);buffer->setValue(12);
         player.play(QUrl::fromLocalFile(audio.fileName()));
-        auto *reading=panel.findChild<QComboBox *>("tihuluFileReading");QVERIFY(reading);
-        reading->setCurrentIndex(reading->findData("relaxed"));
-        auto *speakers=panel.findChild<QComboBox *>("tihuluFileSpeakers");QVERIFY(speakers);
-        speakers->setCurrentIndex(speakers->findData("resemblyzer"));
         QPushButton *live=nullptr;for(auto *button:panel.findChildren<QPushButton *>())if(button->objectName()=="tihuluStartFileCaptions")live=button;
         QVERIFY(live);live->click();
         QFile argv(dir.filePath("argv.txt"));
         QTRY_VERIFY_WITH_TIMEOUT(argv.exists(),3000);
         QVERIFY(argv.open(QIODevice::ReadOnly));const auto args=QString::fromUtf8(argv.readAll());
-        QVERIFY(args.contains("media-captions"));QVERIFY(args.contains("--input "));QVERIFY(args.contains("--live"));
-        QVERIFY(args.contains("--source "));QVERIFY(args.contains("--targets "));QVERIFY(args.contains("--window 12"));
-        QVERIFY(args.contains("--reading relaxed"));QVERIFY(args.contains("--speaker-provider resemblyzer"));
-        // Seeking must not move the player or kill the caption service.
+        // The full caption window, started exactly like the TV menu: detached,
+        // on the file socket, with this file and the chosen buffer window.
+        QVERIFY(args.contains("kaffeine-captions-file"));
+        QVERIFY(args.contains("--file "));QVERIFY(args.contains("--window 12"));
+        QVERIFY(args.contains("tihulu-file-"));       // file socket, never the TV one
+        QVERIFY(!args.contains("--live"));            // the window reads the player clock
+        // Seeking must not move the player or kill the caption session.
         player.position=20000;QTest::qWait(300);QCOMPARE(player.position,20000);
         QPushButton *cancel=nullptr;for(auto *button:panel.findChildren<QPushButton *>())if(button->text()=="Stop AI")cancel=button;
         QVERIFY(cancel);QVERIFY(cancel->isEnabled());

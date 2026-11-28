@@ -1561,25 +1561,26 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
            '''\tQString textSubtitlesOff;
 \t// AI live subtitle is a virtual, user-selectable DVB track in Kaffeine.
 \t// Broadcast Teletext/DVB tracks remain owned by their original providers.
-\tbool tihuluFileSubtitleActive = false;
+\t// Buffer-analysis hold for offline files, one freeze per caption session.
+\tbool tihuluFileCaptionHoldEnabled = true;
+\tbool tihuluBufferHolding_ = false;
+\tqint64 tihuluBufferHoldStart_ = 0;
+\tbool tihuluBufferSessionDone_ = false;
 \tbool tihuluAiCaptionAvailable = false;
 \tbool tihuluAiCaptionSelected = false;
 \tbool tihuluAiCaptionUserOverride = false;''')
     change(mediah, '\tvoid setSubtitle(QUrl text);',
            '\tvoid setSubtitle(QUrl text);\n'
-           '\tvoid tihuluShowFileSubtitle(bool active, const QString &text);')
+           '\tvoid tihuluSetFileCaptionHold(bool enabled);')
     mediac = "src/mediawidget.cpp"
     change(mediac, 'void MediaWidget::currentSubtitleChanged(int currentSubtitle)',
-           '''void MediaWidget::tihuluShowFileSubtitle(bool active, const QString &text)
+           '''void MediaWidget::tihuluSetFileCaptionHold(bool enabled)
 {
-\tif (!active && !tihuluFileSubtitleActive) return;
-\ttihuluFileSubtitleActive = active;
-\ttihuluCaptionWidget->hideCaption();
-\t// Render on VLC's video surface, not in a layout widget. Zero backing
-\t// opacity uses the text-only marquee rather than the caption logo.
-\tif (auto *vlc = qobject_cast<VlcMediaWidget *>(backend))
-\t\tvlc->setTihuluNativeCaption(active ? text : QString(),false,26,100,
-\t\t\tQLatin1String("#FFFFFF"),0);
+\ttihuluFileCaptionHoldEnabled = enabled;
+\tif (!enabled) {
+\t\ttihuluBufferHolding_=false;
+\t\ttihuluBufferHoldStart_=0;
+\t}
 }
 
 void MediaWidget::currentSubtitleChanged(int currentSubtitle)''')
@@ -1658,8 +1659,6 @@ void MediaWidget::currentSubtitleChanged(int currentSubtitle)''')
 \t\t// Resist transient missing/partially written caption IPC files.
 \t\tQSharedPointer<qint64> lastValidMs(new qint64(0));
 \t\tconnect(captionPoll, &QTimer::timeout, this, [this, captionPath, lastValidMs]() {
-\t\t\t// File Playback drives the same renderer from its own media clock.
-\t\t\tif (tihuluFileSubtitleActive) return;
 \t\t\tauto clearCaption = [this]() {
 \t\t\t\ttihuluCaptionWidget->hideCaption();
 \t\t\t\tif (auto *vlc = qobject_cast<VlcMediaWidget *>(backend))
@@ -1762,6 +1761,42 @@ void MediaWidget::currentSubtitleChanged(int currentSubtitle)''')
 \t\t\tif (!tihuluAiCaptionSelected) {
 \t\t\t\tclearCaption();
 \t\t\t\treturn;
+\t\t\t}
+\t\t\t// BUFFER ANALYSIS (offline files): playback freezes while the caption
+\t\t\t// service is still analysing the first live window, then resumes at the
+\t\t\t// same position, as live TV does. It runs for EVERY entry point that
+\t\t\t// opened the caption window: the panel button, the Whisper button and
+\t\t\t// the TIHULU AI menu. Live DVB is never held.
+\t\t\tif(source->getType()!=MediaSource::Dvb && tihuluFileCaptionHoldEnabled &&
+\t\t\t\t!tihuluBufferSessionDone_) {
+\t\t\t\tconst bool ready=obj.value(QLatin1String("buffer_ready")).toBool();
+\t\t\t\tqint64 windowMs=obj.value(QLatin1String("buffer_seconds")).toInt(8)*1000;
+\t\t\t\twindowMs=qBound(qint64(2000),windowMs,qint64(60000));
+\t\t\t\t\t// togglePause() is a queued action: the backend still reports Playing
+\t\t\t\t\t// until the next event-loop turn, so releasing in the SAME tick as
+\t\t\t\t\t// the freeze would skip the resume and leave the video frozen.
+\t\t\t\t\tconst bool justFroze=(tihuluBufferHoldStart_==now);
+\t\t\t\tif(getPlaybackStatus()==MediaWidget::Playing) {
+\t\t\t\t\ttihuluBufferHoldStart_=now;
+\t\t\t\t\ttihuluBufferHolding_=true;
+\t\t\t\t\ttogglePause();
+\t\t\t\t}
+\t\t\t\tif(tihuluBufferHolding_ && !justFroze) {
+\t\t\t\t\tconst bool timedOut=tihuluBufferHoldStart_>0 &&
+\t\t\t\t\t\t(now-tihuluBufferHoldStart_)>=windowMs;
+\t\t\t\t\tif(ready || timedOut) {
+\t\t\t\t\t\t// MediaSource::replay() is a no-op for local files, so the
+\t\t\t\t\t\t// frozen position is restored with an explicit seek.
+\t\t\t\t\t\ttihuluBufferHolding_=false;
+\t\t\t\t\t\ttihuluBufferHoldStart_=0;
+\t\t\t\t\t\ttihuluBufferSessionDone_=true;
+\t\t\t\t\t\t// Resume with the SAME action that froze playback. Re-opening
+\t\t\t\t\t\t// the file would move the playhead to zero and re-trigger the
+\t\t\t\t\t\t// panel's new-source handling, so the frozen position is kept
+\t\t\t\t\t\t// by simply unpausing instead.
+\t\t\t\t\t\tif(getPlaybackStatus()!=MediaWidget::Playing)togglePause();
+\t\t\t\t\t}
+\t\t\t\t}
 \t\t\t}
 \t\t\tconst QString text = obj.value(QLatin1String("text")).toString();
 \t\t\tconst QString renderMode = obj.value(QLatin1String("render_mode"))

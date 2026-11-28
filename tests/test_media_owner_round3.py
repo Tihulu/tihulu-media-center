@@ -567,13 +567,33 @@ class FileCaptionService(unittest.TestCase):
         # Focusing an already-running service still uses --show-only.
         self.assertIn('QLatin1String("--show-only")', body)
 
-    def test_buffer_control_is_independent_of_the_overlay_and_shared_by_entry_points(self):
+    def test_caption_options_opens_the_shared_window_and_the_player_holds_the_buffer(self):
+        """Playback has ONE caption tool: the full caption window. It owns
+        languages, appearance, reading and voice separation, so the panel must
+        not keep a second, reduced set of those settings."""
         panel = read("kaffeine_next/native_media_panel.h")
-        self.assertIn("&MediaWidget::tihuluFileCaptionsRequested,this,[this](){startLive();}", panel)
-        self.assertIn("&QPushButton::clicked,this,[this](){startLive();}", panel)
-        self.assertIn("holdClock_.elapsed()>=windowMs_ && covered", panel)
-        self.assertNotIn("tihuluBufferHolding_", read("kaffeine_next/patch_upstream.py"))
-        self.assertIn("emit mediaWidget->tihuluFileCaptionsRequested()", read("kaffeine_next/acceptance_fixes.py"))
+        # Opening the window is the only live entry point, and it is shared by
+        # the panel button and the transport-bar Whisper button.
+        self.assertIn('QStringLiteral("kaffeine-captions-file")',panel)
+        self.assertIn('QStringLiteral("--window")',panel)
+        self.assertIn("&MediaWidget::tihuluFileCaptionsRequested,this,[this](){startLive();}",panel)
+        # No duplicated settings system in the panel.
+        for gone in ("tihuluFileReading","tihuluFileSpeakers","overlayMode_",
+                     "reading_","speakers_","saveLive_"):
+            self.assertNotIn(gone,panel)
+        # The player performs the freeze, so every entry point gets it.
+        patch = read("kaffeine_next/patch_upstream.py")
+        self.assertIn("BUFFER ANALYSIS (offline files)",patch)
+        self.assertIn('obj.value(QLatin1String("buffer_ready")).toBool()',patch)
+        self.assertIn("qBound(qint64(2000),windowMs,qint64(60000))",patch)
+        self.assertIn("if(getPlaybackStatus()!=MediaWidget::Playing)togglePause();",patch)
+        # The service publishes the real window and its readiness.
+        timing = read("kaffeine_next/caption_timing.py")
+        self.assertIn('"buffer_seconds"',timing)
+        self.assertIn('"buffer_ready"',timing)
+        self.assertIn("def set_buffer_state",timing)
+        overlay = read("kaffeine_next/captions_overlay.py")
+        self.assertIn("ipc.set_buffer_state(",overlay)
 
     def test_marq_is_enforced_as_an_spu_filter(self):
         """Owner's live log showed:
@@ -651,15 +671,22 @@ class FileCaptionService(unittest.TestCase):
         self.assertIn("Offline radio AI sidecar could not start · retrying",
                       code)
 
-    def test_panel_launches_the_file_worker_not_the_tv_controller(self):
+    def test_panel_opens_the_shared_caption_window_not_a_second_worker(self):
+        """Local playback has ONE caption tool: the full caption window. It owns
+        languages, appearance, reading and voice separation, so the panel must
+        not run a reduced second copy of them."""
         code=read("kaffeine_next/native_media_panel.h")
-        self.assertIn('QStringLiteral("media-captions"),QStringLiteral("--input"),path_',code)
-        self.assertIn('if(live)args<<QStringLiteral("--live")',code)
-        self.assertNotIn('QStringLiteral("kaffeine-captions")',code)
+        self.assertIn('QStringLiteral("kaffeine-captions-file")',code)
+        self.assertIn('QStringLiteral("--window")',code)
+        self.assertIn('QStringLiteral("--show-only")',code)   # focus, never a 2nd service
+        self.assertNotIn('QStringLiteral("--live")',code)
+        self.assertNotIn('QStringLiteral("--reading")',code)
+        self.assertNotIn('QStringLiteral("--speaker-provider")',code)
+        for gone in ("tihuluFileReading","tihuluFileSpeakers","saveLive_"):
+            self.assertNotIn(gone,code)
         recorder=read("kaffeine_next/native_unified_recorder.h")
         self.assertIn('QLatin1String("kaffeine-captions"),',recorder)
         self.assertIn('QLatin1String("/tihulu-dvb-")',recorder)
-
 
 class DefaultsAndCache(unittest.TestCase):
     def test_installed_model_is_found_without_enabling_ai(self):
@@ -888,7 +915,7 @@ else:
             def run(args,timeout=45):
                 p=subprocess.run(args,cwd=work,env=env,text=True,capture_output=True,timeout=timeout)
                 self.assertEqual(p.returncode,0,(p.stdout+p.stderr)[-6000:]);return p
-            flags=run(["/usr/bin/pkg-config","--cflags","--libs","Qt5Widgets","Qt5Test"]).stdout.split()
+            flags=run(["/usr/bin/pkg-config","--cflags","--libs","Qt5Widgets","Qt5Network","Qt5Test"]).stdout.split()
             run(["/usr/lib/qt5/bin/moc","mediawidget.h","-o","moc_mediawidget.cpp"])
             run(["/usr/lib/qt5/bin/moc","native.cpp","-o","native.moc"])
             run(["/usr/bin/c++","-std=c++17","-fPIC","-I.","native.cpp","moc_mediawidget.cpp","-o","native-test",*flags],timeout=90)
